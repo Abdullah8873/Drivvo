@@ -160,6 +160,20 @@ a polymorphic table stored in Supabase Storage. Sharing uses `vehicle_members(ve
    `--dart-define`/env file, never committed; the service-role key never ships in the app.
    User must: create the Supabase project, create Google OAuth clients (Android + Web) in Google Cloud
    Console, and enable the Google provider in Supabase.
+   **Carried over from the 2026-09-24 self-review (must be done in M7):** reminder notifications
+   (flutter_local_notifications) honouring the Settings notification time/toggles/vibrate — the
+   settings exist but nothing fires yet; language setting wired to `MaterialApp.locale` with gen-l10n;
+   achievement events in the History timeline ("Completed 1 year of tracking this vehicle").
+   **From Drivvo user-review research (2026-09-24)** — keep what users love, fix what they hate:
+   - Already covered: no ads, no paywall, no forced account (login optional), fast single-screen forms,
+     unlimited custom catalogs (service/expense types, fuels, places), free-text origin/destination,
+     reminders + upcoming strip, multi-vehicle, "Discard changes?" guard (users lost data on back).
+   - To do: never silently round/alter typed numbers (store exactly what was typed; format only on
+     display); receipt **photo attachments free** on every record (M6 storage + local-only fallback);
+     **free CSV/Excel/PDF export and a one-tap local backup/restore file** (M7) so data can never be
+     lost; optional odometer on refuels (consumption only uses refuels that have one); optional
+     part number / brand field on service items; fuel-economy trend chart vs your own history (M5);
+     later/optional: GPS automatic trip tracking for mileage reports (L effort).
 7. **Extras (parallel)**: checklists and form builder, export (CSV/Excel/PDF) + CSV import, My places map, Flex calculator, Achievements, dark theme, i18n.
 8. **Ship**: Android APK on the phone, web deploy (Firebase Hosting/Vercel), optional iOS via Codemagic.
 

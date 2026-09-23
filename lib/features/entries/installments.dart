@@ -33,9 +33,15 @@ class InstallmentShare {
 
 /// Pure installment math (no Flutter, no database) so it can be unit-tested.
 ///
-/// Splits [total], [discount] and every entry of [itemAmounts] into [count]
-/// equal parts (the cent remainder goes on the first installment, so every
-/// column still adds up exactly) and spaces the dates by [interval].
+/// Splits [discount] and every entry of [itemAmounts] into [count] equal
+/// parts (the cent remainder goes on the first installment, so every column
+/// still adds up exactly) and spaces the dates by [interval].
+///
+/// Each installment's total is *derived* from its own share: its items minus
+/// its discount share. Splitting the total separately would round
+/// differently (items 100 + 50 in 3 → items 50.02 but total 50.00), so a
+/// row's lines wouldn't add up to its total. [total] is only split directly
+/// when there are no [itemAmounts].
 List<InstallmentShare> planInstallments({
   required DateTime firstDate,
   required int count,
@@ -45,9 +51,17 @@ List<InstallmentShare> planInstallments({
   List<double> itemAmounts = const [],
 }) {
   final dates = installmentDates(firstDate, count, interval);
-  final totals = splitAmount(total, count);
   final discounts = splitAmount(discount, count);
   final items = [for (final a in itemAmounts) splitAmount(a, count)];
+  int cents(double v) => (v * 100).round();
+  final totals = items.isEmpty
+      ? splitAmount(total, count)
+      : [
+          for (var i = 0; i < count; i++)
+            (items.fold(0, (c, split) => c + cents(split[i])) -
+                    cents(discounts[i])) /
+                100,
+        ];
   return [
     for (var i = 0; i < count; i++)
       InstallmentShare(

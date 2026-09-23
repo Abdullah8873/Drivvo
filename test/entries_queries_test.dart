@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:motolog/core/db/app_database.dart';
 import 'package:motolog/features/entries/entry_queries.dart';
@@ -88,6 +89,71 @@ void main() {
     expect(rows, hasLength(2));
     expect(rows.map((r) => r.groupId).toSet(), {parentId});
     expect(rows.fold(0.0, (s, r) => s + r.entry.totalCost), 2000);
+  });
+
+  test('editing a group whose parent row was deleted restores it', () async {
+    final parentId = await db.saveEntry(draft(installments: 3));
+    await (db.update(db.entries)..where((e) => e.id.equals(parentId))).write(
+      EntriesCompanion(deletedAt: Value(DateTime.now())),
+    );
+    final child = (await db.watchEntries(vehicleId).first).first.entry;
+    expect(child.parentId, parentId);
+
+    await db.saveEntry(draft(installments: 3), id: child.id);
+    final rows = (await db.watchEntries(vehicleId).first).reversed.toList();
+    expect(rows, hasLength(3));
+    expect(rows.first.entry.id, parentId);
+    expect(rows.first.items, hasLength(2));
+    expect(rows.map((r) => r.groupId).toSet(), {parentId});
+    expect(rows.fold(0.0, (s, r) => s + r.entry.totalCost), 2000);
+  });
+
+  test('editing keeps two lines of the same type apart', () async {
+    final oil = types['Oil Change']!;
+    final id = await db.saveEntry(
+      EntryDraft(
+        vehicleId: vehicleId,
+        kind: EntryKind.service,
+        date: DateTime(2026, 9, 1),
+        installments: 2,
+        items: [
+          EntryItemDraft(typeId: oil, amount: 1200),
+          EntryItemDraft(typeId: types['Air Filter']!, amount: 800),
+          EntryItemDraft(typeId: oil, amount: 300),
+        ],
+      ),
+    );
+    final loaded = (await db.loadEditableEntry(id))!;
+    expect(loaded.draft.items.map((i) => (i.typeId, i.amount)), [
+      (oil, 1200),
+      (types['Air Filter']!, 800),
+      (oil, 300),
+    ]);
+    expect(loaded.draft.items.last.typeName, 'Oil Change');
+  });
+
+  test('every saved installment row adds up to its total', () async {
+    await db.saveEntry(
+      EntryDraft(
+        vehicleId: vehicleId,
+        kind: EntryKind.service,
+        date: DateTime(2026, 9, 1),
+        installments: 3,
+        items: [
+          EntryItemDraft(typeId: types['Oil Change']!, amount: 100),
+          EntryItemDraft(typeId: types['Air Filter']!, amount: 50),
+        ],
+      ),
+    );
+    final rows = await db.watchEntries(vehicleId).first;
+    for (final r in rows) {
+      expect(
+        (r.itemsTotal * 100).round() - ((r.entry.discount ?? 0) * 100).round(),
+        (r.entry.totalCost * 100).round(),
+      );
+    }
+    final grand = rows.fold(0, (c, r) => c + (r.entry.totalCost * 100).round());
+    expect(grand, 15000);
   });
 
   test('deleting any installment soft-deletes the group', () async {

@@ -3,7 +3,7 @@
 Personal vehicle expense & maintenance tracker (fuel, expenses, services, income,
 routes, reminders, reports) — a free, self-built take on the Drivvo app, with
 all of Drivvo's paid features included. Flutter app for Android, iOS, Web
-(and Windows). Placeholder name "MotoLog"; never use Drivvo's name, logo or
+(and Windows). App name: "MotoLog" (confirmed by the owner). Never use Drivvo's name, logo or
 artwork inside the app.
 
 The owner is a web developer learning mobile: when explaining work, map

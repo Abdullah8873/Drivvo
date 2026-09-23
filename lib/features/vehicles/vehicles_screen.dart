@@ -24,7 +24,9 @@ class VehiclesScreen extends ConsumerWidget {
             ? Center(
                 child: Text(
                   'No vehicles yet. Tap + to add one.',
-                  style: TextStyle(color: Colors.grey.shade700),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               )
             : ListView.separated(

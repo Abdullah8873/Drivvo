@@ -106,6 +106,8 @@ class ConsumptionStats {
   ///   tank up to and including the second (partial fills accumulate).
   /// - A refuel flagged "missed previous refueling" breaks the chain: that
   ///   cycle is discarded and (if full) it becomes the new baseline.
+  /// - A full tank whose odometer isn't past the baseline is rejected and
+  ///   isn't used as a baseline either; the next full tank becomes it.
   /// - [position] decides whether a cycle shows on the refuel that starts it
   ///   (Drivvo's default) or the one that closes it.
   factory ConsumptionStats.compute(
@@ -150,7 +152,10 @@ class ConsumptionStats {
         final owner = position == EconomyPosition.cycleStart ? baseline : r;
         cycleByRefuelId[owner.id] = cycle;
       }
-      baseline = r;
+      // An odometer that didn't move forward is a typo or a backwards
+      // reading: measuring from it would inflate the next cycle, so the
+      // next full tank becomes the baseline instead.
+      baseline = distance > 0 ? r : null;
       volume = 0;
       cost = 0;
     }

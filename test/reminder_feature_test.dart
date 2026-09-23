@@ -114,6 +114,44 @@ void main() {
       expect(logged[oil]!.odometer, 55000);
     });
 
+    test('last logged by type ignores installments 2..N', () async {
+      final vid = await addTestVehicle(db);
+      final oil = await typeId(db, CatalogKind.serviceType, 'Oil Change');
+      final parent = await addService(
+        db,
+        vid,
+        oil,
+        DateTime(2026, 6, 1),
+        55000,
+      );
+      for (final n in [2, 3]) {
+        final child = await db
+            .into(db.entries)
+            .insertReturning(
+              EntriesCompanion.insert(
+                vehicleId: vid,
+                kind: EntryKind.service,
+                date: DateTime(2026, 5 + n, 1),
+                totalCost: 500,
+                parentId: Value(parent),
+                installmentNo: Value(n),
+                installmentCount: const Value(3),
+              ),
+            );
+        await db
+            .into(db.entryItems)
+            .insert(
+              EntryItemsCompanion.insert(
+                entryId: child.id,
+                typeId: oil,
+                amount: 500,
+              ),
+            );
+      }
+      final logged = await db.watchLastLoggedByType(vid).first;
+      expect(logged[oil], (date: DateTime(2026, 6, 1), odometer: 55000.0));
+    });
+
     test('insert, update and soft delete', () async {
       final vid = await addTestVehicle(db);
       final oil = await typeId(db, CatalogKind.serviceType, 'Oil Change');
@@ -297,6 +335,35 @@ void main() {
 
       expect(find.text('Add your first reminder'), findsOneWidget);
       expect(await db.select(db.reminders).get(), hasLength(1));
+      await unmount(tester);
+    });
+
+    testWidgets('reminders tab hides inactive reminders', (tester) async {
+      final db = testDatabase();
+      addTearDown(db.close);
+      final vid = await addTestVehicle(db);
+      // One-shot read: a watched stream's `.first` would wait on a timer
+      // that the widget test's fake clock never fires.
+      final tax = (await db.getCatalog(CatalogKind.expenseType))
+          .firstWhere((c) => c.name == 'Tax')
+          .id;
+      await db.insertReminder(
+        RemindersCompanion.insert(
+          vehicleId: vid,
+          target: ReminderTarget.expense,
+          typeId: tax,
+          byDistance: const Value(false),
+          byDate: const Value(true),
+          dueDate: Value(DateTime(2030, 1, 1)),
+          active: const Value(false),
+        ),
+      );
+      await tester.pumpWidget(testApp(db));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reminders'));
+      await tester.pumpAndSettle();
+      expect(find.text('Tax'), findsNothing);
+      expect(find.text('Add your first reminder'), findsOneWidget);
       await unmount(tester);
     });
 

@@ -40,6 +40,9 @@ class _RecordDetailScreenState extends ConsumerState<RecordDetailScreen> {
     final vehicle = vehicleId == null
         ? null
         : ref.watch(vehicleByIdProvider(vehicleId)).value;
+    final consumption = vehicleId == null || module != RecordModule.refueling
+        ? HistoryConsumption.empty
+        : ref.watch(historyConsumptionProvider(vehicleId));
 
     // Same-module records, newest first (the timeline's order).
     final same = timeline?.where((r) => r.module == module).toList() ?? [];
@@ -119,6 +122,7 @@ class _RecordDetailScreenState extends ConsumerState<RecordDetailScreen> {
           record: r,
           timeline: all,
           vehicle: vehicle,
+          consumption: consumption,
           fmt: fmt,
         ),
       },
@@ -131,12 +135,16 @@ class _DetailBody extends StatelessWidget {
     required this.record,
     required this.timeline,
     required this.vehicle,
+    required this.consumption,
     required this.fmt,
   });
 
   final TimelineRecord record;
   final List<TimelineRecord> timeline;
   final Vehicle? vehicle;
+
+  /// Consumption engine output (efficiency, cost/distance per refuel).
+  final HistoryConsumption consumption;
   final Formatters fmt;
 
   DistanceUnit get unit => vehicle?.distanceUnit ?? DistanceUnit.km;
@@ -186,17 +194,25 @@ class _DetailBody extends StatelessWidget {
   List<Widget> _refuelCards() {
     final r = record;
     final refuel = r.refueling!;
-    final cycle = refuelCycle(timeline, r);
-    final kind = r.fuels.firstOrNull?.kind ?? FuelKind.liquid;
+    final tanks = consumption.tanksOf(r);
+    final per = Formatters.distanceUnitLabel(unit);
 
-    // "% of tank": volume that went into tank 1 vs its capacity.
-    final capacity = vehicle?.tank1Capacity;
-    final tank1Volume = r.fuels
-        .where((f) => f.tank == 1)
-        .fold(0.0, (s, f) => s + f.volume);
-    final tankShare = capacity == null || capacity <= 0
-        ? null
-        : tank1Volume / capacity;
+    // "% of tank": volume that went into each tank vs that tank's capacity
+    // (null capacity → hint instead of a gauge).
+    double? capacityOf(int tank) =>
+        tank == 2 ? vehicle?.tank2Capacity : vehicle?.tank1Capacity;
+    final gauges = vehicle == null
+        ? const <Widget>[]
+        : <Widget>[
+            for (final t in tanks)
+              if (capacityOf(t.tank) case final c? when c > 0)
+                _TankGauge(
+                  share: t.volume / c,
+                  label: tanks.length > 1 ? 'of ${t.fuelName} tank' : null,
+                ),
+            if (tanks.any((t) => (capacityOf(t.tank) ?? 0) <= 0))
+              const _TankCapacityHint(),
+          ];
 
     return [
       for (final f in r.fuels)
@@ -218,15 +234,24 @@ class _DetailBody extends StatelessWidget {
           if (refuel.missedPrevious) ('Missed previous refueling', 'Yes'),
           if (refuel.discount != null && refuel.discount! > 0)
             ('Discount', fmt.money(refuel.discount!)),
-          if (cycle != null) ...[
-            ('Efficiency', efficiencyText(fmt, cycle.efficiency, unit, kind)),
-            (
-              'Cost / ${Formatters.distanceUnitLabel(unit)}',
-              fmt.money(cycle.costPerDistance),
-            ),
-          ],
+          for (final t in tanks)
+            if (t.efficiency != null) ...[
+              (
+                tankLabel('Efficiency', t, tanks.length),
+                efficiencyText(fmt, t.efficiency!, unit, t.kind),
+              ),
+              (
+                tankLabel('Cost / $per', t, tanks.length),
+                fmt.money(t.costPerDistance!),
+              ),
+            ],
         ],
-        child: tankShare == null ? null : _TankGauge(share: tankShare),
+        child: gauges.isEmpty
+            ? null
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: gauges,
+              ),
       ),
     ];
   }
@@ -354,10 +379,13 @@ class _InfoCard extends StatelessWidget {
 
 /// Round gauge showing how much of the tank this refuel filled.
 class _TankGauge extends StatelessWidget {
-  const _TankGauge({required this.share});
+  const _TankGauge({required this.share, this.label});
 
   /// 0..1 (clamped for display; overfills show >100% in the label).
   final double share;
+
+  /// Caption next to the gauge; defaults to "of tank".
+  final String? label;
 
   @override
   Widget build(BuildContext context) {
@@ -387,7 +415,38 @@ class _TankGauge extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          Text('of tank', style: TextStyle(color: Colors.grey.shade600)),
+          Expanded(
+            child: Text(
+              label ?? 'of tank',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown instead of the "% of tank" gauge when the vehicle has no capacity
+/// for the tank that was filled (so the missing gauge isn't a mystery).
+class _TankCapacityHint extends StatelessWidget {
+  const _TankCapacityHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Set tank capacity in the vehicle to see % of tank',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: Colors.grey.shade600),
+            ),
+          ),
         ],
       ),
     );

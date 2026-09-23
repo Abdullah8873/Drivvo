@@ -67,4 +67,19 @@ extension CatalogQueries on AppDatabase {
       CatalogItemsCompanion(deletedAt: Value(now), updatedAt: Value(now)),
     );
   }
+
+  /// Number of non-deleted refueling-fuel lines that use fuel [fuelId].
+  /// Changing a fuel's tank kind after it has been used would corrupt the
+  /// volume/price math on those existing refuelings, so the form locks the
+  /// "Type of fuel" picker once this is non-zero.
+  Future<int> countRefuelingsUsingFuel(String fuelId) async {
+    final count = refuelingFuels.id.count();
+    final query = selectOnly(refuelingFuels)
+      ..addColumns([count])
+      ..where(
+        refuelingFuels.fuelId.equals(fuelId) &
+            refuelingFuels.deletedAt.isNull(),
+      );
+    return (await query.getSingle()).read(count) ?? 0;
+  }
 }

@@ -100,9 +100,9 @@ class AppDatabase extends _$AppDatabase {
   }
 
   Stream<Vehicle?> watchVehicle(String id) {
-    return (select(
-      vehicles,
-    )..where((v) => v.id.equals(id))).watchSingleOrNull();
+    return (select(vehicles)
+          ..where((v) => v.id.equals(id) & v.deletedAt.isNull()))
+        .watchSingleOrNull();
   }
 
   /// Non-deleted catalog entries of one kind, alphabetically.
