@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:motolog/core/db/app_database.dart';
+import 'package:motolog/core/widgets/speed_dial_menu.dart';
 
 import 'helpers.dart';
 
@@ -19,7 +20,13 @@ Finder field(String label) => find.widgetWithText(TextField, label);
 Future<void> openForm(WidgetTester tester, String module) async {
   await tester.tap(find.byIcon(Icons.add));
   await tester.pumpAndSettle();
-  await tester.tap(find.text(module));
+  // Scope to the speed-dial menu: the History timeline may show the same text.
+  await tester.tap(
+    find.descendant(
+      of: find.byType(SpeedDialMenu),
+      matching: find.text(module),
+    ),
+  );
   await tester.pumpAndSettle();
 }
 
