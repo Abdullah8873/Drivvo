@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:motolog/app.dart';
+
+import 'helpers.dart';
 
 void main() {
   testWidgets('shell shows the four tabs and opens the + menu', (tester) async {
-    await tester.pumpWidget(const ProviderScope(child: MotoLogApp()));
+    final db = testDatabase();
+    addTearDown(db.close);
+    await tester.pumpWidget(testApp(db));
     await tester.pumpAndSettle();
 
     for (final tab in ['History', 'Reports', 'Reminders', 'More']) {
@@ -25,7 +27,9 @@ void main() {
   testWidgets('refueling form computes total from price and liters', (
     tester,
   ) async {
-    await tester.pumpWidget(const ProviderScope(child: MotoLogApp()));
+    final db = testDatabase();
+    addTearDown(db.close);
+    await tester.pumpWidget(testApp(db));
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.add));
     await tester.pumpAndSettle();

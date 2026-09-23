@@ -1,41 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/db/tables.dart';
 
 /// "More options" tab: settings, catalogs (fuel, types, places…) and tools.
 /// Same grouping as Drivvo, minus the paid "plans" banner.
 class MoreScreen extends StatelessWidget {
   const MoreScreen({super.key});
 
-  static const _sections = <List<(IconData, String)>>[
+  /// (icon, label, route or null = not built yet)
+  static final _sections = <List<(IconData, String, String?)>>[
     [
-      (Icons.person, 'My account'),
-      (Icons.cloud_sync, 'Synchronize data'),
-      (Icons.storage, 'Storage'),
-      (Icons.swap_horiz, 'Transfer'),
+      (Icons.person, 'My account', null),
+      (Icons.cloud_sync, 'Synchronize data', null),
+      (Icons.storage, 'Storage', null),
+      (Icons.swap_horiz, 'Transfer', null),
     ],
     [
-      (Icons.directions_car, 'Vehicles'),
-      (Icons.group, 'Users'),
-      (Icons.manage_accounts, 'Profiles'),
+      (Icons.directions_car, 'Vehicles', '/vehicles'),
+      (Icons.group, 'Users', null),
+      (Icons.manage_accounts, 'Profiles', null),
     ],
     [
-      (Icons.local_gas_station, 'Fuel'),
-      (Icons.ev_station, 'Gas stations'),
-      (Icons.place, 'Places'),
-      (Icons.build, 'Types of service'),
-      (Icons.receipt_long, 'Types of expense'),
-      (Icons.trending_up, 'Types of income'),
-      (Icons.work, 'Reasons'),
-      (Icons.payments, 'Payment methods'),
-      (Icons.description, 'Forms'),
+      (Icons.local_gas_station, 'Fuel', _catalog(CatalogKind.fuel)),
+      (Icons.ev_station, 'Gas stations', _catalog(CatalogKind.gasStation)),
+      (Icons.place, 'Places', _catalog(CatalogKind.place)),
+      (Icons.build, 'Types of service', _catalog(CatalogKind.serviceType)),
+      (
+        Icons.receipt_long,
+        'Types of expense',
+        _catalog(CatalogKind.expenseType),
+      ),
+      (Icons.trending_up, 'Types of income', _catalog(CatalogKind.incomeType)),
+      (Icons.work, 'Reasons', _catalog(CatalogKind.reason)),
+      (Icons.payments, 'Payment methods', _catalog(CatalogKind.paymentMethod)),
+      (Icons.description, 'Forms', null),
     ],
-    [(Icons.map, 'My places'), (Icons.calculate, 'Flex calculator')],
     [
-      (Icons.emoji_events, 'Achievements'),
-      (Icons.settings, 'Settings'),
-      (Icons.translate, 'Translation'),
+      (Icons.map, 'My places', null),
+      (Icons.calculate, 'Flex calculator', null),
     ],
-    [(Icons.info_outline, 'About')],
+    [
+      (Icons.emoji_events, 'Achievements', null),
+      (Icons.settings, 'Settings', '/settings'),
+      (Icons.translate, 'Translation', null),
+    ],
+    [(Icons.info_outline, 'About', null)],
   ];
+
+  static String _catalog(CatalogKind kind) => '/catalog/${kind.name}';
 
   @override
   Widget build(BuildContext context) {
@@ -45,13 +58,15 @@ class MoreScreen extends StatelessWidget {
         children: [
           for (final (i, section) in _sections.indexed) ...[
             if (i > 0) const Divider(),
-            for (final (icon, label) in section)
+            for (final (icon, label, route) in section)
               ListTile(
                 leading: Icon(icon, color: Colors.grey.shade700),
                 title: Text(label),
-                onTap: () => ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text('$label — coming soon'))),
+                onTap: () => route != null
+                    ? context.push(route)
+                    : ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$label — coming soon')),
+                      ),
               ),
           ],
         ],
