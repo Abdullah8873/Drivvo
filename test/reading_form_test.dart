@@ -25,6 +25,23 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets(
+    'shows the distance unit suffix even without a last-odometer hint',
+    (tester) async {
+      useTallScreen(tester);
+      // No prior reading, so there's no "Last odometer" hint to lean on.
+      await seedVehicle(tester, db);
+      await tester.pumpWidget(testApp(db));
+      await tester.pumpAndSettle();
+      await openForm(tester, 'Reading');
+
+      expect(find.textContaining('Last odometer'), findsNothing);
+      final odometer = tester.widget<TextField>(field('Odometer'));
+      expect(odometer.decoration!.suffixText, 'km');
+      await finish(tester);
+    },
+  );
+
   testWidgets('saves, edits and deletes a reading', (tester) async {
     useTallScreen(tester);
     final vid = await seedVehicle(tester, db, lastOdometer: 1000);

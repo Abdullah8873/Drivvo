@@ -46,7 +46,8 @@ Gathered from a live walkthrough of Drivvo (2026-09-23). This is the source of t
   "Are you filling up the tank?" toggle, **+ Fuel** (a second fuel in the same entry), gas station, driver, payment method,
   discount, reason, "Missed previous refueling?" toggle, attach file, notes.
 - **Expense**: vehicle, date/time, odometer, title, type of expense, discount, installments, place, driver, payment method, reason, attach, notes.
-- **Service**: same as Expense, with **multiple service types**, each with its own price and ×, and a total cost row.
+- **Service**: same as Expense, with **multiple service types**, each with its own price and ×, and a total cost row —
+  but with **no Reason field** (Drivvo's Service form omits it; Expense keeps it).
 - **Income**: vehicle, date/time, odometer, value, installments, type of income, driver, attach, notes.
 - **Route**: origin, start date/time, initial odometer, destination, end date/time, final odometer. TRIP mode: value per km (optional) and a total.
   **FREIGHT** mode: cargo type, contractor, unit, amount, weight, volume (m³), freight value, installments. Plus driver, reason, attach, notes.

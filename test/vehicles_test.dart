@@ -187,4 +187,43 @@ void main() {
     // The row is kept (for sync) but marked deleted.
     expect((await allRows()).single.deletedAt, isNotNull);
   });
+
+  testWidgets('the back arrow confirms discarding unsaved changes', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+
+    // Nothing changed yet: the back arrow leaves straight away.
+    await tester.tap(find.text('Add a vehicle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsNothing);
+    expect(find.text('Add a vehicle'), findsOneWidget);
+
+    await tester.tap(find.text('Add a vehicle'));
+    await tester.pumpAndSettle();
+    await tester.enterText(field('Name'), 'Honda CG');
+    await tester.pump();
+
+    // KEEP EDITING stays on the form with the edit intact.
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('KEEP EDITING'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsNothing);
+    expect(
+      tester.widget<TextFormField>(field('Name')).controller!.text,
+      'Honda CG',
+    );
+
+    // DISCARD leaves without saving.
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DISCARD'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add a vehicle'), findsOneWidget);
+    expect(await allRows(), isEmpty);
+  });
 }

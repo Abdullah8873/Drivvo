@@ -11,6 +11,9 @@ import '../../core/widgets/select_list_screen.dart';
 import '../entries/catalog_picker.dart';
 import '../entries/entry_queries.dart';
 import '../entries/installments.dart';
+import '../entries/type_amount_picker_screen.dart';
+import '../routes/record_form_parts.dart' show parseNumber;
+import '../vehicles/vehicle_labels.dart';
 
 /// Expense, Service and Income form — one screen, three flavours (colors,
 /// labels and a few fields differ by [kind]).
@@ -47,9 +50,10 @@ String _plain(double? v) {
   return v == v.roundToDouble() ? v.toInt().toString() : v.toString();
 }
 
-/// Lenient number parsing: accepts "1,5" as well as "1.5".
-double? _parse(String text) =>
-    double.tryParse(text.trim().replaceAll(',', '.'));
+/// Lenient number parsing: accepts "1,5" as well as "1.5", and rejects
+/// blank text, garbage, NaN, Infinity and negative numbers — see
+/// [parseNumber].
+double? _parse(String text) => parseNumber(text);
 
 class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   String? _vehicleId;
@@ -72,6 +76,13 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   late bool _loading = widget.id != null;
   bool _notFound = false;
   EditableEntry? _loaded;
+
+  /// True once the user has changed something — drives the unsaved-changes
+  /// back guard. Only flips once (further edits don't need another rebuild).
+  bool _dirty = false;
+  void _touch() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
 
   static DateTime _nowToMinute() {
     final n = DateTime.now();
@@ -189,39 +200,35 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     );
     final name = picked?.firstOrNull;
     if (name == null || !mounted) return;
+    _touch();
     setState(() => _vehicleId = vehicles.firstWhere((v) => v.name == name).id);
   }
 
-  /// Multi-select types: keeps amounts of types still selected, adds new
-  /// lines for newly selected ones, drops unselected ones.
+  /// Multi-select types with inline amounts (Drivvo-style): the picker
+  /// itself carries a "Value" field per checked row, so the form's lines are
+  /// simply replaced with whatever it returns — no follow-up price dialogs.
   Future<void> _pickTypes() async {
-    final picked = await pickCatalogItems(
+    final picked = await pickTypeAmounts(
       context,
       _db,
       kind: _typeCatalog,
       title: _typesTitle,
-      multiSelect: true,
-      selectedIds: {for (final l in _lines) l.type.id},
+      currencyCode: ref.read(settingsProvider).currencyCode,
+      initial: {for (final l in _lines) l.type.id: _parse(l.amount.text)},
     );
     if (picked == null || !mounted) return;
-    final pickedIds = {for (final p in picked) p.id};
-    final existing = {for (final l in _lines) l.type.id};
-    final added = [
-      for (final p in picked)
-        if (!existing.contains(p.id)) _TypeLine((id: p.id, name: p.name)),
-    ];
+    _touch();
     setState(() {
-      for (final l in _lines.where((l) => !pickedIds.contains(l.type.id))) {
+      for (final l in _lines) {
         _disposeLater(l.amount);
       }
-      _lines.removeWhere((l) => !pickedIds.contains(l.type.id));
-      _lines.addAll(added);
+      _lines
+        ..clear()
+        ..addAll([
+          for (final (item, amount) in picked)
+            _TypeLine((id: item.id, name: item.name), amount),
+        ]);
     });
-    // Ask the price of each newly added type right away (Drivvo-style).
-    for (final line in added) {
-      if (!mounted) return;
-      await _askPrice(line);
-    }
   }
 
   /// Price dialog for one type line ("Oil Change — PKR 1200").
@@ -256,10 +263,12 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     );
     _disposeLater(controller);
     if (result == null || !mounted) return;
+    _touch();
     setState(() => line.amount.text = result.trim());
   }
 
   void _removeLine(_TypeLine line) {
+    _touch();
     setState(() => _lines.remove(line));
     _disposeLater(line.amount);
   }
@@ -284,6 +293,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
     );
     if (d == null || !mounted) return;
+    _touch();
     setState(
       () => _date = DateTime(d.year, d.month, d.day, _date.hour, _date.minute),
     );
@@ -295,6 +305,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       initialTime: TimeOfDay.fromDateTime(_date),
     );
     if (t == null || !mounted) return;
+    _touch();
     setState(
       () => _date = DateTime(
         _date.year,
@@ -436,6 +447,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       module: _module,
       title: widget.id == null ? null : 'Edit ${_module.label.toLowerCase()}',
       onSave: () => _save(vehicle.id),
+      isDirty: () => _dirty,
       actions: [
         if (widget.id != null)
           IconButton(
@@ -447,7 +459,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       children: [
         if ((_loaded?.draft.installments ?? 1) > 1) _installmentNote(),
         FieldRow(
-          icon: Icons.directions_car,
+          icon: vehicle.type.icon,
           child: PickerField(
             label: 'Vehicle',
             value: vehicle.name,
@@ -472,6 +484,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             controller: _driver,
             textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(labelText: 'Driver'),
+            onChanged: (_) => _touch(),
           ),
         ),
         if (!_isIncome) ...[
@@ -486,7 +499,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                   'Payment methods',
                   _paymentMethod,
                 );
-                if (mounted) setState(() => _paymentMethod = p);
+                if (mounted) {
+                  _touch();
+                  setState(() => _paymentMethod = p);
+                }
               },
             ),
           ),
@@ -503,7 +519,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
                     'Reasons',
                     _reason,
                   );
-                  if (mounted) setState(() => _reason = r);
+                  if (mounted) {
+                    _touch();
+                    setState(() => _reason = r);
+                  }
                 },
               ),
             ),
@@ -519,6 +538,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
             maxLines: null,
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(labelText: 'Notes'),
+            onChanged: (_) => _touch(),
           ),
         ),
       ],
@@ -546,6 +566,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         controller: _title,
         textCapitalization: TextCapitalization.sentences,
         decoration: const InputDecoration(labelText: 'Title'),
+        onChanged: (_) => _touch(),
       ),
     ),
     if (_lines.isEmpty)
@@ -596,7 +617,14 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       icon: Icons.local_offer,
       child: Row(
         children: [
-          Expanded(child: _numberField(_discount, 'Discount', rebuild: true)),
+          Expanded(
+            child: _numberField(
+              _discount,
+              'Discount',
+              rebuild: true,
+              money: true,
+            ),
+          ),
           const SizedBox(width: 16),
           Expanded(child: _installmentsField()),
         ],
@@ -610,7 +638,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         value: _place?.name,
         onTap: () async {
           final p = await _pickOne(CatalogKind.place, 'Places', _place);
-          if (mounted) setState(() => _place = p);
+          if (mounted) {
+            _touch();
+            setState(() => _place = p);
+          }
         },
       ),
     ),
@@ -622,7 +653,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       icon: Icons.attach_money,
       child: Row(
         children: [
-          Expanded(child: _numberField(_value, 'Value', rebuild: true)),
+          Expanded(
+            child: _numberField(_value, 'Value', rebuild: true, money: true),
+          ),
           const SizedBox(width: 16),
           Expanded(child: _installmentsField()),
         ],
@@ -636,7 +669,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         value: _incomeType?.name,
         onTap: () async {
           final t = await _pickOne(_typeCatalog, _typesTitle, _incomeType);
-          if (mounted) setState(() => _incomeType = t);
+          if (mounted) {
+            _touch();
+            setState(() => _incomeType = t);
+          }
         },
       ),
     ),
@@ -645,7 +681,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   Widget _installmentsField() => TextField(
     controller: _installments,
     keyboardType: TextInputType.number,
-    onChanged: (_) => setState(() {}),
+    onChanged: (_) {
+      _touch();
+      setState(() {});
+    },
     decoration: const InputDecoration(labelText: 'Installments'),
   );
 
@@ -665,7 +704,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
               ButtonSegment(value: i, label: Text(i.label)),
           ],
           selected: {_interval},
-          onSelectionChanged: (s) => setState(() => _interval = s.first),
+          onSelectionChanged: (s) {
+            _touch();
+            setState(() => _interval = s.first);
+          },
         ),
       ),
     ];
@@ -694,16 +736,24 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     ),
   );
 
-  /// Numeric text field; [rebuild] refreshes the live total while typing.
+  /// Numeric text field; [rebuild] refreshes the live total while typing;
+  /// [money] shows the currency code as a prefix.
   Widget _numberField(
     TextEditingController c,
     String label, {
     bool rebuild = false,
+    bool money = false,
   }) => TextField(
     controller: c,
     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-    onChanged: rebuild ? (_) => setState(() {}) : null,
-    decoration: InputDecoration(labelText: label),
+    onChanged: (_) {
+      _touch();
+      if (rebuild) setState(() {});
+    },
+    decoration: InputDecoration(
+      labelText: label,
+      prefixText: money ? '${ref.read(settingsProvider).currencyCode} ' : null,
+    ),
   );
 
   /// Drivvo-style "+ Something" text button aligned with the fields.

@@ -11,6 +11,8 @@ import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
 import '../refueling/catalog_picker.dart';
 import '../refueling/refueling_queries.dart';
+import '../routes/record_form_parts.dart' show parseNumber;
+import '../vehicles/vehicle_labels.dart';
 
 /// Refueling form — the reference pattern for every module form.
 ///
@@ -56,6 +58,13 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
   bool _loading = false;
   bool _notFound = false;
   bool _saving = false;
+
+  /// True once the user has changed something — drives the unsaved-changes
+  /// back guard. Only flips once (further edits don't need another rebuild).
+  bool _dirty = false;
+  void _touch() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
 
   bool get _isEdit => widget.id != null;
 
@@ -153,8 +162,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
 
   /// Switches the form to [vehicle], loads its last odometer and, unless the
   /// user already chose a fuel, preselects the last fuel used on it (or its
-  /// only matching fuel).
-  Future<void> _useVehicle(Vehicle vehicle) async {
+  /// only matching fuel). [userChange] marks the form dirty — false for the
+  /// automatic selection made while the form first loads.
+  Future<void> _useVehicle(Vehicle vehicle, {bool userChange = false}) async {
+    if (userChange) _touch();
     setState(() => _vehicleId = vehicle.id);
     final db = ref.read(databaseProvider);
     final lastOdometer = await db.watchLastOdometer(vehicle.id).first;
@@ -220,7 +231,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       ),
     );
     if (picked == null) return;
-    await _useVehicle(picked);
+    await _useVehicle(picked, userChange: true);
   }
 
   Future<void> _addVehicle() async {
@@ -243,6 +254,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       newFuelKind: vehicle?.tank1Kind ?? FuelKind.liquid,
     );
     if (fuel == null) return;
+    _touch();
     setState(() {
       line.fuel = fuel;
       if (identical(line, _lines.first)) _fuelIsDefault = false;
@@ -259,12 +271,18 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       firstDate: DateTime(1990),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (d != null) setState(() => _date = d);
+    if (d != null) {
+      _touch();
+      setState(() => _date = d);
+    }
   }
 
   Future<void> _pickTime() async {
     final t = await showTimePicker(context: context, initialTime: _time);
-    if (t != null) setState(() => _time = t);
+    if (t != null) {
+      _touch();
+      setState(() => _time = t);
+    }
   }
 
   // ---- Save & delete ------------------------------------------------------------
@@ -281,21 +299,33 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
 
     final lines = <FuelLineDraft>[];
     for (final l in _lines) {
+      if (l.fuel == null) return error('Select the fuel');
       final total = _parse(l.total.text);
       final volume = _parse(l.volume.text);
-      if (l.fuel == null) return error('Select the fuel');
-      if (total == null || volume == null || volume <= 0) {
-        return error('Enter the total cost and the ${_volumeWord()}');
-      }
+      // Name only the fields that are actually missing, not every field.
+      final missing = [
+        if (total == null) 'the total cost',
+        if (volume == null || volume <= 0) 'the ${_volumeWord()}',
+      ];
+      if (missing.isNotEmpty) return error('Enter ${missing.join(' and ')}');
       lines.add(
         FuelLineDraft(
           fuelId: l.fuel!.id,
-          pricePerUnit: _parse(l.price.text) ?? total / volume,
-          total: total,
-          volume: volume,
+          pricePerUnit: _parse(l.price.text) ?? total! / volume!,
+          total: total!,
+          volume: volume!,
           tank: _tankFor(vehicle, l.fuel!),
         ),
       );
+    }
+
+    final linesTotal = lines.fold(0.0, (s, l) => s + l.total);
+    final discount = _parse(_discount.text);
+    if (_discount.text.trim().isNotEmpty && discount == null) {
+      return error('Enter a valid discount');
+    }
+    if (discount != null && (discount < 0 || discount > linesTotal)) {
+      return error("The discount can't be more than the total");
     }
 
     final db = ref.read(databaseProvider);
@@ -339,7 +369,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       paymentMethodId: _paymentMethod?.id,
       reasonId: _reason?.id,
       driver: _text(_driver),
-      discount: _parse(_discount.text),
+      discount: discount,
       notes: _text(_notes),
     );
     try {
@@ -399,7 +429,11 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
 
   // ---- Helpers ------------------------------------------------------------------
 
-  static double? _parse(String s) => double.tryParse(s.trim());
+  /// Lenient number parsing shared with the other forms: accepts "1,5" as
+  /// well as "1.5", and rejects blank text, garbage, NaN, Infinity and
+  /// negative numbers (none of those are valid odometers, prices or
+  /// volumes) — see [parseNumber].
+  static double? _parse(String s) => parseNumber(s);
 
   static String? _text(TextEditingController c) =>
       c.text.trim().isEmpty ? null : c.text.trim();
@@ -412,9 +446,8 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
         : s;
   }
 
-  static IconData _vehicleIcon(Vehicle? v) => v?.type == VehicleType.motorcycle
-      ? Icons.two_wheeler
-      : Icons.directions_car;
+  static IconData _vehicleIcon(Vehicle? v) =>
+      v?.type.icon ?? Icons.directions_car;
 
   String _volumeWord() {
     final kind = _lines.first.fuel?.fuelKind ?? FuelKind.liquid;
@@ -447,6 +480,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
     }
 
     final fmt = ref.watch(formattersProvider);
+    final currency = ref.watch(settingsProvider).currencyCode;
     final vehicles = _vehicles;
     final vehicle = vehicles.where((v) => v.id == _vehicleId).firstOrNull;
     final lastOdometer = _lastOdometer;
@@ -454,6 +488,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
     return ModuleFormScaffold(
       module: module,
       onSave: () => _save(vehicle),
+      isDirty: () => _dirty,
       actions: [
         if (_isEdit)
           IconButton(
@@ -511,6 +546,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
                 vehicle?.distanceUnit ?? DistanceUnit.km,
               ),
             ),
+            onChanged: (_) => _touch(),
           ),
         ),
         for (final (i, line) in _lines.indexed)
@@ -524,10 +560,13 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               fmt.settings,
               line.fuel?.fuelKind ?? FuelKind.liquid,
             ),
+            currencyCode: currency,
             onPickFuel: () => _pickFuel(line, vehicle),
+            onDirty: _touch,
             onRemove: i == 0
                 ? null
                 : () {
+                    _touch();
                     setState(() => _lines.remove(line));
                     line.dispose();
                   },
@@ -538,14 +577,21 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
             contentPadding: EdgeInsets.zero,
             title: const Text('Are you filling up the tank?'),
             value: _fullTank,
-            onChanged: (v) => setState(() => _fullTank = v),
+            onChanged: (v) {
+              _touch();
+              setState(() => _fullTank = v);
+            },
           ),
         ),
-        if (_moreOptions)
-          _AddButton(
-            label: 'Fuel',
-            onPressed: () => setState(() => _lines.add(_FuelLine())),
-          ),
+        // Always visible right after the full-tank toggle (not just behind
+        // "+ More options"): a second fuel is a common, non-optional need.
+        _AddButton(
+          label: 'Fuel',
+          onPressed: () {
+            _touch();
+            setState(() => _lines.add(_FuelLine()));
+          },
+        ),
         FieldRow(
           icon: Icons.place,
           child: PickerField(
@@ -556,7 +602,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
                 CatalogKind.gasStation,
                 'Gas stations',
               );
-              if (s != null) setState(() => _station = s);
+              if (s != null) {
+                _touch();
+                setState(() => _station = s);
+              }
             },
           ),
         ),
@@ -565,6 +614,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
           child: TextField(
             controller: _driver,
             decoration: const InputDecoration(labelText: 'Driver'),
+            onChanged: (_) => _touch(),
           ),
         ),
         if (!_moreOptions)
@@ -583,7 +633,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
                   CatalogKind.paymentMethod,
                   'Payment methods',
                 );
-                if (p != null) setState(() => _paymentMethod = p);
+                if (p != null) {
+                  _touch();
+                  setState(() => _paymentMethod = p);
+                }
               },
             ),
           ),
@@ -594,7 +647,11 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Discount'),
+              decoration: InputDecoration(
+                labelText: 'Discount',
+                prefixText: '$currency ',
+              ),
+              onChanged: (_) => _touch(),
             ),
           ),
           FieldRow(
@@ -604,7 +661,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               value: _reason?.name,
               onTap: () async {
                 final r = await _pickCatalog(CatalogKind.reason, 'Reasons');
-                if (r != null) setState(() => _reason = r);
+                if (r != null) {
+                  _touch();
+                  setState(() => _reason = r);
+                }
               },
             ),
           ),
@@ -614,17 +674,21 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               contentPadding: EdgeInsets.zero,
               title: const Text('Missed previous refueling?'),
               value: _missedPrevious,
-              onChanged: (v) => setState(() => _missedPrevious = v),
+              onChanged: (v) {
+                _touch();
+                setState(() => _missedPrevious = v);
+              },
             ),
           ),
-          // TODO(milestone-6): attachments via Supabase Storage.
-          _AddButton(label: 'Attach file', onPressed: () {}),
+          // TODO(milestone-6): enable once attachments (Supabase Storage) exist.
+          _AddButton(label: 'Attach file', onPressed: null),
           FieldRow(
             icon: Icons.notes,
             child: TextField(
               controller: _notes,
               maxLines: null,
               decoration: const InputDecoration(labelText: 'Notes'),
+              onChanged: (_) => _touch(),
             ),
           ),
         ],
@@ -653,11 +717,12 @@ class _NoVehicleCard extends StatelessWidget {
 }
 
 /// Left-aligned "+ Label" text button used for optional form sections.
+/// A null [onPressed] renders it disabled (e.g. "Attach file" for now).
 class _AddButton extends StatelessWidget {
   const _AddButton({required this.label, required this.onPressed});
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -698,7 +763,9 @@ class _FuelLineFields extends StatelessWidget {
     required this.line,
     required this.unitLabel,
     required this.volumeLabel,
+    required this.currencyCode,
     required this.onPickFuel,
+    required this.onDirty,
     this.onRemove,
   });
 
@@ -709,11 +776,18 @@ class _FuelLineFields extends StatelessWidget {
 
   /// Label of the volume field ("Liters", "kWh"…).
   final String volumeLabel;
+
+  /// e.g. "PKR" — shown as a prefix on the money fields.
+  final String currencyCode;
   final VoidCallback onPickFuel;
+
+  /// Marks the form dirty (for the unsaved-changes back guard).
+  final VoidCallback onDirty;
   final VoidCallback? onRemove;
 
   // "Enter any two, the third is calculated" (see FuelMath).
   void _onChanged(FuelField field) {
+    onDirty();
     line.edited = FuelMath.touch(line.edited, field);
     final result = FuelMath.solve(
       edited: line.edited,
@@ -730,15 +804,22 @@ class _FuelLineFields extends StatelessWidget {
     controller.text = result.value.toStringAsFixed(digits);
   }
 
-  Widget _number(String label, TextEditingController c, FuelField f) =>
-      Expanded(
-        child: TextField(
-          controller: c,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: label),
-          onChanged: (_) => _onChanged(f),
-        ),
-      );
+  Widget _number(
+    String label,
+    TextEditingController c,
+    FuelField f, {
+    bool money = false,
+  }) => Expanded(
+    child: TextField(
+      controller: c,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixText: money ? '$currencyCode ' : null,
+      ),
+      onChanged: (_) => _onChanged(f),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -764,9 +845,14 @@ class _FuelLineFields extends StatelessWidget {
           icon: Icons.payments_outlined,
           child: Row(
             children: [
-              _number('Price / $unitLabel', line.price, FuelField.price),
+              _number(
+                'Price / $unitLabel',
+                line.price,
+                FuelField.price,
+                money: true,
+              ),
               const SizedBox(width: 12),
-              _number('Total cost', line.total, FuelField.total),
+              _number('Total cost', line.total, FuelField.total, money: true),
               const SizedBox(width: 12),
               _number(volumeLabel, line.volume, FuelField.volume),
             ],

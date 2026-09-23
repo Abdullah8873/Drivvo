@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
+import '../../core/format/formatters.dart';
 import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
@@ -23,6 +24,13 @@ class ReadingFormScreen extends ConsumerStatefulWidget {
 class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
   bool get _editing => widget.id != null;
   late bool _loading = _editing;
+
+  /// True once the user has changed something — drives the unsaved-changes
+  /// back guard. Only flips once (further edits don't need another rebuild).
+  bool _dirty = false;
+  void _touch() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
 
   String? _vehicleId;
   DateTime _date = _nowToMinute();
@@ -144,6 +152,7 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
     return ModuleFormScaffold(
       module: module,
       onSave: _save,
+      isDirty: () => _dirty,
       actions: [
         if (_editing)
           IconButton(
@@ -156,9 +165,18 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
         VehicleField(
           vehicles: vehicles,
           vehicleId: _vehicleId,
-          onChanged: (id) => setState(() => _vehicleId = id),
+          onChanged: (id) {
+            _touch();
+            setState(() => _vehicleId = id);
+          },
         ),
-        DateTimeRow(value: _date, onChanged: (d) => setState(() => _date = d)),
+        DateTimeRow(
+          value: _date,
+          onChanged: (d) {
+            _touch();
+            setState(() => _date = d);
+          },
+        ),
         FieldRow(
           icon: Icons.speed,
           helper: last == null
@@ -169,12 +187,16 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               labelText: 'Odometer',
+              suffixText: Formatters.distanceUnitLabel(unit),
               helperText: lower ? 'Lower than the last odometer' : null,
               helperStyle: TextStyle(
                 color: Theme.of(context).colorScheme.error,
               ),
             ),
-            onChanged: (_) => setState(() {}),
+            onChanged: (_) {
+              _touch();
+              setState(() {});
+            },
           ),
         ),
         FieldRow(
@@ -183,6 +205,7 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
             controller: _driver,
             textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(labelText: 'Driver'),
+            onChanged: (_) => _touch(),
           ),
         ),
         const AttachFilePlaceholder(),
@@ -193,6 +216,7 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
             maxLines: null,
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(labelText: 'Notes'),
+            onChanged: (_) => _touch(),
           ),
         ),
       ],

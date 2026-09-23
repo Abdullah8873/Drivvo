@@ -191,4 +191,120 @@ void main() {
     expect(await real(tester, db.select(db.refuelings).get), isEmpty);
     await finish(tester);
   });
+
+  testWidgets('the + Fuel button is visible without opening more options', (
+    tester,
+  ) async {
+    await real(tester, () => addTestVehicle(db));
+    await open(tester, '/add/refueling');
+
+    // "+ Fuel" sits right after the full-tank toggle, not behind
+    // "+ More options".
+    expect(find.widgetWithText(TextButton, 'Fuel'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'More options'), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('rejects a discount larger than the total', (tester) async {
+    await real(tester, () => addTestVehicle(db));
+    await open(tester, '/add/refueling');
+
+    await tester.tap(find.widgetWithText(PickerField, 'Fuel'));
+    await settle(tester);
+    await tester.tap(find.text('Petrol'));
+    await settle(tester);
+    await tester.enterText(field('Odometer'), '1000');
+    await tester.enterText(field('Price / L'), '300');
+    await tester.enterText(field('Liters'), '5');
+    await tester.pump();
+
+    // Reveal the discount field, then enter more than the 1500 total.
+    await tester.tap(find.widgetWithText(TextButton, 'More options'));
+    await settle(tester);
+    await tester.enterText(field('Discount'), '2000');
+    await tester.tap(find.text('SAVE'));
+    await tester.pump();
+
+    expect(
+      find.text("The discount can't be more than the total"),
+      findsOneWidget,
+    );
+    expect(await real(tester, db.select(db.refuelings).get), isEmpty);
+
+    // A discount within range saves fine.
+    await tester.enterText(field('Discount'), '100');
+    await tester.tap(find.text('SAVE'));
+    await settle(tester);
+    final saved = await real(tester, db.select(db.refuelings).getSingle);
+    expect(saved.discount, 100);
+    await finish(tester);
+  });
+
+  testWidgets('accepts a comma decimal and rejects a negative odometer', (
+    tester,
+  ) async {
+    await real(tester, () => addTestVehicle(db));
+    await open(tester, '/add/refueling');
+
+    await tester.tap(find.widgetWithText(PickerField, 'Fuel'));
+    await settle(tester);
+    await tester.tap(find.text('Petrol'));
+    await settle(tester);
+    await tester.enterText(field('Price / L'), '300');
+    await tester.enterText(field('Liters'), '5');
+
+    // A negative odometer is rejected, same as leaving it blank.
+    await tester.enterText(field('Odometer'), '-5');
+    await tester.tap(find.text('SAVE'));
+    await tester.pump();
+    expect(find.text('Enter the odometer'), findsOneWidget);
+    expect(await real(tester, db.select(db.refuelings).get), isEmpty);
+
+    // "," is accepted as the decimal separator.
+    await tester.enterText(field('Odometer'), '1000,5');
+    await tester.tap(find.text('SAVE'));
+    await settle(tester);
+
+    expect(find.text('Refueling saved'), findsOneWidget);
+    final saved = await real(tester, db.select(db.refuelings).getSingle);
+    expect(saved.odometer, 1000.5);
+    await finish(tester);
+  });
+
+  testWidgets('the back arrow confirms discarding unsaved changes', (
+    tester,
+  ) async {
+    await real(tester, () => addTestVehicle(db));
+    await open(tester, '/add/refueling');
+
+    // Nothing changed yet: the back arrow leaves straight away.
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsNothing);
+    expect(find.text('History'), findsOneWidget);
+
+    GoRouter.of(tester.element(find.byType(Navigator).first))
+        .push('/add/refueling');
+    await settle(tester);
+    await tester.enterText(field('Odometer'), '500');
+    await tester.pump();
+
+    // KEEP EDITING stays on the form with the edit intact.
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsOneWidget);
+    await tester.tap(find.text('KEEP EDITING'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard changes?'), findsNothing);
+    expect(tester.widget<TextField>(field('Odometer')).controller!.text, '500');
+
+    // DISCARD leaves without saving.
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DISCARD'));
+    await tester.pumpAndSettle();
+    expect(find.text('History'), findsOneWidget);
+    expect(await real(tester, db.select(db.refuelings).get), isEmpty);
+    await finish(tester);
+  });
 }
