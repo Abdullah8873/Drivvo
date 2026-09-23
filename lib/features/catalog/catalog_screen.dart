@@ -46,7 +46,9 @@ class CatalogScreen extends ConsumerWidget {
                 child: Text(
                   'Nothing here yet.\nTap + to add one.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               )
             : ListView.separated(
@@ -58,7 +60,10 @@ class CatalogScreen extends ConsumerWidget {
                   final item = list[i];
                   final subtitle = _subtitle(item);
                   return ListTile(
-                    leading: Icon(kind.icon, color: Colors.grey.shade600),
+                    leading: Icon(
+                      kind.icon,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                     title: Text(item.name),
                     subtitle: subtitle == null ? null : Text(subtitle),
                     onTap: () => _openForm(context, item),

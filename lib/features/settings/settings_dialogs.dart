@@ -81,6 +81,11 @@ class _NumberDialogState extends State<_NumberDialog> {
     text: '${widget.initialValue}',
   );
 
+  /// Set when [_submit] rejects the current text; shown as the field's
+  /// error instead of just ignoring the tap (the old behaviour left the
+  /// user unsure why nothing happened).
+  String? _error;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -89,7 +94,11 @@ class _NumberDialogState extends State<_NumberDialog> {
 
   void _submit() {
     final value = int.tryParse(_controller.text.trim());
-    if (value != null) Navigator.pop(context, value);
+    if (value == null || value < 0) {
+      setState(() => _error = 'Enter a whole number ≥ 0');
+      return;
+    }
+    Navigator.pop(context, value);
   }
 
   @override
@@ -101,7 +110,14 @@ class _NumberDialogState extends State<_NumberDialog> {
         autofocus: true,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        decoration: InputDecoration(suffixText: widget.suffix),
+        decoration: InputDecoration(
+          suffixText: widget.suffix,
+          errorText: _error,
+        ),
+        // Clear the error as soon as the user edits the value.
+        onChanged: (_) {
+          if (_error != null) setState(() => _error = null);
+        },
         onSubmitted: (_) => _submit(),
       ),
       actions: [

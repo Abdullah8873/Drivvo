@@ -44,8 +44,9 @@ class MoreScreen extends StatelessWidget {
       (Icons.emoji_events, 'Achievements', null),
       (Icons.settings, 'Settings', '/settings'),
       (Icons.translate, 'Translation', null),
+      (Icons.contact_support, 'Contact', null),
     ],
-    [(Icons.info_outline, 'About', null)],
+    [(Icons.info_outline, 'About', null), (Icons.share, 'Share app', null)],
   ];
 
   static String _catalog(CatalogKind kind) => '/catalog/${kind.name}';
@@ -60,7 +61,10 @@ class MoreScreen extends StatelessWidget {
             if (i > 0) const Divider(),
             for (final (icon, label, route) in section)
               ListTile(
-                leading: Icon(icon, color: Colors.grey.shade700),
+                leading: Icon(
+                  icon,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 title: Text(label),
                 onTap: () => route != null
                     ? context.push(route)

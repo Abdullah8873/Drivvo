@@ -62,7 +62,23 @@ class _CatalogItemFormScreenState extends ConsumerState<CatalogItemFormScreen> {
   String? _nameError;
   bool _saving = false;
 
+  /// Non-deleted refuelings using this fuel; 0 while loading or for new/
+  /// non-fuel items. Non-zero locks the "Type of fuel" picker so an edit
+  /// can't corrupt the math on existing refuelings.
+  int _fuelUsageCount = 0;
+
   bool get _isNew => widget.item == null;
+
+  @override
+  void initState() {
+    super.initState();
+    final item = widget.item;
+    if (widget.kind == CatalogKind.fuel && item != null) {
+      ref.read(databaseProvider).countRefuelingsUsingFuel(item.id).then((n) {
+        if (mounted) setState(() => _fuelUsageCount = n);
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -167,12 +183,21 @@ class _CatalogItemFormScreenState extends ConsumerState<CatalogItemFormScreen> {
                 icon: Icons.category,
                 child: DropdownButtonFormField<FuelKind>(
                   initialValue: _fuelKind,
-                  decoration: const InputDecoration(labelText: 'Type of fuel'),
+                  decoration: InputDecoration(
+                    labelText: 'Type of fuel',
+                    helperText: _fuelUsageCount > 0
+                        ? "Can't change: this fuel is used in "
+                              '$_fuelUsageCount refuelings'
+                        : null,
+                    helperMaxLines: 2,
+                  ),
                   items: [
                     for (final k in FuelKind.values)
                       DropdownMenuItem(value: k, child: Text(k.label)),
                   ],
-                  onChanged: (k) => setState(() => _fuelKind = k ?? _fuelKind),
+                  onChanged: _fuelUsageCount > 0
+                      ? null
+                      : (k) => setState(() => _fuelKind = k ?? _fuelKind),
                 ),
               ),
             const SizedBox(height: 16),

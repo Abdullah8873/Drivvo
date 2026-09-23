@@ -174,6 +174,10 @@ void main() {
 
     await tester.tap(find.byTooltip('Delete'));
     await tester.pumpAndSettle();
+    expect(
+      find.text('"Honda" and its 0 records will be deleted.'),
+      findsOneWidget,
+    );
     await tester.tap(find.text('CANCEL'));
     await tester.pumpAndSettle();
     expect((await allRows()).single.deletedAt, isNull);
@@ -186,5 +190,77 @@ void main() {
     expect(find.text('No vehicles yet. Tap + to add one.'), findsOneWidget);
     // The row is kept (for sync) but marked deleted.
     expect((await allRows()).single.deletedAt, isNotNull);
+  });
+
+  testWidgets('delete counts and cascades to the vehicle\'s records', (
+    tester,
+  ) async {
+    final id = await addTestVehicle(db);
+    final refuelingId = (await tester.runAsync(() async {
+      final fuel = (await (db.select(
+        db.catalogItems,
+      )..where((c) => c.kind.equalsValue(CatalogKind.fuel))).get()).first;
+      final refueling = await db
+          .into(db.refuelings)
+          .insertReturning(
+            RefuelingsCompanion.insert(
+              vehicleId: id,
+              date: DateTime(2026, 1, 1),
+              odometer: 1000,
+              totalCost: 5000,
+            ),
+          );
+      await db
+          .into(db.refuelingFuels)
+          .insert(
+            RefuelingFuelsCompanion.insert(
+              refuelingId: refueling.id,
+              fuelId: fuel.id,
+              pricePerUnit: 250,
+              total: 5000,
+              volume: 20,
+            ),
+          );
+      await db
+          .into(db.readings)
+          .insert(
+            ReadingsCompanion.insert(
+              vehicleId: id,
+              date: DateTime(2026, 1, 2),
+              odometer: 1050,
+            ),
+          );
+      return refueling.id;
+    }))!;
+
+    await pumpApp(tester);
+    await openVehicleList(tester);
+    await tester.tap(find.text('Honda'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+    // One refueling + one reading = 2 records (the fuel line inside the
+    // refueling isn't counted on its own — it's a child of it).
+    expect(
+      find.text('"Honda" and its 2 records will be deleted.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('DELETE'));
+    await tester.pumpAndSettle();
+
+    expect((await allRows()).single.deletedAt, isNotNull);
+    final fuelLine = await (db.select(
+      db.refuelingFuels,
+    )..where((r) => r.refuelingId.equals(refuelingId))).getSingle();
+    expect(fuelLine.deletedAt, isNotNull);
+    final refueling = await (db.select(
+      db.refuelings,
+    )..where((r) => r.id.equals(refuelingId))).getSingle();
+    expect(refueling.deletedAt, isNotNull);
+    final reading = await (db.select(
+      db.readings,
+    )..where((r) => r.vehicleId.equals(id))).getSingle();
+    expect(reading.deletedAt, isNotNull);
   });
 }
