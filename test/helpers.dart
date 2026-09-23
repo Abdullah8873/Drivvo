@@ -1,3 +1,4 @@
+import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
@@ -36,4 +37,12 @@ Future<String> addTestVehicle(AppDatabase db, {String name = 'Honda'}) async {
         VehiclesCompanion.insert(name: name, type: VehicleType.motorcycle),
       );
   return v.id;
+}
+
+/// Call at the end of widget tests that show database data: unmounts the app
+/// and lets drift's stream-cleanup timers fire, avoiding
+/// "A Timer is still pending even after the widget tree was disposed".
+Future<void> unmountApp(WidgetTester tester) async {
+  await tester.pumpWidget(const SizedBox());
+  await tester.pump(const Duration(milliseconds: 1));
 }

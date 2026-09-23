@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../reminders/upcoming_reminders_strip.dart';
 import '../../core/db/app_database.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/main_tab_app_bar.dart';
@@ -150,9 +151,8 @@ class _UpcomingRemindersSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // TODO(reminders): UpcomingRemindersStrip(vehicleId)
-    // (lib/features/reminders/reminder_providers.dart, built in parallel).
-    return const SizedBox.shrink();
+    // "Next refueling" prediction + due reminders (renders nothing if none).
+    return UpcomingRemindersStrip(vehicleId: vehicleId);
   }
 }
 

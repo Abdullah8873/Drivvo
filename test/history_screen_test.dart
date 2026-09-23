@@ -18,6 +18,10 @@ void main() {
   }
 
   Future<void> pumpApp(WidgetTester tester) async {
+    // Tall screen so the whole timeline (under the reminders strip) is built.
+    tester.view.physicalSize = const Size(1000, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(testApp(db));
     await tester.pumpAndSettle();
   }
@@ -83,7 +87,7 @@ void main() {
       expect(find.text('Oil Change +1'), findsOneWidget);
       expect(find.text('Petrol'), findsNWidgets(3));
       expect(find.text('1400 km · 4.000 L · PKR293.030/L'), findsOneWidget);
-      expect(find.text('50.00 km/L'), findsOneWidget); // Sep efficiency
+      expect(find.text('50.000 km/L'), findsOneWidget); // Sep efficiency
       expect(find.text('Expenses 11% below August'), findsOneWidget);
 
       // Month card opens the cost donut.
@@ -140,7 +144,7 @@ void main() {
       await tester.tap(find.byKey(const Key('detail-older')));
       await tester.pumpAndSettle();
       expect(find.text('2026-09-05 - 08:15'), findsOneWidget);
-      expect(find.text('40.00 km/L'), findsOneWidget);
+      expect(find.text('40.000 km/L'), findsOneWidget);
 
       // Skips the service in between: next older is the August refuel.
       await tester.tap(find.byKey(const Key('detail-older')));

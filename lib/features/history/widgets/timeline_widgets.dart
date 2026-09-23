@@ -7,6 +7,7 @@ import '../../../core/db/tables.dart';
 import '../../../core/format/formatters.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/record_module.dart';
+import '../../refueling/efficiency_text.dart' as shared;
 import '../history_calc.dart';
 import '../history_queries.dart';
 
@@ -18,15 +19,14 @@ const double kContentLeft = 60;
 
 const _incomeGreen = Color(0xFF2E7D32);
 
-/// "39.34 km/L". TODO(consumption): honour the efficiency format setting.
+/// "39.344 km/L", "2.542 L/100km", … — delegates to the shared formatter so
+/// History honours the efficiency format chosen in Settings.
 String efficiencyText(
   Formatters fmt,
   double value,
   DistanceUnit unit, [
   FuelKind kind = FuelKind.liquid,
-]) =>
-    '${fmt.number(value, decimals: 2)} '
-    '${Formatters.distanceUnitLabel(unit)}/${fmt.volumeUnitLabel(kind)}';
+]) => shared.efficiencyText(fmt, unit, value, kind: kind) ?? '—';
 
 /// Asks for confirmation, then soft-deletes the record. Returns true when
 /// the record was deleted.
