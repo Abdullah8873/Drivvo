@@ -22,6 +22,10 @@ void main() {
     await tester.tap(find.text('Refueling'));
     await tester.pumpAndSettle();
     expect(find.text('Are you filling up the tank?'), findsOneWidget);
+
+    // Unmount so drift's stream-cleanup timers fire before the test ends.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(Duration.zero);
   });
 
   testWidgets('refueling form computes total from price and liters', (
@@ -45,5 +49,8 @@ void main() {
 
     final total = tester.widget<TextField>(field('Total cost'));
     expect(total.controller!.text, '1470.13');
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(Duration.zero);
   });
 }
