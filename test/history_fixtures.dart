@@ -11,19 +11,28 @@ Future<String> catalogId(AppDatabase db, CatalogKind kind, String name) async {
   return row.id;
 }
 
-/// A single-fuel (Petrol) refueling. Returns its id.
+/// One fuel line for [addRefuel]'s `lines`.
+typedef TestFuelLine = ({String fuel, double volume, int tank});
+
+/// A refueling — by default a single [fuel] line of [volume] in tank 1;
+/// pass [lines] instead for several fuels / tanks (then [volume] is
+/// ignored). Every line costs [price] per unit. Returns its id.
 Future<String> addRefuel(
   AppDatabase db,
   String vehicleId, {
   required DateTime date,
   required double odometer,
-  required double volume,
+  double volume = 0,
+  String fuel = 'Petrol',
+  int tank = 1,
+  List<TestFuelLine>? lines,
   double price = 293.03,
   bool fullTank = true,
+  bool missedPrevious = false,
   String? notes,
 }) async {
-  final fuel = await catalogId(db, CatalogKind.fuel, 'Petrol');
-  final total = volume * price;
+  final all = lines ?? [(fuel: fuel, volume: volume, tank: tank)];
+  final total = all.fold(0.0, (s, l) => s + l.volume * price);
   final r = await db
       .into(db.refuelings)
       .insertReturning(
@@ -33,20 +42,24 @@ Future<String> addRefuel(
           odometer: odometer,
           totalCost: total,
           fullTank: Value(fullTank),
+          missedPrevious: Value(missedPrevious),
           notes: Value(notes),
         ),
       );
-  await db
-      .into(db.refuelingFuels)
-      .insert(
-        RefuelingFuelsCompanion.insert(
-          refuelingId: r.id,
-          fuelId: fuel,
-          pricePerUnit: price,
-          total: total,
-          volume: volume,
-        ),
-      );
+  for (final l in all) {
+    await db
+        .into(db.refuelingFuels)
+        .insert(
+          RefuelingFuelsCompanion.insert(
+            refuelingId: r.id,
+            fuelId: await catalogId(db, CatalogKind.fuel, l.fuel),
+            pricePerUnit: price,
+            total: l.volume * price,
+            volume: l.volume,
+            tank: Value(l.tank),
+          ),
+        );
+  }
   return r.id;
 }
 

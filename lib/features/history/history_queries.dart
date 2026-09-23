@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../core/db/app_database.dart';
 import '../../core/theme/record_module.dart';
+import '../entries/entry_queries.dart';
 
 /// One fuel inside a refueling, with its catalog name resolved.
 class FuelLine {
@@ -291,8 +292,16 @@ extension HistoryQueries on AppDatabase {
 
   /// Soft-deletes a record and its child rows (fuel lines / entry items) in
   /// one transaction. Soft = set `deletedAt`, so the future sync can
-  /// propagate the delete.
+  /// propagate the delete. Expenses, services and incomes go through the
+  /// entries feature's `deleteEntry`, which removes the whole installment
+  /// group (deleting one installment alone would leave the rest orphaned).
   Future<void> softDeleteRecord(RecordModule module, String id) {
+    if (module
+        case RecordModule.expense ||
+            RecordModule.service ||
+            RecordModule.income) {
+      return deleteEntry(id);
+    }
     final now = Value(DateTime.now());
     return transaction(() async {
       switch (module) {
@@ -302,15 +311,6 @@ extension HistoryQueries on AppDatabase {
           await (update(refuelings)..where((r) => r.id.equals(id))).write(
             RefuelingsCompanion(deletedAt: now, updatedAt: now),
           );
-        case RecordModule.expense ||
-            RecordModule.service ||
-            RecordModule.income:
-          await (update(entryItems)..where((i) => i.entryId.equals(id))).write(
-            EntryItemsCompanion(deletedAt: now, updatedAt: now),
-          );
-          await (update(entries)..where((e) => e.id.equals(id))).write(
-            EntriesCompanion(deletedAt: now, updatedAt: now),
-          );
         case RecordModule.route:
           await (update(routes)..where((r) => r.id.equals(id))).write(
             RoutesCompanion(deletedAt: now, updatedAt: now),
@@ -319,8 +319,12 @@ extension HistoryQueries on AppDatabase {
           await (update(readings)..where((r) => r.id.equals(id))).write(
             ReadingsCompanion(deletedAt: now, updatedAt: now),
           );
-        case RecordModule.checklist || RecordModule.reminder:
-          break;
+        case RecordModule.expense ||
+            RecordModule.service ||
+            RecordModule.income ||
+            RecordModule.checklist ||
+            RecordModule.reminder:
+          break; // entries handled above; the rest aren't on the timeline
       }
     });
   }
