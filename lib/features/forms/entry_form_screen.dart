@@ -205,17 +205,58 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     );
     if (picked == null || !mounted) return;
     final pickedIds = {for (final p in picked) p.id};
+    final existing = {for (final l in _lines) l.type.id};
+    final added = [
+      for (final p in picked)
+        if (!existing.contains(p.id)) _TypeLine((id: p.id, name: p.name)),
+    ];
     setState(() {
       for (final l in _lines.where((l) => !pickedIds.contains(l.type.id))) {
         _disposeLater(l.amount);
       }
       _lines.removeWhere((l) => !pickedIds.contains(l.type.id));
-      final existing = {for (final l in _lines) l.type.id};
-      _lines.addAll([
-        for (final p in picked)
-          if (!existing.contains(p.id)) _TypeLine((id: p.id, name: p.name)),
-      ]);
+      _lines.addAll(added);
     });
+    // Ask the price of each newly added type right away (Drivvo-style).
+    for (final line in added) {
+      if (!mounted) return;
+      await _askPrice(line);
+    }
+  }
+
+  /// Price dialog for one type line ("Oil Change — PKR 1200").
+  Future<void> _askPrice(_TypeLine line) async {
+    final controller = TextEditingController(text: line.amount.text);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(line.type.name),
+        content: TextField(
+          key: const Key('price-dialog-field'),
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Price',
+            prefixText: '${ref.read(settingsProvider).currencyCode} ',
+          ),
+          onSubmitted: (v) => Navigator.pop(context, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    _disposeLater(controller);
+    if (result == null || !mounted) return;
+    setState(() => line.amount.text = result.trim());
   }
 
   void _removeLine(_TypeLine line) {
@@ -484,6 +525,18 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     );
   }
 
+  /// Formatted price of a type line, or a red "Add price" prompt.
+  Widget _priceLabel(Formatters fmt, _TypeLine line) {
+    final amount = _parse(line.amount.text);
+    if (amount == null) {
+      return Text(
+        'Add price',
+        style: TextStyle(color: Theme.of(context).colorScheme.error),
+      );
+    }
+    return Text(fmt.money(amount));
+  }
+
   /// Expense / service: title, type lines + total, discount, installments,
   /// place.
   List<Widget> _costFields(Formatters fmt) => [
@@ -501,20 +554,28 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         child: PickerField(label: _typeLabel, value: null, onTap: _pickTypes),
       )
     else ...[
+      // Drivvo-style rows: "Oil Change ........ PKR1,200  ✕". Tap to edit
+      // the price; a missing price is highlighted.
       for (final (i, line) in _lines.indexed)
         FieldRow(
           key: ObjectKey(line),
           icon: i == 0 ? _module.icon : null,
-          child: TextField(
-            controller: line.amount,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              labelText: line.type.name,
-              suffixIcon: IconButton(
-                tooltip: 'Remove',
-                icon: const Icon(Icons.close, size: 20),
-                onPressed: () => _removeLine(line),
+          child: InkWell(
+            key: Key('type-line-${line.type.name}'),
+            onTap: () => _askPrice(line),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  Expanded(child: Text(line.type.name)),
+                  _priceLabel(fmt, line),
+                  IconButton(
+                    tooltip: 'Remove',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => _removeLine(line),
+                  ),
+                ],
               ),
             ),
           ),

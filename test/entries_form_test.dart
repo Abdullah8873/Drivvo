@@ -43,13 +43,14 @@ void main() {
 
   Finder field(String label) => find.widgetWithText(TextField, label);
 
-  /// Opens the type picker, ticks each item (via the search box) and
-  /// confirms with ✓.
+  /// Opens the type picker, ticks each item (via the search box), confirms
+  /// with ✓, then answers the price dialog shown for each new type.
   Future<void> pickTypes(
     WidgetTester tester,
     String fieldLabel,
-    List<String> items,
+    Map<String, String> prices,
   ) async {
+    final items = prices.keys;
     await tester.tap(find.widgetWithText(PickerField, fieldLabel));
     final search = find.descendant(
       of: find.byType(AppBar),
@@ -64,6 +65,20 @@ void main() {
     }
     await tester.tap(find.byIcon(Icons.check));
     await tester.pumpAndSettle();
+    final priceField = find.byKey(const Key('price-dialog-field'));
+    while (priceField.evaluate().isNotEmpty) {
+      final title = tester.widget<Text>(
+        find
+            .descendant(
+              of: find.byType(AlertDialog),
+              matching: find.byType(Text),
+            )
+            .first,
+      );
+      await tester.enterText(priceField, prices[title.data]!);
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+    }
   }
 
   Future<void> save(WidgetTester tester, String savedMessage) async {
@@ -110,10 +125,11 @@ void main() {
     await openForm(tester, db, 'Service');
 
     await tester.enterText(field('Odometer (km)'), '56403');
-    await pickTypes(tester, 'Type of service', ['Oil Change', 'Air Filter']);
-
-    await tester.enterText(field('Oil Change'), '1200');
-    await tester.enterText(field('Air Filter'), '800');
+    await pickTypes(tester, 'Type of service', {
+      'Oil Change': '1200',
+      'Air Filter': '800',
+    });
+    expect(find.text('PKR1,200.00'), findsOneWidget);
     await tester.pump();
     expect(find.text('PKR2,000.00'), findsOneWidget);
     // Services have no Reason field.
@@ -140,8 +156,7 @@ void main() {
     await tester.runAsync(() => addTestVehicle(db));
     await openForm(tester, db, 'Expense');
 
-    await pickTypes(tester, 'Type of expense', ['Tax']);
-    await tester.enterText(field('Tax'), '1000');
+    await pickTypes(tester, 'Type of expense', {'Tax': '1000'});
 
     expect(find.text('Monthly'), findsNothing);
     await tester.enterText(field('Installments'), '3');
