@@ -8,8 +8,8 @@ import '../../core/widgets/main_tab_app_bar.dart';
 import 'reminder_providers.dart';
 import 'upcoming_reminders_strip.dart';
 
-/// Reminders tab (purple, like the Reminder module): one card per reminder
-/// of the current vehicle with its due point, what's left and a progress
+/// Reminders tab (purple, like the Reminder module): one card per active
+/// reminder of the current vehicle with its due point, what's left and a progress
 /// bar, most urgent first. Tap a card to edit it.
 class RemindersScreen extends ConsumerWidget {
   const RemindersScreen({super.key});
@@ -20,7 +20,8 @@ class RemindersScreen extends ConsumerWidget {
     final vehicle = vehicleAsync.value;
     final itemsAsync = vehicle == null
         ? null
-        : ref.watch(reminderItemsProvider(vehicle.id));
+        // Inactive reminders are hidden, same as in the History strip.
+        : ref.watch(activeReminderItemsProvider(vehicle.id));
     // `.value` keeps the previous list while a refresh is loading.
     final items = vehicle == null
         ? (vehicleAsync.isLoading ? null : const <UpcomingReminder>[])

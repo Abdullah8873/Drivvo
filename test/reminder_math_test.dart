@@ -227,6 +227,24 @@ void main() {
       expect(due.status, ReminderStatus.ok);
     });
 
+    test('predicted date is a calendar date across DST changes', () {
+      final due = ReminderMath.evaluate(
+        schedule: const ReminderSchedule(
+          repeat: false,
+          byDistance: true,
+          dueOdometer: 1600,
+        ),
+        baseline: (date: DateTime(2026, 3, 1), odometer: 1000.0),
+        now: DateTime(2026, 3, 1, 10),
+        currentOdometer: 1000,
+        avgDistancePerDay: 20,
+        distanceAhead: 100,
+        daysAhead: 7,
+      );
+      // 600 / 20 = 30 days, crossing the March DST switch.
+      expect(due.predictedDate, DateTime(2026, 3, 31));
+    });
+
     test('soon within the distance warning', () {
       final due = eval(
         const ReminderSchedule(
@@ -323,6 +341,40 @@ void main() {
       expect(next.avgDays, 10);
       expect(next.odometer, 56600);
       expect(next.date, DateTime(2026, 10, 1));
+    });
+
+    test('a backwards odometer gives no prediction', () {
+      expect(
+        ReminderMath.predictNextRefueling([
+          pt(DateTime(2026, 9, 1), 56400),
+          pt(DateTime(2026, 9, 11), 56000),
+        ]),
+        isNull,
+      );
+      expect(
+        ReminderMath.evaluateNextRefueling(
+          refuels: [
+            pt(DateTime(2026, 9, 1), 56400),
+            pt(DateTime(2026, 9, 11), 56000),
+          ],
+          now: DateTime(2026, 9, 12),
+        ),
+        isNull,
+      );
+    });
+
+    test('predicted date is a calendar date across DST changes', () {
+      // Spans the March / October DST switches in most zones that have one.
+      final next = ReminderMath.predictNextRefueling([
+        pt(DateTime(2026, 2, 20), 1000),
+        pt(DateTime(2026, 3, 20), 1300),
+      ])!;
+      expect(next.date, DateTime(2026, 4, 17));
+      final autumn = ReminderMath.predictNextRefueling([
+        pt(DateTime(2026, 9, 26), 1000),
+        pt(DateTime(2026, 10, 16), 1300),
+      ])!;
+      expect(autumn.date, DateTime(2026, 11, 5));
     });
 
     test('evaluates remaining and status', () {

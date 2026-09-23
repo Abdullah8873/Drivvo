@@ -130,7 +130,7 @@ int compareUrgency(UpcomingReminder a, UpcomingReminder b) {
 }
 
 /// Every reminder of a vehicle (active or not) as display items, most
-/// urgent first. Used by the Reminders tab.
+/// urgent first. Screens use [activeReminderItemsProvider] instead.
 final reminderItemsProvider = FutureProvider.autoDispose
     .family<List<UpcomingReminder>, String>((ref, vehicleId) async {
       final reminders = await ref.watch(remindersProvider(vehicleId).future);
@@ -186,6 +186,23 @@ final reminderItemsProvider = FutureProvider.autoDispose
       return items;
     });
 
+/// Only the active reminders (`active == true`) of a vehicle, most urgent
+/// first. The Reminders tab and the History strip both use this, so a
+/// switched-off reminder disappears from both at once.
+final activeReminderItemsProvider = FutureProvider.autoDispose
+    .family<List<UpcomingReminder>, String>((ref, vehicleId) async {
+      final items = await ref.watch(reminderItemsProvider(vehicleId).future);
+      final reminders = await ref.watch(remindersProvider(vehicleId).future);
+      final activeIds = {
+        for (final r in reminders)
+          if (r.active) r.id,
+      };
+      return [
+        for (final i in items)
+          if (activeIds.contains(i.reminderId)) i,
+      ];
+    });
+
 /// What the History screen shows in its "REMINDERS" strip: the predicted
 /// "Next refueling" first (when there are 2+ refuelings), then the active
 /// reminders, most urgent first.
@@ -198,17 +215,12 @@ final upcomingRemindersProvider = FutureProvider.autoDispose
         odometerHistoryProvider(vehicleId).future,
       );
       final reminderItems = await ref.watch(
-        reminderItemsProvider(vehicleId).future,
+        activeReminderItemsProvider(vehicleId).future,
       );
-      final reminders = await ref.watch(remindersProvider(vehicleId).future);
       final unit = await _distanceUnit(ref, vehicleId);
       final fmt = ref.watch(formattersProvider);
       final now = ref.watch(reminderClockProvider)();
 
-      final activeIds = {
-        for (final r in reminders)
-          if (r.active) r.id,
-      };
       final current = history.isEmpty
           ? null
           : history.map((p) => p.odometer).reduce((a, b) => a > b ? a : b);
@@ -232,7 +244,7 @@ final upcomingRemindersProvider = FutureProvider.autoDispose
             progress: refuelDue.progress,
             due: refuelDue,
           ),
-        ...reminderItems.where((i) => activeIds.contains(i.reminderId)),
+        ...reminderItems,
       ];
     });
 

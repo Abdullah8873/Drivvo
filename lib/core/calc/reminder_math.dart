@@ -287,7 +287,9 @@ class ReminderMath {
       final days = remainingDistance <= 0
           ? 0
           : (remainingDistance / avgDistancePerDay).round();
-      predicted = dateOnly(now).add(Duration(days: days));
+      // Calendar arithmetic, not `add(Duration)`: across a DST switch a
+      // 24h step would land on 23:00 of the previous day.
+      predicted = DateTime(now.year, now.month, now.day + days);
     }
 
     final displayDate = switch ((dueDate, predicted)) {
@@ -351,12 +353,15 @@ class ReminderMath {
         sorted.last.date.difference(sorted.first.date).inMinutes /
         Duration.minutesPerDay /
         intervals;
-    if (avgDistance <= 0 && avgDays <= 0) return null;
+    // Either average non-positive (odometer went backwards, same-day logs)
+    // would predict a refuel that is instantly overdue: no prediction.
+    if (avgDistance <= 0 || avgDays <= 0) return null;
+    final last = sorted.last.date;
     return (
       avgDistance: avgDistance,
       avgDays: avgDays,
       odometer: sorted.last.odometer + avgDistance,
-      date: dateOnly(sorted.last.date).add(Duration(days: avgDays.round())),
+      date: DateTime(last.year, last.month, last.day + avgDays.round()),
     );
   }
 

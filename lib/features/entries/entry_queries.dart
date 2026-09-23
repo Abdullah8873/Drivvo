@@ -228,9 +228,18 @@ extension EntryQueries on AppDatabase {
         )..where((e) => e.id.equals(id))).getSingle();
         parentId = current.parentId ?? current.id;
         await _softDeleteGroup(parentId, keepParent: true);
-        await (update(
-          entries,
-        )..where((e) => e.id.equals(parentId))).write(row(shares.first, null));
+        // `deletedAt: null` revives a parent that was deleted on its own
+        // (e.g. by a sync), so the edit never writes into a dead row.
+        final updated =
+            await (update(entries)..where((e) => e.id.equals(parentId))).write(
+              row(shares.first, null).copyWith(deletedAt: const Value(null)),
+            );
+        if (updated == 0) {
+          // Parent row is gone entirely: rebuild the group around a new one.
+          parentId = (await into(
+            entries,
+          ).insertReturning(row(shares.first, null))).id;
+        }
       }
       await insertItems(parentId, shares.first);
 
@@ -254,12 +263,14 @@ extension EntryQueries on AppDatabase {
   }
 
   /// Marks the group's items (and rows, optionally except the parent) deleted.
+  /// The parent's items are included even when the parent row itself is
+  /// already deleted, so reviving it on edit can't leave stale lines behind.
   Future<void> _softDeleteGroup(
     String groupId, {
     bool keepParent = false,
   }) async {
     final now = DateTime.now();
-    final ids = [for (final e in await _groupEntries(groupId)) e.id];
+    final ids = {groupId, for (final e in await _groupEntries(groupId)) e.id};
     await (update(
       entryItems,
     )..where((i) => i.entryId.isIn(ids) & i.deletedAt.isNull())).write(
@@ -268,14 +279,16 @@ extension EntryQueries on AppDatabase {
     await (update(entries)..where(
           (e) =>
               e.id.isIn(ids) &
+              e.deletedAt.isNull() &
               (keepParent ? e.parentId.isNotNull() : const Constant(true)),
         ))
         .write(EntriesCompanion(deletedAt: Value(now), updatedAt: Value(now)));
   }
 
   /// Loads [id]'s installment group merged back into one draft for editing:
-  /// item amounts, discount and the installment count are summed over the
-  /// group; the interval is inferred from the first two dates.
+  /// item amounts (line by line), discount and the installment count are
+  /// summed over the group; the interval is inferred from the first two
+  /// dates.
   Future<EditableEntry?> loadEditableEntry(String id) async {
     final opened = await (select(
       entries,
@@ -285,7 +298,9 @@ extension EntryQueries on AppDatabase {
     final rows = await _groupEntries(groupId);
     final parent = rows.first;
 
-    // Sum each type's amount across the group, keeping first-seen order.
+    // Every installment stores the same lines in the same order, so line k
+    // of the whole entry = the sum of line k of each row. Summing by
+    // position (not by type) keeps two lines of the same type apart.
     final type = alias(catalogItems, 'item_type');
     final itemRows =
         await (select(entryItems)
@@ -300,16 +315,23 @@ extension EntryQueries on AppDatabase {
                 ),
               ]))
             .get();
-    final cents = <String, int>{}; // map literals keep insertion order
     final names = <String, String>{};
+    final itemsByEntry = <String, List<EntryItem>>{};
     for (final r in itemRows) {
       final item = r.readTable(entryItems);
-      cents.update(
-        item.typeId,
-        (c) => c + (item.amount * 100).round(),
-        ifAbsent: () => (item.amount * 100).round(),
-      );
+      itemsByEntry.putIfAbsent(item.entryId, () => []).add(item);
       names[item.typeId] = r.readTable(type).name;
+    }
+    final lineTypes = <String>[];
+    final lineCents = <int>[];
+    for (final row in rows) {
+      for (final (k, item) in (itemsByEntry[row.id] ?? const []).indexed) {
+        if (k == lineTypes.length) {
+          lineTypes.add(item.typeId);
+          lineCents.add(0);
+        }
+        lineCents[k] += (item.amount * 100).round();
+      }
     }
 
     final linked = [
@@ -348,10 +370,10 @@ extension EntryQueries on AppDatabase {
             ? inferInterval(rows[0].date, rows[1].date)
             : InstallmentInterval.monthly,
         items: [
-          for (final MapEntry(key: typeId, value: c) in cents.entries)
+          for (final (k, typeId) in lineTypes.indexed)
             EntryItemDraft(
               typeId: typeId,
-              amount: c / 100,
+              amount: lineCents[k] / 100,
               typeName: names[typeId],
             ),
         ],

@@ -99,11 +99,15 @@ extension ReminderQueries on AppDatabase {
   /// For every service/expense type the vehicle has logged: the most recent
   /// time it was done. Map key = catalog type id. This is what makes
   /// repeating reminders reschedule themselves.
+  ///
+  /// Only installment 1 (`parent_id IS NULL`) counts: installments 2..N are
+  /// later *payments* of the same service (no odometer), not new services.
   Stream<Map<String, Baseline>> watchLastLoggedByType(String vehicleId) {
     const sql = '''
       SELECT i.type_id AS t, e.date AS d, e.odometer AS o
       FROM entry_items i JOIN entries e ON e.id = i.entry_id
       WHERE e.vehicle_id = ?1 AND e.deleted_at IS NULL AND i.deleted_at IS NULL
+        AND e.parent_id IS NULL
     ''';
     return customSelect(
       sql,
