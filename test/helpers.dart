@@ -7,9 +7,19 @@ import 'package:motolog/core/db/app_database.dart';
 import 'package:motolog/core/providers.dart';
 
 /// Fresh in-memory database (seeded with default catalogs) for tests.
+///
+/// `closeStreamsSynchronously` stops drift from scheduling a zero-length
+/// timer when a watched query loses its last listener — otherwise every
+/// widget test that watches the database fails with "A Timer is still
+/// pending even after the widget tree was disposed".
 AppDatabase testDatabase() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
-  return AppDatabase(NativeDatabase.memory());
+  return AppDatabase(
+    DatabaseConnection(
+      NativeDatabase.memory(),
+      closeStreamsSynchronously: true,
+    ),
+  );
 }
 
 /// The full app wired to [db] — pump this in widget tests.

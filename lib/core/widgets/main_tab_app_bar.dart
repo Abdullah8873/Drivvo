@@ -1,11 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../features/vehicles/vehicle_labels.dart';
+import '../../features/vehicles/vehicle_picker_screen.dart';
+import '../db/app_database.dart';
+import '../providers.dart';
 import '../theme/app_theme.dart';
 import 'vehicle_switcher.dart';
 
 /// App bar shared by the main tabs: vehicle switcher on the left, tab
 /// specific actions (export, search, share…) on the right.
-class MainTabAppBar extends StatelessWidget implements PreferredSizeWidget {
+///
+/// A ConsumerWidget (reads providers) that also implements
+/// `PreferredSizeWidget`, which `Scaffold.appBar` requires.
+class MainTabAppBar extends ConsumerWidget implements PreferredSizeWidget {
   const MainTabAppBar({
     super.key,
     this.actions = const [],
@@ -22,18 +31,50 @@ class MainTabAppBar extends StatelessWidget implements PreferredSizeWidget {
       Size.fromHeight(kToolbarHeight + 8 + (bottom?.preferredSize.height ?? 0));
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(currentVehicleProvider);
+    final Widget title;
+    if (!current.hasValue) {
+      // Still loading from the database: keep the bar empty, no flicker.
+      title = const SizedBox.shrink();
+    } else if (current.value case final vehicle?) {
+      title = _CurrentVehicleChip(vehicle: vehicle);
+    } else {
+      title = VehicleSwitcher(
+        name: 'Add a vehicle',
+        onTap: () => context.push('/vehicles/new'),
+      );
+    }
     return AppBar(
       backgroundColor: color,
       toolbarHeight: kToolbarHeight + 8,
       titleSpacing: 12,
-      // TODO(milestone-2): read the selected vehicle from the database.
-      title: const VehicleSwitcher(
-        name: 'My Vehicle',
-        subtitle: 'No records yet',
-      ),
+      title: title,
       actions: actions,
       bottom: bottom,
+    );
+  }
+}
+
+/// Chip for the selected vehicle: "name" over "model · 56935 km".
+class _CurrentVehicleChip extends ConsumerWidget {
+  const _CurrentVehicleChip({required this.vehicle});
+
+  final Vehicle vehicle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final odometer = ref.watch(lastOdometerProvider(vehicle.id)).value;
+    final fmt = ref.watch(formattersProvider);
+    final subtitle = [
+      if (vehicle.model case final m? when m.isNotEmpty) m,
+      if (odometer != null) fmt.distance(odometer, vehicle.distanceUnit),
+    ].join(' · ');
+    return VehicleSwitcher(
+      name: vehicle.name,
+      subtitle: subtitle,
+      icon: vehicle.type.icon,
+      onTap: () => openVehiclePicker(context),
     );
   }
 }

@@ -1,11 +1,48 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
-import '../../core/widgets/stub_screen.dart';
+import '../../core/providers.dart';
+import 'vehicle_widgets.dart';
 
-/// TODO: stub — replaced by the feature implementation.
-class VehiclesScreen extends StatelessWidget {
+/// More → Vehicles: every non-deleted vehicle (active first). Tap to edit,
+/// + to add.
+class VehiclesScreen extends ConsumerWidget {
   const VehiclesScreen({super.key});
 
   @override
-  Widget build(BuildContext context) => StubScreen(title: 'Vehicles');
+  Widget build(BuildContext context, WidgetRef ref) {
+    // `vehiclesProvider` streams the table, so the list refreshes by itself
+    // after a create/edit/delete (like a live query subscription).
+    final vehicles = ref.watch(vehiclesProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Vehicles')),
+      body: vehicles.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Could not load vehicles: $e')),
+        data: (list) => list.isEmpty
+            ? Center(
+                child: Text(
+                  'No vehicles yet. Tap + to add one.',
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+              )
+            : ListView.separated(
+                padding: const EdgeInsets.only(bottom: 88),
+                itemCount: list.length,
+                separatorBuilder: (_, _) => const Divider(indent: 72),
+                itemBuilder: (context, i) => VehicleTile(
+                  vehicle: list[i],
+                  onTap: () => context.push('/vehicles/${list[i].id}'),
+                ),
+              ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Add vehicle',
+        shape: const CircleBorder(),
+        onPressed: () => context.push('/vehicles/new'),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
 }
