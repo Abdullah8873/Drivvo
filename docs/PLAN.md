@@ -149,6 +149,17 @@ a polymorphic table stored in Supabase Storage. Sharing uses `vehicle_members(ve
 4. **History**: timeline, monthly summary cards, expand-in-place, detail view with ‹ › navigation, search, achievement events.
 5. **Reports**: parallel agents per tab (General, Refueling, Expense/Income/Service, Route/Reading), plus the period filter and the month chart screen.
 6. **Cloud**: Supabase auth, sync engine, attachments and Storage screen, users/profiles/sharing, vehicle Transfer.
+   **Auth decisions (user, 2026-09-23):** login is OPTIONAL — the app works fully offline without an
+   account; signing in (More → My account) enables backup/sync/sharing, and existing local data is
+   attached to the account on first sign-in. Providers: **email + password** (sign up, login,
+   forgot/reset password), **Google** (native one-tap on Android via google_sign_in + Supabase ID-token
+   sign-in; OAuth redirect on web), **email magic link / 6-digit OTP code**. Apple sign-in deferred
+   (only needed for an App Store release). Screens: Sign in (Google button, email field → password or
+   "email me a code"), Sign up, Reset password, My account (name, email, driver's license fields from
+   Drivvo, sign out, delete account). Config (Supabase URL + anon key, Google client IDs) via
+   `--dart-define`/env file, never committed; the service-role key never ships in the app.
+   User must: create the Supabase project, create Google OAuth clients (Android + Web) in Google Cloud
+   Console, and enable the Google provider in Supabase.
 7. **Extras (parallel)**: checklists and form builder, export (CSV/Excel/PDF) + CSV import, My places map, Flex calculator, Achievements, dark theme, i18n.
 8. **Ship**: Android APK on the phone, web deploy (Firebase Hosting/Vercel), optional iOS via Codemagic.
 
