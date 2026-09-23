@@ -77,7 +77,8 @@ void main() {
       itemAmounts: [700, 300],
     );
     expect(plan.map((s) => s.number), [1, 2, 3]);
-    expect(plan.map((s) => s.totalCost), [316.68, 316.66, 316.66]);
+    // Each total = that row's items − its discount share.
+    expect(plan.map((s) => s.totalCost), [316.66, 316.67, 316.67]);
     expect(plan.map((s) => s.discount), [16.68, 16.66, 16.66]);
     expect(plan.map((s) => s.itemAmounts), [
       [233.34, 100],
@@ -85,5 +86,38 @@ void main() {
       [233.33, 100],
     ]);
     expect(plan.last.date, DateTime(2026, 11, 1));
+  });
+
+  group('planInstallments keeps every row consistent', () {
+    int cents(double v) => (v * 100).round();
+
+    for (final (items, discount, count) in [
+      (<double>[100, 50], 0.0, 3),
+      (<double>[100, 50], 10.0, 3),
+      (<double>[0.05, 0.05, 0.05], 0.0, 4),
+      (<double>[1234.56, 99.99, 0.01], 3.33, 7),
+    ]) {
+      test('$items − $discount in $count', () {
+        final total = items.fold(0.0, (s, a) => s + a) - discount;
+        final plan = planInstallments(
+          firstDate: DateTime(2026, 9, 1),
+          count: count,
+          interval: InstallmentInterval.monthly,
+          total: total,
+          discount: discount,
+          itemAmounts: items,
+        );
+        for (final s in plan) {
+          final itemCents = s.itemAmounts.fold(0, (c, a) => c + cents(a));
+          expect(
+            cents(s.totalCost),
+            itemCents - cents(s.discount),
+            reason: 'installment ${s.number}',
+          );
+        }
+        final grand = plan.fold(0, (c, s) => c + cents(s.totalCost));
+        expect(grand, cents(total));
+      });
+    }
   });
 }

@@ -188,5 +188,16 @@ void main() {
       ]);
       expect(s.cycles, isEmpty);
     });
+
+    test('a backwards odometer is not used as the next baseline', () {
+      final s = ConsumptionStats.compute([
+        r('a', DateTime(2026, 1, 1), 1000, 5),
+        r('b', DateTime(2026, 1, 2), 900, 5), // typo: odometer went back
+        r('c', DateTime(2026, 1, 3), 1400, 5), // new baseline, no cycle
+        r('d', DateTime(2026, 1, 4), 1700, 6), // 300 km / 6 L
+      ]);
+      expect(s.cycles.map((c) => (c.start.id, c.end.id)), [('c', 'd')]);
+      expect(s.cycles.single.efficiency, 50);
+    });
   });
 }
