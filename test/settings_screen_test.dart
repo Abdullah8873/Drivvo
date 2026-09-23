@@ -25,7 +25,7 @@ void main() {
       'PKR1,000,000.00',
       '42.357 L',
       'km/L',
-      'Show reminder 500 km in advance',
+      "Show reminder 500 km/mi in advance (in each vehicle's unit)",
       'Show reminder 30 days in advance',
       '10:30',
     ]) {
@@ -84,12 +84,15 @@ void main() {
     await tester.tap(find.text('Vibrate when notifying'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Number of kilometers'));
+    await tester.tap(find.text('Distance in advance'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), '800');
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
-    expect(find.text('Show reminder 800 km in advance'), findsOneWidget);
+    expect(
+      find.text("Show reminder 800 km/mi in advance (in each vehicle's unit)"),
+      findsOneWidget,
+    );
 
     final s = await stored(tester, db);
     expect(s.currencyCode, 'USD');
@@ -114,6 +117,64 @@ void main() {
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsNothing);
+    await closeApp(tester, db);
+  });
+
+  testWidgets('currency picker shows the current currency selected', (
+    tester,
+  ) async {
+    final db = await openSettings(tester);
+    await tester.tap(find.text('Currency format'));
+    await tester.pumpAndSettle();
+
+    // Default currency (PKR) is checked in the picker.
+    expect(
+      find.descendant(
+        of: find.widgetWithText(ListTile, 'PKR - Pakistani Rupee'),
+        matching: find.byIcon(Icons.check),
+      ),
+      findsOneWidget,
+    );
+
+    // Picking a different currency and reopening moves the check mark.
+    await tester.enterText(find.byType(TextField), 'us dollar');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USD - US Dollar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Currency format'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.widgetWithText(ListTile, 'USD - US Dollar'),
+        matching: find.byIcon(Icons.check),
+      ),
+      findsOneWidget,
+    );
+    await closeApp(tester, db);
+  });
+
+  testWidgets('number dialog rejects blank input with an inline error', (
+    tester,
+  ) async {
+    final db = await openSettings(tester);
+    await tester.tap(find.text('Distance in advance'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '');
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a whole number ≥ 0'), findsOneWidget);
+    // Bad input doesn't close the dialog or change anything.
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect((await stored(tester, db)).reminderDistanceAhead, 500);
+
+    // Fixing the value clears the error and OK now applies it.
+    await tester.enterText(find.byType(TextField), '250');
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a whole number ≥ 0'), findsNothing);
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+    expect((await stored(tester, db)).reminderDistanceAhead, 250);
     await closeApp(tester, db);
   });
 }

@@ -173,11 +173,19 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
   }
 
   Future<void> _delete() async {
+    final db = ref.read(databaseProvider);
+    // Count first so the dialog can warn what else goes with the vehicle
+    // (soft-deleting the vehicle alone would leave its records as orphans).
+    final recordCount = await db.countVehicleRecords(widget.id!);
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete vehicle?'),
-        content: Text('"${_name.text}" will be removed from the app.'),
+        content: Text(
+          '"${_name.text}" and its $recordCount '
+          '${recordCount == 1 ? 'record' : 'records'} will be deleted.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -191,7 +199,7 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
       ),
     );
     if (confirmed != true) return;
-    await ref.read(databaseProvider).softDeleteVehicle(widget.id!);
+    await db.softDeleteVehicleAndRecords(widget.id!);
     _close();
   }
 

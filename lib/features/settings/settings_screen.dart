@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/providers.dart';
@@ -119,7 +120,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.attach_money,
             title: 'Currency format',
             value: fmt.money(1000000),
-            onTap: () => _pickCurrency(context, set),
+            onTap: () => _pickCurrency(context, ref, set),
           ),
           _CheckTile(
             icon: Icons.onetwothree,
@@ -141,7 +142,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.straighten,
             title: 'km / Mile / Time',
             value: 'Set per vehicle',
-            onTap: () => _showDistanceInfo(context),
+            onTap: () => _showDistanceInfo(context, ref),
           ),
           _SettingTile(
             icon: Icons.local_gas_station,
@@ -191,14 +192,16 @@ class SettingsScreen extends ConsumerWidget {
           const _SectionHeader('Reminders'),
           _SettingTile(
             icon: Icons.speed,
-            title: 'Number of kilometers',
-            value: 'Show reminder ${s.reminderDistanceAhead} km in advance',
+            title: 'Distance in advance',
+            value:
+                'Show reminder ${s.reminderDistanceAhead} km/mi in advance '
+                "(in each vehicle's unit)",
             onTap: () async {
               final v = await showNumberDialog(
                 context: context,
-                title: 'Number of kilometers',
+                title: 'Distance in advance',
                 initialValue: s.reminderDistanceAhead,
-                suffix: 'km',
+                suffix: 'km/mi',
               );
               if (v != null) set((s) => s.copyWith(reminderDistanceAhead: v));
             },
@@ -273,13 +276,16 @@ class SettingsScreen extends ConsumerWidget {
   /// Full-screen searchable ISO 4217 list (reuses the app's Select screen).
   Future<void> _pickCurrency(
     BuildContext context,
+    WidgetRef ref,
     void Function(AppSettings Function(AppSettings s)) set,
   ) async {
+    final currentCode = ref.read(settingsProvider).currencyCode;
     final picked = await Navigator.of(context).push<List<String>>(
       MaterialPageRoute(
         builder: (_) => SelectListScreen(
           title: 'Currency format',
           items: [for (final (code, _) in currencies) currencyLabel(code)],
+          selected: currencyLabel(currentCode),
         ),
       ),
     );
@@ -290,7 +296,8 @@ class SettingsScreen extends ConsumerWidget {
     set((s) => s.copyWith(currencyCode: code));
   }
 
-  Future<void> _showDistanceInfo(BuildContext context) {
+  Future<void> _showDistanceInfo(BuildContext context, WidgetRef ref) {
+    final vehicleId = ref.read(currentVehicleProvider).value?.id;
     return showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -303,6 +310,14 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () => Navigator.pop(context),
             child: const Text('OK'),
           ),
+          if (vehicleId != null)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                context.push('/vehicles/$vehicleId');
+              },
+              child: const Text('EDIT VEHICLE'),
+            ),
         ],
       ),
     );
@@ -349,7 +364,10 @@ class _SettingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: Colors.grey.shade600),
+      leading: Icon(
+        icon,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
       title: Text(title),
       subtitle: Text(value),
       onTap: onTap,
@@ -376,7 +394,10 @@ class _CheckTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CheckboxListTile(
-      secondary: Icon(icon, color: Colors.grey.shade600),
+      secondary: Icon(
+        icon,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle!),
       value: value,

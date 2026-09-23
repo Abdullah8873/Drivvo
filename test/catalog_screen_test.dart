@@ -7,6 +7,8 @@ import 'package:motolog/features/catalog/catalog_queries.dart';
 import 'catalog_test_utils.dart';
 import 'helpers.dart';
 
+Finder dropdownField<T>() => find.byType(DropdownButtonFormField<T>);
+
 Future<AppDatabase> openCatalog(WidgetTester tester, String label) =>
     openFromMore(tester, label);
 
@@ -71,6 +73,48 @@ void main() {
       expect(row.name, 'House');
       expect(row.address, 'Old street'); // absent = untouched
       expect(row.updatedAt.isAfter(old), isTrue);
+    });
+
+    test('counts only non-deleted refueling-fuel lines using a fuel', () async {
+      final fuel = await db.addCatalogItem(
+        kind: CatalogKind.fuel,
+        name: 'Petrol',
+      );
+      expect(await db.countRefuelingsUsingFuel(fuel.id), 0);
+
+      final vehicleId = await addTestVehicle(db);
+      Future<RefuelingFuel> addLine() async {
+        final refueling = await db
+            .into(db.refuelings)
+            .insertReturning(
+              RefuelingsCompanion.insert(
+                vehicleId: vehicleId,
+                date: DateTime(2026, 1, 1),
+                odometer: 1000,
+                totalCost: 5000,
+              ),
+            );
+        return db
+            .into(db.refuelingFuels)
+            .insertReturning(
+              RefuelingFuelsCompanion.insert(
+                refuelingId: refueling.id,
+                fuelId: fuel.id,
+                pricePerUnit: 250,
+                total: 5000,
+                volume: 20,
+              ),
+            );
+      }
+
+      await addLine();
+      final second = await addLine();
+      expect(await db.countRefuelingsUsingFuel(fuel.id), 2);
+
+      // A soft-deleted line no longer counts.
+      await (db.update(db.refuelingFuels)..where((r) => r.id.equals(second.id)))
+          .write(RefuelingFuelsCompanion(deletedAt: Value(DateTime.now())));
+      expect(await db.countRefuelingsUsingFuel(fuel.id), 1);
     });
   });
 
@@ -174,6 +218,55 @@ void main() {
     expect(find.text('Hydrogen'), findsNothing);
     rows = await allOf(tester, db, CatalogKind.fuel);
     expect(rows.singleWhere((r) => r.name == 'Hydrogen').deletedAt, isNotNull);
+    await closeApp(tester, db);
+  });
+
+  testWidgets('locks "Type of fuel" once the fuel is used in a refueling', (
+    tester,
+  ) async {
+    final db = await openCatalog(tester, 'Fuel');
+    final fuel = (await allOf(
+      tester,
+      db,
+      CatalogKind.fuel,
+    )).firstWhere((f) => f.name == 'Petrol');
+
+    await tester.runAsync(() async {
+      final vehicleId = await addTestVehicle(db);
+      final refueling = await db
+          .into(db.refuelings)
+          .insertReturning(
+            RefuelingsCompanion.insert(
+              vehicleId: vehicleId,
+              date: DateTime(2026, 1, 1),
+              odometer: 1000,
+              totalCost: 5000,
+            ),
+          );
+      await db
+          .into(db.refuelingFuels)
+          .insert(
+            RefuelingFuelsCompanion.insert(
+              refuelingId: refueling.id,
+              fuelId: fuel.id,
+              pricePerUnit: 250,
+              total: 5000,
+              volume: 20,
+            ),
+          );
+    });
+
+    await tester.tap(find.text('Petrol'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text("Can't change: this fuel is used in 1 refuelings"),
+      findsOneWidget,
+    );
+    final dropdown = tester.widget<DropdownButtonFormField<FuelKind>>(
+      dropdownField<FuelKind>(),
+    );
+    expect(dropdown.onChanged, isNull);
     await closeApp(tester, db);
   });
 }
