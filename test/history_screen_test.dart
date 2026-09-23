@@ -1,6 +1,10 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:motolog/core/db/app_database.dart';
+import 'package:motolog/core/theme/record_module.dart';
+import 'package:motolog/features/entries/entry_queries.dart';
+import 'package:motolog/features/history/history_queries.dart';
 
 import 'helpers.dart';
 import 'history_fixtures.dart';
@@ -86,8 +90,17 @@ void main() {
       expect(find.text('AUGUST 2026'), findsOneWidget);
       expect(find.text('Oil Change +1'), findsOneWidget);
       expect(find.text('Petrol'), findsNWidgets(3));
-      expect(find.text('1400 km · 4.000 L · PKR293.030/L'), findsOneWidget);
-      expect(find.text('50.000 km/L'), findsOneWidget); // Sep efficiency
+      // "odometer · efficiency · volume" — efficiency from the engine, shown
+      // on the refuel that starts each cycle; none on the newest one.
+      expect(find.text('1400 km · 4.000 L'), findsOneWidget);
+      expect(find.text('1200 km · 50.000 km/L · 5.000 L'), findsOneWidget);
+      expect(find.text('1000 km · 40.000 km/L · 5.000 L'), findsOneWidget);
+      // September: both cycles close there (one started in August):
+      // 400 km / 9 L.
+      expect(find.text('44.444 km/L'), findsOneWidget);
+      // Distance: 1400 − August's 1100; August falls back to its own range.
+      expect(find.text('300 km'), findsOneWidget);
+      expect(find.text('100 km'), findsOneWidget);
       expect(find.text('Expenses 11% below August'), findsOneWidget);
 
       // Month card opens the cost donut.
@@ -95,6 +108,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Cost comparison'), findsOneWidget);
       expect(find.text('Refueling'), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('month cost screen follows live data', (tester) async {
+      await pumpApp(tester);
+      await tester.tap(find.byKey(const Key('month-2026-9')));
+      await tester.pumpAndSettle();
+      expect(find.text('PKR2,637.27'), findsWidgets); // 9 L × 293.03
+
+      await tester.runAsync(
+        () => db.softDeleteRecord(RecordModule.refueling, sep17),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('PKR2,637.27'), findsNothing);
+      expect(find.text('PKR1,465.15'), findsWidgets); // 5 L left
       await unmount(tester);
     });
 
@@ -144,7 +172,11 @@ void main() {
       await tester.tap(find.byKey(const Key('detail-older')));
       await tester.pumpAndSettle();
       expect(find.text('2026-09-05 - 08:15'), findsOneWidget);
-      expect(find.text('40.000 km/L'), findsOneWidget);
+      expect(find.text('50.000 km/L'), findsOneWidget); // engine: 200 / 4
+      expect(
+        find.text('Set tank capacity in the vehicle to see % of tank'),
+        findsOneWidget,
+      );
 
       // Skips the service in between: next older is the August refuel.
       await tester.tap(find.byKey(const Key('detail-older')));
@@ -166,5 +198,111 @@ void main() {
       expect(find.text('Petrol'), findsNothing);
       await unmount(tester);
     });
+  });
+
+  testWidgets('deleting an installment removes the whole group', (
+    tester,
+  ) async {
+    final vid = await addTestVehicle(db);
+    final type = await catalogId(db, CatalogKind.expenseType, 'Insurance');
+    final parentId = await db.saveEntry(
+      EntryDraft(
+        vehicleId: vid,
+        kind: EntryKind.expense,
+        date: DateTime(2026, 7, 1),
+        items: [EntryItemDraft(typeId: type, amount: 3000)],
+        installments: 3,
+      ),
+    );
+    await pumpApp(tester);
+    expect(find.text('Insurance'), findsNWidgets(3));
+
+    await tester.tap(find.byKey(Key('row-$parentId')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Delete'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('This deletes all 3 installments'), findsOne);
+    await tester.tap(find.text('DELETE'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Insurance'), findsNothing);
+    final rows = await tester.runAsync(
+      () => (db.select(db.entries)..where((e) => e.deletedAt.isNull())).get(),
+    );
+    expect(rows, isEmpty);
+    await unmount(tester);
+  });
+
+  testWidgets('two-tank vehicle: per-tank efficiency units and % of tank', (
+    tester,
+  ) async {
+    final v = await db
+        .into(db.vehicles)
+        .insertReturning(
+          VehiclesCompanion.insert(
+            name: 'Bi-fuel',
+            type: VehicleType.car,
+            tankCount: const Value(2),
+            tank1Capacity: const Value(40),
+            tank2Kind: const Value(FuelKind.gas),
+            tank2Capacity: const Value(10),
+          ),
+        );
+    final first = await addRefuel(
+      db,
+      v.id,
+      date: DateTime(2026, 9, 1),
+      odometer: 1000,
+      lines: [
+        (fuel: 'Petrol', volume: 10, tank: 1),
+        (fuel: 'CNG', volume: 5, tank: 2),
+      ],
+    );
+    final cngOnly = await addRefuel(
+      db,
+      v.id,
+      date: DateTime(2026, 9, 10),
+      odometer: 1200,
+      fuel: 'CNG',
+      tank: 2,
+      volume: 4,
+    );
+    await addRefuel(
+      db,
+      v.id,
+      date: DateTime(2026, 9, 20),
+      odometer: 1500,
+      lines: [
+        (fuel: 'Petrol', volume: 20, tank: 1),
+        (fuel: 'CNG', volume: 5, tank: 2),
+      ],
+    );
+    await pumpApp(tester);
+
+    // CNG is measured in km/kg, not in the liquid format.
+    expect(find.text('1200 km · 60.000 km/kg · 4.000 kg'), findsOneWidget);
+    expect(
+      find.text('1000 km · 25.000 km/L · 10.000 L + 5.000 kg'),
+      findsOneWidget,
+    );
+    // Month card: one efficiency per tank.
+    expect(find.text('25.000 km/L'), findsOneWidget); // 500 km / 20 L
+    expect(find.text('55.556 km/kg'), findsOneWidget); // 500 km / 9 kg
+    expect(find.byKey(Key('row-$cngOnly')), findsOneWidget);
+
+    await tester.tap(find.byKey(Key('row-$first')));
+    await tester.pumpAndSettle();
+    expect(find.text('Efficiency (Petrol)'), findsOneWidget);
+    expect(find.text('Efficiency (CNG)'), findsOneWidget);
+    expect(find.text('50.000 km/kg'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('View'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('of CNG tank'), 200);
+    expect(find.text('25%'), findsOneWidget); // 10 L of 40 L
+    expect(find.text('50%'), findsOneWidget); // 5 kg of 10 kg
+    expect(find.text('of Petrol tank'), findsOneWidget);
+    expect(find.textContaining('Set tank capacity'), findsNothing);
+    await unmount(tester);
   });
 }

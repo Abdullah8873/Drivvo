@@ -101,7 +101,6 @@ class _HistorySearchScreenState extends ConsumerState<HistorySearchScreen> {
             itemCount: hits.length,
             itemBuilder: (context, i) => TimelineRow(
               record: hits[i],
-              timeline: records,
               distanceUnit: widget.distanceUnit,
               expanded: _expandedId == hits[i].id,
               onTap: () => setState(

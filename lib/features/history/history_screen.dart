@@ -112,10 +112,13 @@ class _TimelineState extends ConsumerState<_Timeline> {
           for (final month in groupByMonth(records)) ...[
             () => MonthSummaryCard(
               summary: month,
-              distanceUnit: vehicle.distanceUnit,
+              vehicle: vehicle,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => MonthCostsScreen(summary: month),
+                  builder: (_) => MonthCostsScreen(
+                    vehicleId: vehicle.id,
+                    month: month.month,
+                  ),
                 ),
               ),
             ),
@@ -123,7 +126,6 @@ class _TimelineState extends ConsumerState<_Timeline> {
               () => TimelineRow(
                 key: ValueKey(r.id),
                 record: r,
-                timeline: records,
                 distanceUnit: vehicle.distanceUnit,
                 expanded: _expandedId == r.id,
                 onTap: () => setState(

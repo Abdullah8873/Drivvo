@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/db/tables.dart';
+import '../../../core/db/app_database.dart';
 import '../../../core/format/formatters.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/record_module.dart';
 import '../../refueling/efficiency_text.dart' as shared;
 import '../history_calc.dart';
+import '../history_providers.dart';
 import '../history_queries.dart';
 
 /// Horizontal center of the timeline track, from the list's left edge.
@@ -19,27 +20,40 @@ const double kContentLeft = 60;
 
 const _incomeGreen = Color(0xFF2E7D32);
 
-/// "39.344 km/L", "2.542 L/100km", … — delegates to the shared formatter so
-/// History honours the efficiency format chosen in Settings.
+/// "39.344 km/L", "2.542 L/100km", "12.500 km/kg", … — delegates to the
+/// shared formatter so History honours the efficiency format chosen in
+/// Settings. [kind] is required so CNG/electric never show liquid units.
 String efficiencyText(
   Formatters fmt,
   double value,
-  DistanceUnit unit, [
-  FuelKind kind = FuelKind.liquid,
-]) => shared.efficiencyText(fmt, unit, value, kind: kind) ?? '—';
+  DistanceUnit unit,
+  FuelKind kind,
+) => shared.efficiencyText(fmt, unit, value, kind: kind) ?? '—';
 
-/// Asks for confirmation, then soft-deletes the record. Returns true when
+/// Label for a per-tank value: "Efficiency" on single-tank refuels,
+/// "Efficiency (CNG)" when the refuel filled both tanks.
+String tankLabel(String label, RefuelTank tank, int tankCount) =>
+    tankCount > 1 ? '$label (${tank.fuelName})' : label;
+
+/// Asks for confirmation, then soft-deletes the record — for expenses,
+/// services and incomes, its whole installment group. Returns true when
 /// the record was deleted.
 Future<bool> confirmAndDeleteRecord(
   BuildContext context,
   WidgetRef ref,
   TimelineRecord record,
 ) async {
+  final installments = record.entry?.installmentCount ?? 1;
   final ok = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Delete record?'),
-      content: Text('"${record.title}" will be removed from your history.'),
+      content: Text(
+        installments > 1
+            ? '"${record.title}" is split into installments. '
+                  'This deletes all $installments installments.'
+            : '"${record.title}" will be removed from your history.',
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
@@ -126,35 +140,41 @@ class TimelineRow extends ConsumerWidget {
   const TimelineRow({
     super.key,
     required this.record,
-    required this.timeline,
     required this.distanceUnit,
     required this.expanded,
     required this.onTap,
   });
 
   final TimelineRecord record;
-
-  /// The whole timeline (needed for the refuel-cycle efficiency).
-  final List<TimelineRecord> timeline;
   final DistanceUnit distanceUnit;
   final bool expanded;
   final VoidCallback onTap;
 
-  String _subtitle(Formatters fmt) {
+  /// "56935 km · 39.344 km/L · 5.017 L" for refuels (efficiency omitted
+  /// when the engine has none for this refuel), "odometer · place" for
+  /// entries.
+  String _subtitle(Formatters fmt, List<RefuelTank> tanks) {
     final odo = record.odometer == null
         ? null
         : fmt.distance(record.odometer!, distanceUnit);
     final parts = <String?>[odo];
     switch (record.module) {
       case RecordModule.refueling:
-        if (record.fuels.isNotEmpty) {
-          final kind = record.fuels.first.kind;
-          parts.add(fmt.volume(record.totalVolume, kind: kind));
+        // The first tank with a measured cycle (usually the only tank).
+        final measured = tanks.where((t) => t.efficiency != null).firstOrNull;
+        if (measured != null) {
           parts.add(
-            fmt.unitPrice(
-              record.fuels.first.pricePerUnit,
-              fmt.volumeUnitLabel(kind),
+            efficiencyText(
+              fmt,
+              measured.efficiency!,
+              distanceUnit,
+              measured.kind,
             ),
+          );
+        }
+        if (tanks.isNotEmpty) {
+          parts.add(
+            tanks.map((t) => fmt.volume(t.volume, kind: t.kind)).join(' + '),
           );
         }
       case RecordModule.route:
@@ -178,6 +198,13 @@ class TimelineRow extends ConsumerWidget {
       color: Colors.grey.shade600,
     );
     final showAmount = record.module != RecordModule.reading;
+    // Efficiency comes from the shared consumption engine (per tank,
+    // position-aware, respecting "missed previous refueling").
+    final tanks = record.module == RecordModule.refueling
+        ? ref
+              .watch(historyConsumptionProvider(record.vehicleId))
+              .tanksOf(record)
+        : const <RefuelTank>[];
 
     return Stack(
       children: [
@@ -210,7 +237,7 @@ class TimelineRow extends ConsumerWidget {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _subtitle(fmt),
+                            _subtitle(fmt, tanks),
                             style: grey,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -242,7 +269,7 @@ class TimelineRow extends ConsumerWidget {
                   child: expanded
                       ? _RowDetails(
                           record: record,
-                          timeline: timeline,
+                          tanks: tanks,
                           distanceUnit: distanceUnit,
                         )
                       : const SizedBox(width: double.infinity),
@@ -260,12 +287,14 @@ class TimelineRow extends ConsumerWidget {
 class _RowDetails extends ConsumerWidget {
   const _RowDetails({
     required this.record,
-    required this.timeline,
+    required this.tanks,
     required this.distanceUnit,
   });
 
   final TimelineRecord record;
-  final List<TimelineRecord> timeline;
+
+  /// Engine results per tank filled (refuels only).
+  final List<RefuelTank> tanks;
   final DistanceUnit distanceUnit;
 
   @override
@@ -284,11 +313,11 @@ class _RowDetails extends ConsumerWidget {
             fmt.money(f.total),
           );
         }
-        final cycle = refuelCycle(timeline, record);
-        if (cycle != null) {
+        for (final t in tanks) {
+          if (t.efficiency == null) continue;
           line(
-            'Efficiency',
-            efficiencyText(fmt, cycle.efficiency, distanceUnit),
+            tankLabel('Efficiency', t, tanks.length),
+            efficiencyText(fmt, t.efficiency!, distanceUnit, t.kind),
           );
         }
         line('Full tank', record.refueling!.fullTank ? 'Yes' : 'No');
@@ -392,12 +421,14 @@ class MonthSummaryCard extends ConsumerWidget {
   const MonthSummaryCard({
     super.key,
     required this.summary,
-    required this.distanceUnit,
+    required this.vehicle,
     this.onTap,
   });
 
   final MonthSummary summary;
-  final DistanceUnit distanceUnit;
+
+  /// The vehicle (distance unit, tank count and fuel kinds).
+  final Vehicle vehicle;
   final VoidCallback? onTap;
 
   @override
@@ -405,8 +436,24 @@ class MonthSummaryCard extends ConsumerWidget {
     final fmt = ref.watch(formattersProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final distanceUnit = vehicle.distanceUnit;
     final distance = summary.distance;
-    final efficiency = summary.efficiency;
+    // Engine cycles that close in this month, per tank (a 2-tank vehicle
+    // gets one value per tank: km/L and km/kg can't be averaged together).
+    final consumption = ref.watch(historyConsumptionProvider(vehicle.id));
+    final efficiencies = [
+      (
+        summary.efficiencyFrom(consumption.tank1.cycles),
+        vehicle.tank1Kind,
+        vehicle.tankCount > 1 ? 'Efficiency (tank 1)' : 'Efficiency',
+      ),
+      if (vehicle.tankCount > 1)
+        (
+          summary.efficiencyFrom(consumption.tank2.cycles),
+          vehicle.tank2Kind ?? FuelKind.liquid,
+          'Efficiency (tank 2)',
+        ),
+    ];
     final change = summary.changeVsPrevious;
     final prevMonthName = DateFormat('MMMM')
         .format(DateTime(summary.month.year, summary.month.month - 1));
@@ -453,16 +500,18 @@ class MonthSummaryCard extends ConsumerWidget {
                             label: 'Distance',
                             value: fmt.distance(distance, distanceUnit),
                           ),
-                        if (efficiency != null)
-                          _Stat(
-                            icon: Icons.local_gas_station_outlined,
-                            label: 'Efficiency',
-                            value: efficiencyText(
-                              fmt,
-                              efficiency,
-                              distanceUnit,
+                        for (final (value, kind, label) in efficiencies)
+                          if (value != null)
+                            _Stat(
+                              icon: Icons.local_gas_station_outlined,
+                              label: label,
+                              value: efficiencyText(
+                                fmt,
+                                value,
+                                distanceUnit,
+                                kind,
+                              ),
                             ),
-                          ),
                       ],
                     ),
                     if (change != null) ...[
