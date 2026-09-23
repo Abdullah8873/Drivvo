@@ -10,7 +10,10 @@ import '../../core/widgets/select_list_screen.dart';
 /// Refueling form — the reference pattern for every module form.
 /// UI only for now; milestone 2 wires it to the local database.
 class RefuelingFormScreen extends StatefulWidget {
-  const RefuelingFormScreen({super.key});
+  const RefuelingFormScreen({super.key, this.id});
+
+  /// Null = create a new refueling; otherwise edit this one.
+  final String? id;
 
   @override
   State<RefuelingFormScreen> createState() => _RefuelingFormScreenState();
