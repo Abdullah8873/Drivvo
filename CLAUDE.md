@@ -84,6 +84,8 @@ flutter_local_notifications (reminders).
 
 The full feature/UI spec — every Drivvo screen, form field, report card and
 setting, gathered from a live walkthrough — is in `docs/SPEC.md`. Read the
-relevant section before building a screen. When unsure how something should look or behave,
+relevant section before building a screen. **Start every session by reading
+`docs/STATUS.md`** (what is done, what is in flight, what needs the owner).
+When unsure how something should look or behave,
 mirror Drivvo (installed in BlueStacks on this PC — view only, never change
 data there).
