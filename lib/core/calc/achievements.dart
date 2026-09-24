@@ -64,7 +64,10 @@ const _fullTankMilestones = [15, 45, 90, 150];
 class Achievements {
   Achievements._();
 
-  static List<Achievement> compute(List<AchievementRecord> records, DateTime now) {
+  static List<Achievement> compute(
+    List<AchievementRecord> records,
+    DateTime now,
+  ) {
     if (records.isEmpty) return _badges(firstRecordDate: null, now: now);
 
     // Stable sort by date (ties keep their original/insertion order) so
@@ -154,7 +157,11 @@ class Achievements {
     DateTime now,
   ) {
     if (firstRecordDate == null) return null;
-    final target = ReminderMath.addPeriod(firstRecordDate, years, PeriodUnit.year);
+    final target = ReminderMath.addPeriod(
+      firstRecordDate,
+      years,
+      PeriodUnit.year,
+    );
     return ReminderMath.dateOnly(target).isAfter(ReminderMath.dateOnly(now))
         ? null
         : target;
@@ -209,7 +216,11 @@ class Achievements {
       ),
     // Rows 3–4.
     for (final n in _refuelMilestones)
-      Achievement(id: 'refuels_$n', text: _refuelText(n), earnedDate: refuelDates[n]),
+      Achievement(
+        id: 'refuels_$n',
+        text: _refuelText(n),
+        earnedDate: refuelDates[n],
+      ),
     // Row 5.
     for (final n in _fullTankMilestones)
       Achievement(

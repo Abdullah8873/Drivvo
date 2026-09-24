@@ -38,10 +38,10 @@ class MoreScreen extends StatelessWidget {
     ],
     [
       (Icons.map, 'My places', null),
-      (Icons.calculate, 'Flex calculator', null),
+      (Icons.calculate, 'Flex calculator', '/flex'),
     ],
     [
-      (Icons.emoji_events, 'Achievements', null),
+      (Icons.emoji_events, 'Achievements', '/achievements'),
       (Icons.settings, 'Settings', '/settings'),
       (Icons.translate, 'Translation', null),
       (Icons.contact_support, 'Contact', null),

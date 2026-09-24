@@ -48,10 +48,7 @@ void main() {
         refuel(DateTime(2026, 2, 2), station: 'Station 9'),
       ];
       final all = Achievements.compute(records, now);
-      expect(
-        byId(all, 'stations_10').earnedDate,
-        DateTime(2026, 2, 2),
-      );
+      expect(byId(all, 'stations_10').earnedDate, DateTime(2026, 2, 2));
     });
 
     test('9 distinct stations: not earned', () {
@@ -63,19 +60,23 @@ void main() {
       expect(byId(all, 'stations_10').earned, isFalse);
     });
 
-    test('15 and 50 refuels at the same station (other stations don\'t mix in)', () {
-      DateTime d(int i) => DateTime(2026, 1, 1).add(Duration(days: i));
-      final records = [
-        for (var i = 0; i < 14; i++) refuel(d(i), station: 'Shell'), // 1-14
-        refuel(d(14), station: 'Total'), // doesn't count toward Shell
-        refuel(d(15), station: 'Shell'), // Shell's 15th
-        for (var i = 16; i <= 49; i++) refuel(d(i), station: 'Shell'), // 16-49
-        refuel(d(50), station: 'Shell'), // Shell's 50th
-      ];
-      final all = Achievements.compute(records, now);
-      expect(byId(all, 'same_station_15').earnedDate, d(15));
-      expect(byId(all, 'same_station_50').earnedDate, d(50));
-    });
+    test(
+      '15 and 50 refuels at the same station (other stations don\'t mix in)',
+      () {
+        DateTime d(int i) => DateTime(2026, 1, 1).add(Duration(days: i));
+        final records = [
+          for (var i = 0; i < 14; i++) refuel(d(i), station: 'Shell'), // 1-14
+          refuel(d(14), station: 'Total'), // doesn't count toward Shell
+          refuel(d(15), station: 'Shell'), // Shell's 15th
+          for (var i = 16; i <= 49; i++)
+            refuel(d(i), station: 'Shell'), // 16-49
+          refuel(d(50), station: 'Shell'), // Shell's 50th
+        ];
+        final all = Achievements.compute(records, now);
+        expect(byId(all, 'same_station_15').earnedDate, d(15));
+        expect(byId(all, 'same_station_50').earnedDate, d(50));
+      },
+    );
 
     test('refueling count milestones, boundary: 24th vs 25th', () {
       final records = [
@@ -108,17 +109,16 @@ void main() {
       expect(byId(all, 'years_2').earned, isFalse);
     });
 
-    test('years of tracking: not yet earned the day before the anniversary', () {
-      final all = Achievements.compute([
-        other(DateTime(2025, 9, 25)),
-      ], now);
-      expect(byId(all, 'years_1').earned, isFalse);
-    });
+    test(
+      'years of tracking: not yet earned the day before the anniversary',
+      () {
+        final all = Achievements.compute([other(DateTime(2025, 9, 25))], now);
+        expect(byId(all, 'years_1').earned, isFalse);
+      },
+    );
 
     test('years text uses correct plural', () {
-      final all = Achievements.compute([
-        other(DateTime(2020, 1, 1)),
-      ], now);
+      final all = Achievements.compute([other(DateTime(2020, 1, 1))], now);
       expect(byId(all, 'years_1').text, contains('1 year of'));
       expect(byId(all, 'years_2').text, contains('2 years of'));
     });

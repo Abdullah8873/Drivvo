@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/achievements/achievements_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
+import '../../features/flex/flex_screen.dart';
 import '../../features/forms/entry_form_screen.dart';
 import '../../features/forms/placeholder_form_screen.dart';
 import '../../features/forms/reading_form_screen.dart';
@@ -32,6 +34,8 @@ import '../widgets/main_shell.dart';
 ///   /record/<module>/<id>    record detail view
 ///   /vehicles, /vehicles/new, /vehicles/<id>
 ///   /settings, /catalog/<CatalogKind.name>
+///   /flex                     Flex calculator (More → Flex calculator)
+///   /achievements             Achievements (More → Achievements)
 /// ```
 GoRouter createRouter() => GoRouter(
   initialLocation: '/history',
@@ -93,6 +97,11 @@ GoRouter createRouter() => GoRouter(
       builder: (_, state) => VehicleFormScreen(id: state.pathParameters['id']),
     ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+    GoRoute(path: '/flex', builder: (_, _) => const FlexCalculatorScreen()),
+    GoRoute(
+      path: '/achievements',
+      builder: (_, _) => const AchievementsScreen(),
+    ),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(

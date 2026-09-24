@@ -8,7 +8,10 @@ enum FlexFuel { ethanol, gasoline }
 
 /// Result of [FlexMath.calculate].
 class FlexResult {
-  const FlexResult({required this.ethanolToGasRatio, required this.recommendation});
+  const FlexResult({
+    required this.ethanolToGasRatio,
+    required this.recommendation,
+  });
 
   /// Ethanol price ÷ gas price, as a percentage (e.g. `67.9` for 190/280).
   final double ethanolToGasRatio;
