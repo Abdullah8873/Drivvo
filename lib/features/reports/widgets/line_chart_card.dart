@@ -229,10 +229,24 @@ class LineChartCard extends StatelessWidget {
                 if (px < _edgeLabelGap || px > plotWidth - _edgeLabelGap) {
                   return const SizedBox();
                 }
+                // Points close together (two refuels on one day) give ticks
+                // with the same text ("24 sep", "24 sep"); show it once.
+                // Compare with the previous tick only if it is itself shown
+                // (not the unlabeled min edge or inside the edge gap).
+                final label = axisX(value);
+                final i = ((value - minX) / xInterval).round();
+                final previous = minX + (i - 1) * xInterval;
+                final previousPx =
+                    (previous - minX) / (maxX - minX) * plotWidth;
+                if (i >= 2 &&
+                    previousPx >= _edgeLabelGap &&
+                    axisX(previous) == label) {
+                  return const SizedBox();
+                }
                 return SideTitleWidget(
                   meta: meta,
                   fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
-                  child: Text(axisX(value), style: style.axis),
+                  child: Text(label, style: style.axis),
                 );
               },
             ),

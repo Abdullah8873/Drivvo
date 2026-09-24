@@ -6,6 +6,7 @@ import 'package:motolog/core/db/app_database.dart';
 import 'package:motolog/core/providers.dart';
 import 'package:motolog/features/reports/report_providers.dart';
 import 'package:motolog/features/reports/widgets/chart_style.dart';
+import 'package:motolog/features/reports/widgets/line_chart_card.dart';
 import 'package:motolog/features/reports/widgets/stat_card.dart';
 
 import 'helpers.dart';
@@ -95,6 +96,30 @@ void main() {
       find.textContaining('A very long gas station'),
     );
     expect(text.overflow, TextOverflow.ellipsis);
+  });
+
+  testWidgets('LineChartCard shows a repeated x label only once', (
+    tester,
+  ) async {
+    useNarrowScreen(tester);
+    // Two points on the same "day": both inner ticks format to "day 100".
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LineChartCard(
+            points: const [
+              LinePoint(x: 100.1, y: 280),
+              LinePoint(x: 100.2, y: 290),
+            ],
+            color: Colors.orange,
+            formatX: (x) => 'day ${x.floor()}',
+            formatY: (y) => '$y',
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    expect(find.text('day 100'), findsOneWidget);
   });
 
   group('ChartStyle.compact', () {
