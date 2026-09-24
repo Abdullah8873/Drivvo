@@ -26,6 +26,7 @@ part 'app_database.g.dart';
     Readings,
     Reminders,
     SettingsEntries,
+    SyncOutbox,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -45,16 +46,39 @@ class AppDatabase extends _$AppDatabase {
 
   /// v1: initial schema (catalogs seeded with random ids).
   /// v2: deterministic seed ids + de-duplication of double-seeded catalogs.
+  /// v3: cloud sync — `sync_outbox` table + change-tracking triggers, and
+  ///     untouched seed rows get the fixed [seedTimestamp].
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   /// `settings_entries` key written once the default catalogs are seeded.
   static const seedMarkerKey = 'catalog_seed_version';
+
+  /// `createdAt`/`updatedAt` of every seeded catalog row. Seed ids are shared
+  /// by every install, so with "install time" timestamps a phone installed
+  /// later would overwrite (last-write-wins) a default the user renamed on
+  /// another device. A fixed old timestamp makes any real edit win.
+  static final seedTimestamp = DateTime.utc(2000);
+
+  /// SQL names of the tables the cloud sync mirrors, parents before
+  /// children (the order rows are uploaded and downloaded in).
+  static const syncedTableNames = [
+    'vehicles',
+    'catalog_items',
+    'refuelings',
+    'entries',
+    'routes',
+    'readings',
+    'reminders',
+    'refueling_fuels',
+    'entry_items',
+  ];
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+      await createSyncTriggers();
       await seedCatalogs();
     },
     onUpgrade: (m, from, to) async {
@@ -64,6 +88,13 @@ class AppDatabase extends _$AppDatabase {
           // v1 databases were seeded in onCreate; don't seed them again
           // (a renamed default would otherwise come back).
           await _markSeeded();
+        });
+      }
+      if (from < 3) {
+        await transaction(() async {
+          await _resetSeedTimestamps();
+          await m.createTable(syncOutbox);
+          await createSyncTriggers();
         });
       }
     },
@@ -90,6 +121,7 @@ class AppDatabase extends _$AppDatabase {
     final existing = {
       for (final r in rows) '${r.read<String>('kind')}|${r.read<String>('n')}',
     };
+    final stamp = Value(seedTimestamp.toLocal());
     await batch((b) {
       for (final (kind, names) in SeedData.catalogs) {
         for (final name in names) {
@@ -105,6 +137,8 @@ class AppDatabase extends _$AppDatabase {
               fuelKind: Value(
                 kind == CatalogKind.fuel ? SeedData.fuelKindOf(name) : null,
               ),
+              createdAt: stamp,
+              updatedAt: stamp,
             ),
             mode: InsertMode.insertOrIgnore,
           );
@@ -117,6 +151,43 @@ class AppDatabase extends _$AppDatabase {
   Future<void> _markSeeded() => into(settingsEntries).insert(
     SettingsEntriesCompanion.insert(key: seedMarkerKey, value: '1'),
     mode: InsertMode.insertOrReplace,
+  );
+
+  /// Installs the triggers that queue every insert/update of a synced table
+  /// in `sync_outbox` (see [SyncOutbox]). Deletes aren't tracked: synced
+  /// rows are only ever soft-deleted (an update), and the only hard delete —
+  /// wiping local data when switching accounts — must not be uploaded.
+  ///
+  /// Delete-then-insert (rather than `INSERT OR REPLACE`) keeps working
+  /// when the outer statement is an `INSERT OR IGNORE`, whose conflict mode
+  /// SQLite would otherwise impose on the trigger's own statements.
+  Future<void> createSyncTriggers() async {
+    for (final table in syncedTableNames) {
+      for (final event in const ['INSERT', 'UPDATE']) {
+        await customStatement('''
+          CREATE TRIGGER IF NOT EXISTS sync_outbox_${table}_${event.toLowerCase()}
+          AFTER $event ON $table
+          BEGIN
+            DELETE FROM sync_outbox
+              WHERE target_table = '$table' AND row_id = NEW.id;
+            INSERT INTO sync_outbox (target_table, row_id)
+              VALUES ('$table', NEW.id);
+          END
+        ''');
+      }
+    }
+  }
+
+  /// v2 -> v3: seed rows the user never edited (updated within a second of
+  /// being created) get the fixed [seedTimestamp], so they can't win a
+  /// last-write-wins merge against a real edit made on another device.
+  Future<void> _resetSeedTimestamps() => customUpdate(
+    'UPDATE catalog_items SET created_at = ?1, updated_at = ?1 '
+    "WHERE id LIKE 'seed:%' AND deleted_at IS NULL "
+    'AND abs(julianday(updated_at) - julianday(created_at)) * 86400 < 1',
+    variables: [Variable.withDateTime(seedTimestamp.toLocal())],
+    updates: {catalogItems},
+    updateKind: UpdateKind.update,
   );
 
   /// Every column that points at a catalog item, as `(table, column)`.

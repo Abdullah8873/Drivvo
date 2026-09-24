@@ -18,6 +18,7 @@ import '../../features/reminders/reminder_form_screen.dart';
 import '../../features/reminders/reminders_screen.dart';
 import '../../features/reports/reports_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/sync/sync_screen.dart';
 import '../../features/vehicles/vehicle_form_screen.dart';
 import '../../features/vehicles/vehicles_screen.dart';
 import '../db/tables.dart';
@@ -35,7 +36,7 @@ import '../widgets/main_shell.dart';
 ///   /edit/<module>/<id>      edit a record
 ///   /record/<module>/<id>    record detail view
 ///   /vehicles, /vehicles/new, /vehicles/<id>
-///   /settings, /catalog/<CatalogKind.name>
+///   /settings, /catalog/<CatalogKind.name>, /sync
 ///   /account, /account/sign-in, /account/sign-up, /account/reset-password
 /// ```
 GoRouter createRouter() => GoRouter(
@@ -105,6 +106,7 @@ GoRouter createRouter() => GoRouter(
       path: '/account/reset-password',
       builder: (_, _) => const ResetPasswordScreen(),
     ),
+    GoRoute(path: '/sync', builder: (_, _) => const SyncScreen()),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(

@@ -306,7 +306,10 @@ extension HistoryQueries on AppDatabase {
     return transaction(() async {
       switch (module) {
         case RecordModule.refueling:
-          await (update(refuelingFuels)..where((f) => f.refuelingId.equals(id)))
+          // Lines already soft-deleted by an earlier edit keep their
+          // original `deletedAt` (and aren't re-uploaded by the sync).
+          await (update(refuelingFuels)
+                ..where((f) => f.refuelingId.equals(id) & f.deletedAt.isNull()))
               .write(RefuelingFuelsCompanion(deletedAt: now, updatedAt: now));
           await (update(refuelings)..where((r) => r.id.equals(id))).write(
             RefuelingsCompanion(deletedAt: now, updatedAt: now),

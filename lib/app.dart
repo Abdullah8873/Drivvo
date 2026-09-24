@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/providers.dart';
 import 'core/router/app_router.dart';
+import 'core/sync/sync_controller.dart';
 import 'core/theme/app_theme.dart';
 
 /// Root widget — the equivalent of `<App />` wrapped in the router provider.
@@ -28,6 +29,9 @@ class _MotoLogAppState extends ConsumerState<MotoLogApp> {
 
   @override
   Widget build(BuildContext context) {
+    // Keeps the background sync alive for the app's lifetime (it is inert
+    // without a cloud config or while signed out).
+    ref.listen(syncControllerProvider, (_, _) {});
     final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
     return MaterialApp.router(
       title: 'MotoLog',
