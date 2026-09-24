@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/format/formatters.dart';
 import '../../../core/providers.dart';
 import '../../../core/theme/record_module.dart';
 import '../module_reports.dart';
@@ -9,8 +10,10 @@ import '../widgets/report_tab_scaffold.dart';
 import '../widgets/stat_card.dart';
 
 /// Reports → READING: a "Distance" card (total; daily average / days
-/// between readings) and, with 2+ readings, a monthly bar chart of the
-/// distance driven between them. All numbers come from `buildReadingReport`.
+/// between readings) and a monthly bar chart of the distance driven
+/// between readings. Distance is measured from the last reading before the
+/// period and averaged over the period's days, like the General tab. All
+/// numbers come from `buildReadingReport`.
 class ReadingReportTab extends StatelessWidget {
   const ReadingReportTab({super.key});
 
@@ -23,10 +26,12 @@ class ReadingReportTab extends StatelessWidget {
       builder: (context, ref, scope) {
         final fmt = ref.watch(formattersProvider);
         final unit = scope.vehicle.distanceUnit;
+        final unitLabel = Formatters.distanceUnitLabel(unit);
         final report = buildReadingReport(
-          records: scope.recordsOf(const {_module}),
+          timeline: scope.timeline,
+          range: scope.range,
+          days: scope.days,
         );
-        final stats = report.stats;
 
         return [
           StatGrid(
@@ -36,27 +41,29 @@ class ReadingReportTab extends StatelessWidget {
                 title: 'Distance',
                 icon: _module.icon,
                 color: _module.color,
-                value: stats.count > 0
-                    ? fmt.distance(stats.distance, unit)
+                value: report.distance > 0
+                    ? fmt.distance(report.distance, unit)
                     : StatCard.dash,
                 subValues: [
                   (
                     label: 'Daily average',
-                    value: stats.dailyAverage == null
+                    value: report.dailyAverage == null
                         ? StatCard.dash
-                        : fmt.distance(stats.dailyAverage!, unit),
+                        : '${fmt.number(report.dailyAverage!, decimals: 1)} '
+                              '$unitLabel',
                   ),
                   (
                     label: 'Days between readings',
-                    value: stats.averageDaysBetween == null
+                    value: report.averageDaysBetween == null
                         ? StatCard.dash
-                        : '${stats.averageDaysBetween!.toStringAsFixed(1)} Days',
+                        : '${fmt.number(report.averageDaysBetween!, decimals: 1)}'
+                              ' Days',
                   ),
                 ],
               ),
             ],
           ),
-          if (stats.count >= 2)
+          if (report.monthlyDistance.isNotEmpty)
             ReportSection(
               title: 'Monthly distance chart',
               icon: Icons.bar_chart,

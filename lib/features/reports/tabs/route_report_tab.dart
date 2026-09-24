@@ -70,7 +70,8 @@ class RouteReportTab extends StatelessWidget {
                   (
                     label: 'Daily average',
                     value: report.days > 0 && totals.distance > 0
-                        ? fmt.distance(totals.distance / report.days, unit)
+                        ? '${fmt.number(totals.distance / report.days, decimals: 1)}'
+                              ' $unitLabel'
                         : StatCard.dash,
                   ),
                 ],

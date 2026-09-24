@@ -91,7 +91,7 @@ void main() {
 
       expect(r.entryCount, 3);
       expect(r.totalCost, 3300);
-      expect(r.totalVolume, 15);
+      expect(r.primaryVolume, 15);
       expect(r.fullTankCount, 3);
       expect(r.fullTankRatio, 1.0);
       expect(r.costPerDay, closeTo(3300 / 61, 1e-9));
@@ -190,9 +190,9 @@ void main() {
       expect(r.stations, hasLength(2));
       expect(r.stations[0].name, 'Shell');
       expect(r.stations[0].recordCount, 2);
-      expect(r.stations[0].volume, 5);
+      expect(r.stations[0].volumeByKind, {FuelKind.liquid: 5});
       expect(r.stations[0].cost, 250);
-      expect(r.stations[0].averagePricePerUnit, 50);
+      expect(r.stations[0].pricePerUnit(FuelKind.liquid), 50);
       expect(r.stations[1].name, 'Total');
       expect(r.stations[1].cost, 80);
 
@@ -366,7 +366,7 @@ void main() {
 
       expect(r.entryCount, 0);
       expect(r.totalCost, 0);
-      expect(r.totalVolume, 0);
+      expect(r.primaryVolume, 0);
       expect(r.fullTankCount, 0);
       expect(r.fullTankRatio, isNull);
       expect(r.averageVolumePerRefuel, isNull);
@@ -400,6 +400,172 @@ void main() {
       expect(r.averageDistanceBetween, isNull);
       expect(r.averageDaysBetween, isNull);
       expect(r.primaryEfficiency, isNull);
+    });
+  });
+
+  group('two-tank vehicle: never adds L + kg', () {
+    // Petrol in tank 1, CNG in tank 2; one refueling fills both.
+    final entries = [
+      entry(
+        'p1',
+        DateTime(2026, 8, 1),
+        cost: 1000,
+        volume: 5,
+        gasStation: 'Shell',
+      ),
+      RefuelingEntry(
+        id: 'both',
+        date: DateTime(2026, 8, 10),
+        fullTank: true,
+        totalCost: 1300,
+        gasStation: 'Shell',
+        lines: const [
+          ReportFuelLine(
+            fuelName: 'Petrol',
+            kind: FuelKind.liquid,
+            tank: 1,
+            volume: 5,
+            total: 1000,
+          ),
+          ReportFuelLine(
+            fuelName: 'CNG',
+            kind: FuelKind.gas,
+            tank: 2,
+            volume: 10,
+            total: 300,
+          ),
+        ],
+      ),
+      entry(
+        'c2',
+        DateTime(2026, 8, 20),
+        cost: 320,
+        volume: 10,
+        fuel: 'CNG',
+        kind: FuelKind.gas,
+        tank: 2,
+      ),
+    ];
+
+    RefuelingReport build() => buildRefuelingReport(
+      entries: entries,
+      cycles: const [],
+      primaryResults: const [],
+      range: ReportRange.unbounded,
+      days: 20,
+      distance: 200,
+    );
+
+    test('Volume card and "Per refueling" use tank 1 only', () {
+      final r = build();
+      expect(r.entryCount, 3);
+      expect(r.primaryVolume, 10); // 5 + 5 L, the 20 kg of CNG left out
+      expect(r.primaryRefuelCount, 2); // the CNG-only refueling isn't one
+      expect(r.averageVolumePerRefuel, 5);
+      expect(r.volumePerDay, 0.5);
+      expect(r.totalCost, 2620); // money still adds up across tanks
+    });
+
+    test('gas stations keep volume per fuel kind', () {
+      final shell = build().stations.single;
+      expect(shell.recordCount, 2);
+      expect(shell.volumeByKind, {FuelKind.liquid: 10, FuelKind.gas: 10});
+      expect(shell.cost, 2300);
+      expect(shell.pricePerUnit(FuelKind.liquid), 200);
+      expect(shell.pricePerUnit(FuelKind.gas), 30);
+      expect(shell.pricePerUnit(FuelKind.electric), isNull);
+    });
+
+    test('the "All" chip uses the vehicle tank-1 kind and tank-1 volume', () {
+      final all = fuelCardFigures(build(), primaryKind: FuelKind.liquid);
+      expect(all.kind, FuelKind.liquid);
+      expect(all.volume, 10);
+      expect(all.recordCount, 3);
+      final cng = fuelCardFigures(
+        build(),
+        fuelName: 'CNG',
+        primaryKind: FuelKind.liquid,
+      );
+      expect(cng.kind, FuelKind.gas);
+      expect(cng.volume, 20);
+      expect(cng.recordCount, 2);
+    });
+  });
+
+  group('fuelCardFigures', () {
+    // Petrol has two measured cycles; Premium was bought once, no cycle.
+    final entries = [
+      entry('e1', DateTime(2026, 8, 10), cost: 1000, volume: 5),
+      entry('e2', DateTime(2026, 8, 20), cost: 1100, volume: 5),
+      entry('e3', DateTime(2026, 9, 5), cost: 1200, volume: 4),
+      entry(
+        'x',
+        DateTime(2026, 9, 6),
+        cost: 500,
+        volume: 2,
+        fuel: 'Premium',
+        fullTank: false,
+      ),
+    ];
+    final stats = ConsumptionStats.compute([
+      sample('e1', DateTime(2026, 8, 10), 1000, 5, 1000),
+      sample('e2', DateTime(2026, 8, 20), 1100, 5, 1100),
+      sample('e3', DateTime(2026, 9, 5), 1200, 4, 1200),
+    ]);
+    final fuelByRefueling = {for (final e in entries) e.id: e.lines};
+    final report = buildRefuelingReport(
+      entries: entries,
+      cycles: [for (final c in stats.cycles) ?tagCycle(c, 1, fuelByRefueling)],
+      primaryResults: stats.results,
+      range: ReportRange.unbounded,
+      days: 30,
+      distance: 200,
+    );
+
+    test('"All" shows the primary tank figures', () {
+      final f = fuelCardFigures(report, primaryKind: FuelKind.liquid);
+      expect(f.recordCount, 4);
+      expect(f.lastEfficiency, 25); // 100 km / 4 L
+      expect(f.lowestEfficiency, 20);
+      expect(f.highestEfficiency, 25);
+      expect(f.averageEfficiency, closeTo(200 / 9, 1e-9));
+      expect(f.lastCostPerDistance, 12);
+      expect(f.averageCostPerDistance, closeTo(2300 / 200, 1e-9));
+      expect(f.lowestCostPerDistance, 11);
+      expect(f.highestCostPerDistance, 12);
+    });
+
+    test("a fuel chip shows only that fuel's values — never the All ones", () {
+      final f = fuelCardFigures(
+        report,
+        fuelName: 'Premium',
+        primaryKind: FuelKind.liquid,
+      );
+      expect(f.recordCount, 1);
+      expect(f.volume, 2);
+      expect(f.cost, 500);
+      expect(f.lastEfficiency, isNull);
+      expect(f.averageEfficiency, isNull);
+      expect(f.lowestEfficiency, isNull);
+      expect(f.highestEfficiency, isNull);
+      expect(f.lastCostPerDistance, isNull);
+      expect(f.averageCostPerDistance, isNull);
+      expect(f.lowestCostPerDistance, isNull);
+      expect(f.highestCostPerDistance, isNull);
+
+      final petrol = fuelCardFigures(
+        report,
+        fuelName: 'Petrol',
+        primaryKind: FuelKind.liquid,
+      );
+      expect(petrol.recordCount, 3);
+      expect(petrol.lastEfficiency, 25);
+    });
+
+    test('record count label is singular / plural', () {
+      expect(recordCountLabel(1), '1 record');
+      expect(recordCountLabel(0), '0 records');
+      expect(recordCountLabel(3), '3 records');
     });
   });
 
@@ -503,7 +669,7 @@ void main() {
       expect(find.text('All'), findsOneWidget);
       expect(find.text('Petrol'), findsWidgets);
       expect(find.text('Fuel efficiency — Last'), findsOneWidget);
-      expect(find.text('Cost / Km — Last'), findsOneWidget);
+      expect(find.text('Cost / km — Last'), findsOneWidget);
 
       // Gas stations.
       expect(find.text('Gas stations'), findsOneWidget);
@@ -514,6 +680,76 @@ void main() {
       expect(find.text('Gas stations chart'), findsOneWidget);
       expect(find.text('Average by fuel chart'), findsOneWidget);
       expect(find.text('Fuels price chart'), findsOneWidget);
+
+      await unmountApp(tester);
+    });
+
+    testWidgets('a fuel chip shows only that fuel (dashes, its own count)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1000, 4000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.runAsync(() async {
+        final vid = await addTestVehicle(db);
+        await addRefuel(
+          db,
+          vid,
+          date: DateTime(2026, 8, 5),
+          odometer: 1000,
+          volume: 5,
+        );
+        await addRefuel(
+          db,
+          vid,
+          date: DateTime(2026, 8, 20),
+          odometer: 1100,
+          volume: 5,
+        );
+        await addRefuel(
+          db,
+          vid,
+          date: DateTime(2026, 9, 5),
+          odometer: 1200,
+          volume: 5,
+        );
+        // One partial fill of another fuel: no measured cycle of its own.
+        await addRefuel(
+          db,
+          vid,
+          date: DateTime(2026, 9, 6),
+          odometer: 1210,
+          volume: 2,
+          fuel: 'Gas Premium',
+          fullTank: false,
+        );
+      });
+
+      await tester.pumpWidget(app());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reports'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('REFUELING'));
+      await tester.pumpAndSettle();
+
+      String fuelCard(String key) =>
+          tester.widget<Text>(find.byKey(Key(key))).data!;
+
+      expect(find.text('4 records'), findsOneWidget);
+      expect(fuelCard('fuel-card-efficiency'), '20.000 km/L');
+
+      final premium = find.widgetWithText(ChoiceChip, 'Gas Premium');
+      await tester.ensureVisible(premium);
+      await tester.pumpAndSettle();
+      await tester.tap(premium);
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 record'), findsOneWidget);
+      expect(fuelCard('fuel-card-efficiency'), '—');
+      expect(fuelCard('fuel-card-cost-per-distance'), '—');
+      expect(find.text('Period average —'), findsNWidgets(2));
+      expect(find.text('Lower —'), findsNWidgets(2));
 
       await unmountApp(tester);
     });

@@ -135,7 +135,10 @@ class MonthlyBarChart extends StatelessWidget {
         interval: interval,
         getTitlesWidget: (value, meta) => SideTitleWidget(
           meta: meta,
-          child: Text(ChartStyle.compact(value), style: style.axis),
+          child: Text(
+            ChartStyle.compact(value, step: interval),
+            style: style.axis,
+          ),
         ),
       ),
     );

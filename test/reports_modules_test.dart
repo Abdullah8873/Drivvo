@@ -22,14 +22,17 @@ TimelineRecord entryRec(
   RecordModule module,
   DateTime date, {
   List<ItemLine> items = const [],
+  double? amount,
+  double? odometer,
 }) {
-  final amount = items.fold(0.0, (s, i) => s + i.amount);
   return TimelineRecord(
     module: module,
     id: '${_id++}',
     vehicleId: 'v',
     date: date,
-    amount: amount,
+    // Post-discount total; defaults to the items' sum (no discount).
+    amount: amount ?? items.fold(0.0, (s, i) => s + i.amount),
+    odometer: odometer,
     items: items,
   );
 }
@@ -200,6 +203,57 @@ void main() {
       expect(r.perDistance, 3);
     });
 
+    test("the entry's discount is spread across its items, so the donut "
+        'adds up to the card total', () {
+      final records = [
+        // Items sum to 1500, but a 150 discount makes the entry 1350.
+        entryRec(
+          RecordModule.service,
+          DateTime(2026, 9, 1),
+          amount: 1350,
+          items: [
+            const ItemLine(name: 'Oil Change', amount: 1000),
+            const ItemLine(name: 'Oil Filter', amount: 500),
+          ],
+        ),
+        entryRec(
+          RecordModule.service,
+          DateTime(2026, 9, 5),
+          items: [const ItemLine(name: 'Belts', amount: 200)],
+        ),
+      ];
+      final r = buildModuleMoneyReport(
+        records: records,
+        timeline: records,
+        range: ReportRange.unbounded,
+        days: 5,
+      );
+      expect(r.total, 1550);
+      expect(
+        {for (final t in r.typeBreakdown) t.name: t.amount},
+        {'Oil Change': 900, 'Oil Filter': 450, 'Belts': 200},
+      );
+      expect(r.typeBreakdown.fold(0.0, (s, t) => s + t.amount), r.total);
+    });
+
+    test('items that are all 0 fall back to one line for the entry', () {
+      final records = [
+        entryRec(
+          RecordModule.expense,
+          DateTime(2026, 9, 1),
+          amount: 300,
+          items: [const ItemLine(name: 'Tolls', amount: 0)],
+        ),
+      ];
+      final r = buildModuleMoneyReport(
+        records: records,
+        timeline: records,
+        range: ReportRange.unbounded,
+        days: 1,
+      );
+      expect(r.typeBreakdown.single.amount, 300);
+    });
+
     test('a record with no typed lines falls back to its title', () {
       final records = [entryRec(RecordModule.income, DateTime(2026, 5, 1))];
       // No items and no `entry` row → title falls back to the module label,
@@ -261,25 +315,79 @@ void main() {
         readingRec(DateTime(2026, 2, 5), 1150), // odometer went down → skip
         readingRec(DateTime(2026, 3, 1), 1400), // +250 → March
       ];
-      final r = buildReadingReport(records: records);
-      expect(r.stats.count, 4);
+      final r = buildReadingReport(
+        timeline: records,
+        range: ReportRange.unbounded,
+        days: 60,
+      );
+      expect(r.count, 4);
       expect(r.monthlyDistance, {
         DateTime(2026, 1): 200,
         DateTime(2026, 3): 250,
       });
     });
 
+    test('distance is measured from the last reading before the period; '
+        'daily average uses the period day count (like General)', () {
+      final timeline = [
+        readingRec(DateTime(2026, 9, 20), 1300),
+        readingRec(DateTime(2026, 9, 10), 1100),
+        readingRec(DateTime(2026, 8, 20), 1000), // before the period
+        // Other modules never count on the Reading tab.
+        entryRec(
+          RecordModule.expense,
+          DateTime(2026, 9, 25),
+          odometer: 5000,
+          items: [const ItemLine(name: 'Fine', amount: 10)],
+        ),
+      ];
+      final r = buildReadingReport(
+        timeline: timeline,
+        range: ReportRange(from: DateTime(2026, 9), to: DateTime(2026, 10)),
+        days: 30,
+      );
+      expect(r.count, 2);
+      expect(r.distance, 300); // 1300 − 1000, not 1300 − 1100
+      expect(r.dailyAverage, 10); // 300 / 30 days, not 200 / 10
+      expect(r.averageDaysBetween, 10);
+      // The first in-period reading's distance lands in September too.
+      expect(r.monthlyDistance, {DateTime(2026, 9): 300});
+    });
+
+    test('one reading in the period still has a distance after an earlier '
+        'one', () {
+      final r = buildReadingReport(
+        timeline: [
+          readingRec(DateTime(2026, 9, 10), 1150),
+          readingRec(DateTime(2026, 8, 20), 1000),
+        ],
+        range: ReportRange(from: DateTime(2026, 9), to: DateTime(2026, 10)),
+        days: 15,
+      );
+      expect(r.count, 1);
+      expect(r.distance, 150);
+      expect(r.dailyAverage, 10);
+      expect(r.averageDaysBetween, isNull);
+    });
+
     test('fewer than 2 readings give no chart and no averages', () {
       final r = buildReadingReport(
-        records: [readingRec(DateTime(2026, 1, 1), 1000)],
+        timeline: [readingRec(DateTime(2026, 1, 1), 1000)],
+        range: ReportRange.unbounded,
+        days: 1,
       );
-      expect(r.stats.count, 1);
-      expect(r.stats.dailyAverage, isNull);
-      expect(r.stats.averageDaysBetween, isNull);
+      expect(r.count, 1);
+      expect(r.distance, 0);
+      expect(r.dailyAverage, isNull);
+      expect(r.averageDaysBetween, isNull);
       expect(r.monthlyDistance, isEmpty);
 
-      final empty = buildReadingReport(records: const []);
-      expect(empty.stats.count, 0);
+      final empty = buildReadingReport(
+        timeline: const [],
+        range: ReportRange.unbounded,
+        days: 0,
+      );
+      expect(empty.count, 0);
       expect(empty.monthlyDistance, isEmpty);
     });
   });

@@ -25,10 +25,24 @@ class LinePoint {
   );
 }
 
+/// One line of a multi-series [LineChartCard] (e.g. one per fuel), drawn in
+/// [color]. [formatY] labels this series' tooltips in its own unit (km/L vs
+/// km/kg); null = the chart's `formatY`.
+class LineSeries {
+  const LineSeries({required this.points, required this.color, this.formatY});
+
+  final List<LinePoint> points;
+  final Color color;
+  final String Function(double y)? formatY;
+}
+
 /// Line chart with a dot on every point (2px line, dots ringed in the card
 /// color so they stay legible where they overlap), an optional dashed
 /// average line with a label, an optional legend, and a tap tooltip.
 /// The y axis fits the data (it doesn't force zero — odometers start high).
+///
+/// One line: pass [points]. Several independent lines (one per fuel, so
+/// the chart never zig-zags between fuels): pass [series] instead.
 ///
 /// ```dart
 /// LineChartCard(
@@ -43,7 +57,8 @@ class LinePoint {
 class LineChartCard extends StatelessWidget {
   const LineChartCard({
     super.key,
-    required this.points,
+    this.points = const [],
+    this.series = const [],
     required this.color,
     required this.formatX,
     required this.formatY,
@@ -54,7 +69,11 @@ class LineChartCard extends StatelessWidget {
     this.height = 220,
   });
 
+  /// The single line's points (ignored when [series] is not empty).
   final List<LinePoint> points;
+
+  /// Several lines, each with its own color / tooltip unit.
+  final List<LineSeries> series;
 
   /// Line color, and the dot color of points without their own.
   final Color color;
@@ -67,7 +86,8 @@ class LineChartCard extends StatelessWidget {
   /// like `MM/yy` for dates).
   final String Function(double x)? formatAxisX;
 
-  /// Y value of the dashed reference line, if any.
+  /// Y value of the dashed reference line, if any (labelled with
+  /// [formatY]).
   final double? average;
   final String averageLabel;
 
@@ -76,50 +96,77 @@ class LineChartCard extends StatelessWidget {
 
   final double height;
 
+  /// Minimum room (px) kept between the plot edges and an inner x label,
+  /// so the edge labels never collide with their neighbours.
+  static const _edgeLabelGap = 40.0;
+
+  /// True when [min]..[max] is only floating-point noise (prices computed as
+  /// cost / volume give 293.03 and 293.03000000000003). Treating such a range
+  /// as real yields an axis step smaller than a `double` can add to the
+  /// values, and fl_chart's tick loop then never advances — the app freezes.
+  static bool _isFlat(double min, double max) =>
+      (max - min).abs() <= 1e-9 * (1 + max.abs());
+
   @override
   Widget build(BuildContext context) {
-    if (points.isEmpty) return const ChartEmpty();
+    final lines = [
+      for (final s
+          in series.isNotEmpty
+              ? series
+              : [LineSeries(points: points, color: color)])
+        if (s.points.isNotEmpty)
+          LineSeries(
+            points: [...s.points]..sort((a, b) => a.x.compareTo(b.x)),
+            color: s.color,
+            formatY: s.formatY,
+          ),
+    ];
+    if (lines.isEmpty) return const ChartEmpty();
     final style = ChartStyle.of(context);
-    final sorted = [...points]..sort((a, b) => a.x.compareTo(b.x));
+    final all = [for (final l in lines) ...l.points];
 
-    var minX = sorted.first.x;
-    var maxX = sorted.last.x;
-    if (maxX == minX) {
+    var minX = all.map((p) => p.x).reduce((a, b) => a < b ? a : b);
+    var maxX = all.map((p) => p.x).reduce((a, b) => a > b ? a : b);
+    if (_isFlat(minX, maxX)) {
       minX -= 1;
       maxX += 1;
     }
-    final ys = [for (final p in sorted) p.y, ?average];
+    final ys = [for (final p in all) p.y, ?average];
     var minY = ys.reduce((a, b) => a < b ? a : b);
     var maxY = ys.reduce((a, b) => a > b ? a : b);
-    final pad = maxY == minY ? (maxY.abs() * 0.1 + 1) : (maxY - minY) * 0.1;
+    final pad = _isFlat(minY, maxY)
+        ? (maxY.abs() * 0.1 + 1)
+        : (maxY - minY) * 0.1;
     minY -= pad;
     maxY += pad;
     final yInterval = ChartStyle.niceInterval(maxY - minY);
     final xInterval = (maxX - minX) / 3;
     final axisX = formatAxisX ?? formatX;
 
-    final chart = LineChart(
+    Widget chart(double plotWidth) => LineChart(
       LineChartData(
         minX: minX,
         maxX: maxX,
         minY: minY,
         maxY: maxY,
         lineBarsData: [
-          LineChartBarData(
-            spots: [for (final p in sorted) FlSpot(p.x, p.y)],
-            color: color,
-            barWidth: 2,
-            isStrokeCapRound: true,
-            isStrokeJoinRound: true,
-            dotData: FlDotData(
-              getDotPainter: (spot, percent, bar, index) => FlDotCirclePainter(
-                radius: 4,
-                color: sorted[index].color ?? color,
-                strokeWidth: 2,
-                strokeColor: style.surface,
+          for (final l in lines)
+            LineChartBarData(
+              spots: [for (final p in l.points) FlSpot(p.x, p.y)],
+              color: l.color,
+              barWidth: 2,
+              isStrokeCapRound: true,
+              isStrokeJoinRound: true,
+              dotData: FlDotData(
+                getDotPainter: (spot, percent, bar, index) =>
+                    FlDotCirclePainter(
+                      radius: 4,
+                      color: l.points[index].color ?? l.color,
+                      strokeWidth: 2,
+                      strokeColor: style.surface,
+                    ),
               ),
             ),
-          ),
         ],
         extraLinesData: average == null
             ? null
@@ -161,7 +208,10 @@ class LineChartCard extends StatelessWidget {
               interval: yInterval,
               getTitlesWidget: (value, meta) => SideTitleWidget(
                 meta: meta,
-                child: Text(ChartStyle.compact(value), style: style.axis),
+                child: Text(
+                  ChartStyle.compact(value, step: yInterval),
+                  style: style.axis,
+                ),
               ),
             ),
           ),
@@ -169,12 +219,22 @@ class LineChartCard extends StatelessWidget {
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 24,
+              // The forced min/max labels land right next to the first /
+              // last interval label and overlap it; inner labels only.
+              minIncluded: false,
+              maxIncluded: false,
               interval: xInterval > 0 ? xInterval : null,
-              getTitlesWidget: (value, meta) => SideTitleWidget(
-                meta: meta,
-                fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
-                child: Text(axisX(value), style: style.axis),
-              ),
+              getTitlesWidget: (value, meta) {
+                final px = (value - minX) / (maxX - minX) * plotWidth;
+                if (px < _edgeLabelGap || px > plotWidth - _edgeLabelGap) {
+                  return const SizedBox();
+                }
+                return SideTitleWidget(
+                  meta: meta,
+                  fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
+                  child: Text(axisX(value), style: style.axis),
+                );
+              },
             ),
           ),
         ),
@@ -187,7 +247,7 @@ class LineChartCard extends StatelessWidget {
             getTooltipItems: (spots) => [
               for (final s in spots)
                 LineTooltipItem(
-                  '${formatY(s.y)}\n',
+                  '${(lines[s.barIndex].formatY ?? formatY)(s.y)}\n',
                   style.tooltipTitle,
                   children: [
                     TextSpan(text: formatX(s.x), style: style.tooltipBody),
@@ -206,7 +266,11 @@ class LineChartCard extends StatelessWidget {
           height: height,
           child: Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: chart,
+            child: LayoutBuilder(
+              // Plot width = card width minus the reserved y-axis band.
+              builder: (context, constraints) =>
+                  chart(constraints.maxWidth - 44),
+            ),
           ),
         ),
         if (legend.isNotEmpty) ...[
