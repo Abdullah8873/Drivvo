@@ -151,7 +151,8 @@ int stableNotificationId(String key) {
 
 DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
 
-DateTime _addDays(DateTime d, int days) => DateTime(d.year, d.month, d.day + days);
+DateTime _addDays(DateTime d, int days) =>
+    DateTime(d.year, d.month, d.day + days);
 
 DateTime _laterOf(DateTime a, DateTime b) => a.isAfter(b) ? a : b;
 
@@ -283,7 +284,8 @@ class NotificationPlanner {
           id: stableNotificationId('reminder:${input.reminderId}'),
           kind: PlannedNotificationKind.reminder,
           title: overdue ? '${input.title} overdue' : '${input.title} due',
-          body: '${input.vehicleName} · ${input.remainingText} · ${input.dueText}',
+          body:
+              '${input.vehicleName} · ${input.remainingText} · ${input.dueText}',
           fireAt: fireAt,
           payload: notificationTapRoute,
           reminderId: input.reminderId,
@@ -343,9 +345,9 @@ class NotificationPlanner {
     }
 
     final horizonEnd = now.add(Duration(days: horizonDays));
-    final withinHorizon = results.where((n) => !n.fireAt.isAfter(horizonEnd))
-        .toList()
-      ..sort((a, b) => a.fireAt.compareTo(b.fireAt));
+    final withinHorizon =
+        results.where((n) => !n.fireAt.isAfter(horizonEnd)).toList()
+          ..sort((a, b) => a.fireAt.compareTo(b.fireAt));
     return withinHorizon.take(maxNotifications).toList();
   }
 }

@@ -186,7 +186,10 @@ class NotificationController {
       await scheduler.requestPermission();
     }
     await scheduler.cancelAll();
-    await scheduler.schedule(list, vibrate: _ref.read(settingsProvider).vibrate);
+    await scheduler.schedule(
+      list,
+      vibrate: _ref.read(settingsProvider).vibrate,
+    );
   }
 
   /// Forces an immediate recompute + reschedule, bypassing the debounce.
@@ -199,9 +202,7 @@ class NotificationController {
 
 /// Not auto-dispose: created once and kept alive for the life of the app (or
 /// the test's `ProviderContainer`), like a singleton service.
-final notificationControllerProvider = Provider<NotificationController>((
-  ref,
-) {
+final notificationControllerProvider = Provider<NotificationController>((ref) {
   final controller = NotificationController(ref);
   ref.onDispose(controller.dispose);
   return controller;
