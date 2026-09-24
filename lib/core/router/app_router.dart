@@ -33,7 +33,24 @@ import '../widgets/main_shell.dart';
 ///   /vehicles, /vehicles/new, /vehicles/<id>
 ///   /settings, /catalog/<CatalogKind.name>
 /// ```
-GoRouter createRouter() => GoRouter(
+///
+/// [activeRouter] tracks the most recently created router. A tapped OS
+/// notification arrives outside the widget tree (no `BuildContext` to call
+/// `context.push` on), so the notification scheduler navigates through this
+/// instead — the same trick a web app uses when a service worker's
+/// `notificationclick` handler calls `clients.openWindow` rather than
+/// reaching into a specific page's router. Each test creates its own
+/// router, harmlessly overwriting this; tests never dispatch notification
+/// taps.
+GoRouter? activeRouter;
+
+GoRouter createRouter() {
+  final router = _buildRouter();
+  activeRouter = router;
+  return router;
+}
+
+GoRouter _buildRouter() => GoRouter(
   initialLocation: '/history',
   routes: [
     StatefulShellRoute.indexedStack(
