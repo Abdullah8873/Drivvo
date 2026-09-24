@@ -11,7 +11,7 @@ class MoreScreen extends StatelessWidget {
   /// (icon, label, route or null = not built yet)
   static final _sections = <List<(IconData, String, String?)>>[
     [
-      (Icons.person, 'My account', null),
+      (Icons.person, 'My account', '/account'),
       (Icons.cloud_sync, 'Synchronize data', null),
       (Icons.storage, 'Storage', null),
       (Icons.swap_horiz, 'Transfer', null),
