@@ -579,7 +579,6 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               fmt.settings,
               line.fuel?.fuelKind ?? FuelKind.liquid,
             ),
-            currencyCode: currency,
             onPickFuel: () => _pickFuel(line, vehicle),
             onDirty: _touch,
             onRemove: i == 0
@@ -784,7 +783,6 @@ class _FuelLineFields extends StatelessWidget {
     this.ordinalLabel,
     required this.unitLabel,
     required this.volumeLabel,
-    required this.currencyCode,
     required this.onPickFuel,
     required this.onDirty,
     this.onRemove,
@@ -802,8 +800,6 @@ class _FuelLineFields extends StatelessWidget {
   /// Label of the volume field ("Liters", "kWh"…).
   final String volumeLabel;
 
-  /// e.g. "PKR" — shown as a prefix on the money fields.
-  final String currencyCode;
   final VoidCallback onPickFuel;
 
   /// Marks the form dirty (for the unsaved-changes back guard).
@@ -829,22 +825,23 @@ class _FuelLineFields extends StatelessWidget {
     controller.text = result.value.toStringAsFixed(digits);
   }
 
-  Widget _number(
-    String label,
-    TextEditingController c,
-    FuelField f, {
-    bool money = false,
-  }) => Expanded(
-    child: TextField(
-      controller: c,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      decoration: InputDecoration(
-        labelText: label,
-        prefixText: money ? '$currencyCode ' : null,
-      ),
-      onChanged: (_) => _onChanged(f),
-    ),
-  );
+  // No currency prefix here (unlike other money fields): with three fields
+  // sharing a row, "PKR " eats enough width to cut off the value and its
+  // label on narrow phones — Drivvo shows this row bare too. `isDense` plus
+  // tighter content padding buys the rest of the room these three need.
+  Widget _number(String label, TextEditingController c, FuelField f) =>
+      Expanded(
+        child: TextField(
+          controller: c,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: label,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+          ),
+          onChanged: (_) => _onChanged(f),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -889,15 +886,10 @@ class _FuelLineFields extends StatelessWidget {
           icon: Icons.payments_outlined,
           child: Row(
             children: [
-              _number(
-                'Price / $unitLabel',
-                line.price,
-                FuelField.price,
-                money: true,
-              ),
-              const SizedBox(width: 12),
-              _number('Total cost', line.total, FuelField.total, money: true),
-              const SizedBox(width: 12),
+              _number('Price / $unitLabel', line.price, FuelField.price),
+              const SizedBox(width: 8),
+              _number('Total cost', line.total, FuelField.total),
+              const SizedBox(width: 8),
               _number(volumeLabel, line.volume, FuelField.volume),
             ],
           ),
