@@ -11,8 +11,17 @@ final _timeFmt = DateFormat('HH:mm');
 /// shortest decimal that reads back to the same value, so `293.03` and
 /// `5.125` come out verbatim instead of through a fixed-decimals formatter
 /// that could round them (the same reason the app avoids
-/// `toStringAsFixed` when it must not alter a typed number).
-String _num(num? v) => v == null ? '' : v.toString();
+/// `toStringAsFixed` when it must not alter a typed number). A whole-number
+/// double (every odometer/count column is stored as `REAL`) drops its
+/// redundant `.0` — that's not rounding, `9999` and `9999.0` are the exact
+/// same value, just written the way someone would have typed it.
+String _num(num? v) {
+  if (v == null) return '';
+  if (v is double && v.isFinite && v == v.roundToDouble()) {
+    return v.toInt().toString();
+  }
+  return v.toString();
+}
 
 String _yesNo(bool v) => v ? 'Yes' : 'No';
 String _text(String? v) => v ?? '';

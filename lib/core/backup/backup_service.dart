@@ -5,6 +5,15 @@ import 'package:drift/drift.dart';
 import '../db/app_database.dart';
 import 'backup_format.dart';
 
+/// Encodes `DateTime` columns as ISO-8601 strings (with microseconds)
+/// instead of drift's default millisecond unix timestamp, so a backup
+/// round-trips `createdAt`/`updatedAt` down to the microsecond — the
+/// default would silently truncate them, which is exactly the kind of
+/// "quietly alters a stored value" bug this feature exists to avoid.
+const _serializer = ValueSerializer.defaults(
+  serializeDateTimeValuesAsString: true,
+);
+
 /// Builds and restores the JSON backup file described in
 /// [BackupFormat]'s doc comment — think "export the whole Prisma database
 /// to a JSON seed file, and load it back".
@@ -19,34 +28,44 @@ class BackupService {
   Future<Uint8List> createBackupBytes(AppDatabase db) async {
     final tables = <String, List<Map<String, dynamic>>>{
       BackupFormat.tableVehicles: [
-        for (final r in await db.select(db.vehicles).get()) r.toJson(),
+        for (final r in await db.select(db.vehicles).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableCatalogItems: [
-        for (final r in await db.select(db.catalogItems).get()) r.toJson(),
+        for (final r in await db.select(db.catalogItems).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableRefuelings: [
-        for (final r in await db.select(db.refuelings).get()) r.toJson(),
+        for (final r in await db.select(db.refuelings).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableRefuelingFuels: [
-        for (final r in await db.select(db.refuelingFuels).get()) r.toJson(),
+        for (final r in await db.select(db.refuelingFuels).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableEntries: [
-        for (final r in await db.select(db.entries).get()) r.toJson(),
+        for (final r in await db.select(db.entries).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableEntryItems: [
-        for (final r in await db.select(db.entryItems).get()) r.toJson(),
+        for (final r in await db.select(db.entryItems).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableRoutes: [
-        for (final r in await db.select(db.routes).get()) r.toJson(),
+        for (final r in await db.select(db.routes).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableReadings: [
-        for (final r in await db.select(db.readings).get()) r.toJson(),
+        for (final r in await db.select(db.readings).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableReminders: [
-        for (final r in await db.select(db.reminders).get()) r.toJson(),
+        for (final r in await db.select(db.reminders).get())
+          r.toJson(serializer: _serializer),
       ],
       BackupFormat.tableSettings: [
-        for (final r in await db.select(db.settingsEntries).get()) r.toJson(),
+        for (final r in await db.select(db.settingsEntries).get())
+          r.toJson(serializer: _serializer),
       ],
     };
     final json = {
@@ -153,7 +172,7 @@ class BackupService {
         db,
         db.vehicles,
         _rowsOf(tables, BackupFormat.tableVehicles),
-        Vehicle.fromJson,
+        (j) => Vehicle.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
@@ -161,7 +180,7 @@ class BackupService {
         db,
         db.catalogItems,
         _rowsOf(tables, BackupFormat.tableCatalogItems),
-        CatalogItem.fromJson,
+        (j) => CatalogItem.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
@@ -169,7 +188,7 @@ class BackupService {
         db,
         db.refuelings,
         _rowsOf(tables, BackupFormat.tableRefuelings),
-        Refueling.fromJson,
+        (j) => Refueling.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
@@ -177,7 +196,7 @@ class BackupService {
         db,
         db.refuelingFuels,
         _rowsOf(tables, BackupFormat.tableRefuelingFuels),
-        RefuelingFuel.fromJson,
+        (j) => RefuelingFuel.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
@@ -185,7 +204,7 @@ class BackupService {
         db,
         db.entries,
         _rowsOf(tables, BackupFormat.tableEntries),
-        Entry.fromJson,
+        (j) => Entry.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
@@ -193,7 +212,7 @@ class BackupService {
         db,
         db.entryItems,
         _rowsOf(tables, BackupFormat.tableEntryItems),
-        EntryItem.fromJson,
+        (j) => EntryItem.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
@@ -201,7 +220,7 @@ class BackupService {
         db,
         db.routes,
         _rowsOf(tables, BackupFormat.tableRoutes),
-        Route.fromJson,
+        (j) => Route.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
@@ -209,7 +228,7 @@ class BackupService {
         db,
         db.readings,
         _rowsOf(tables, BackupFormat.tableReadings),
-        Reading.fromJson,
+        (j) => Reading.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
@@ -217,7 +236,7 @@ class BackupService {
         db,
         db.reminders,
         _rowsOf(tables, BackupFormat.tableReminders),
-        Reminder.fromJson,
+        (j) => Reminder.fromJson(j, serializer: _serializer),
         (r) => r.id,
         now,
       );
