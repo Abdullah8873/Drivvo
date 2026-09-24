@@ -83,3 +83,16 @@ users/drivers and sharing, profiles and permissions, checklists/forms, the month
 ### Not observable (locked or empty): designed from Drivvo docs plus our own judgment
 Checklist and Form builder, custom profile permissions screen, user invite flow, search screen, attachment viewer, Transfer flow.
 
+
+### Details verified hands-on in Drivvo (2026-09-24)
+- **Service / Expense type picker:** multi-select list; ticking a type reveals an inline
+  underlined **"Value"** field on the right of that same row — the price is typed right
+  there, then ✓. The form then shows rows "Belts ....... PKR750 ✕" and "Total cost PKR750";
+  types without a value show PKR0. (Fuel picker has no value field — just ticks.)
+- **Expense / Service / Income forms show every field flat** — no "+ More options" expander.
+- **Refueling:** "+ Fuel" appears only after "+ More options" (below the full-tank toggle).
+  Adding one shows a **"SECOND FUEL"** section header (orange caps) with ✕, then its own
+  Fuel field and Price / Total cost / Liters row, then "+ Fuel" again.
+- **Back on a half-filled form discards silently in Drivvo.** MotoLog improves on this with a
+  "Discard changes?" confirmation (users complain about lost entries in reviews).
+- History contains ad cards between records (Drivvo free tier) — MotoLog has no ads.
