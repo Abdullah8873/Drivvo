@@ -47,6 +47,11 @@ Widget accountTestApp(
     ),
     authServiceProvider.overrideWithValue(auth),
     authUserIdProvider.overrideWith((ref) => Stream.value(userId)),
+    // Bypasses supabaseClientProvider (never set up in tests) and routes
+    // through the same fake whose `firePasswordRecovery()` a test can call.
+    passwordRecoveryEventProvider.overrideWith(
+      (ref) => auth.passwordRecoveryEvents,
+    ),
   ],
   child: const MotoLogApp(),
 );

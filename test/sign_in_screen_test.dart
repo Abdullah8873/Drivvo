@@ -76,55 +76,53 @@ void main() {
     await closeAccountApp(tester, db);
   });
 
-  testWidgets('email-code flow: send, then verify signs in', (tester) async {
-    final auth = FakeAuthService(code: '654321');
+  testWidgets(
+    'email-a-link flow: sending shows the "check your email" state, with '
+    'resend',
+    (tester) async {
+      final auth = FakeAuthService();
+      final db = await openAccountScreen(tester, auth: auth);
+      await tester.tap(find.text('SIGN IN'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'coder@example.com',
+      );
+      await tester.tap(find.text('Email me a sign-in link'));
+      await tester.pumpAndSettle();
+
+      expect(auth.lastSignInLinkEmail, 'coder@example.com');
+      expect(
+        find.textContaining('Check your email — we sent a sign-in link to'),
+        findsOneWidget,
+      );
+      // Not signed in yet — that only happens once the link is opened.
+      expect(auth.signedIn, isFalse);
+
+      // Resend cooldown starts disabled; only the countdown label shows.
+      expect(find.textContaining('Resend email ('), findsOneWidget);
+
+      await tester.tap(find.text('Use a different email'));
+      await tester.pumpAndSettle();
+      expect(find.text('Forgot password?'), findsOneWidget);
+      await closeAccountApp(tester, db);
+    },
+  );
+
+  testWidgets('empty email shows an inline error instead of sending', (
+    tester,
+  ) async {
+    final auth = FakeAuthService();
     final db = await openAccountScreen(tester, auth: auth);
     await tester.tap(find.text('SIGN IN'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'coder@example.com',
-    );
-    await tester.tap(find.text('Email me a code instead'));
+    await tester.tap(find.text('Email me a sign-in link'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('Enter the 6-digit code we emailed to'),
-      findsOneWidget,
-    );
-
-    await tester.enterText(find.byType(TextFormField).first, '654321');
-    await tester.tap(find.text('VERIFY'));
-    await tester.pumpAndSettle();
-
-    expect(auth.signedIn, isTrue);
-    expect(auth.lastSignedInEmail, 'coder@example.com');
-    await closeAccountApp(tester, db);
-  });
-
-  testWidgets('wrong code shows an error and does not sign in', (tester) async {
-    final auth = FakeAuthService(code: '654321');
-    final db = await openAccountScreen(tester, auth: auth);
-    await tester.tap(find.text('SIGN IN'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(
-      find.byType(TextFormField).first,
-      'coder@example.com',
-    );
-    await tester.tap(find.text('Email me a code instead'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextFormField).first, '000000');
-    await tester.tap(find.text('VERIFY'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('This code has expired or is invalid. Request a new one.'),
-      findsOneWidget,
-    );
-    expect(auth.signedIn, isFalse);
+    expect(find.text('Enter your email first.'), findsOneWidget);
+    expect(auth.lastSignInLinkEmail, isNull);
     await closeAccountApp(tester, db);
   });
 }
