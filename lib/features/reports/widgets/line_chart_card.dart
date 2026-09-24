@@ -100,6 +100,13 @@ class LineChartCard extends StatelessWidget {
   /// so the edge labels never collide with their neighbours.
   static const _edgeLabelGap = 40.0;
 
+  /// True when [min]..[max] is only floating-point noise (prices computed as
+  /// cost / volume give 293.03 and 293.03000000000003). Treating such a range
+  /// as real yields an axis step smaller than a `double` can add to the
+  /// values, and fl_chart's tick loop then never advances — the app freezes.
+  static bool _isFlat(double min, double max) =>
+      (max - min).abs() <= 1e-9 * (1 + max.abs());
+
   @override
   Widget build(BuildContext context) {
     final lines = [
@@ -120,14 +127,16 @@ class LineChartCard extends StatelessWidget {
 
     var minX = all.map((p) => p.x).reduce((a, b) => a < b ? a : b);
     var maxX = all.map((p) => p.x).reduce((a, b) => a > b ? a : b);
-    if (maxX == minX) {
+    if (_isFlat(minX, maxX)) {
       minX -= 1;
       maxX += 1;
     }
     final ys = [for (final p in all) p.y, ?average];
     var minY = ys.reduce((a, b) => a < b ? a : b);
     var maxY = ys.reduce((a, b) => a > b ? a : b);
-    final pad = maxY == minY ? (maxY.abs() * 0.1 + 1) : (maxY - minY) * 0.1;
+    final pad = _isFlat(minY, maxY)
+        ? (maxY.abs() * 0.1 + 1)
+        : (maxY - minY) * 0.1;
     minY -= pad;
     maxY += pad;
     final yInterval = ChartStyle.niceInterval(maxY - minY);

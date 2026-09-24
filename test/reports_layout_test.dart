@@ -189,7 +189,7 @@ void main() {
           vid,
           kind: EntryKind.income,
           date: DateTime(2026, 9, 1),
-          items: {'Transport app': 70000},
+          items: {'Transport application': 70000},
         );
       });
 
