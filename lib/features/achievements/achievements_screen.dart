@@ -101,7 +101,12 @@ class _GridItem extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AchievementBadge(achievement: achievement, size: 64, onTap: onTap),
+        AchievementBadge(
+          key: Key('badge-${achievement.id}'),
+          achievement: achievement,
+          size: 64,
+          onTap: onTap,
+        ),
       ],
     );
   }

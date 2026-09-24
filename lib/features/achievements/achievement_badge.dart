@@ -95,7 +95,6 @@ class AchievementBadge extends StatelessWidget {
         : const StarBorder(points: 16, innerRadiusRatio: 0.9);
 
     return InkWell(
-      key: Key('badge-${achievement.id}'),
       customBorder: shape,
       onTap: onTap,
       child: Container(
