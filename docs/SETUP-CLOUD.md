@@ -34,11 +34,19 @@ in this order:
    row-level security, last-write-wins trigger)
 2. `supabase/migrations/20260924000002_account.sql` (profiles table +
    "delete my account" function)
+3. `supabase/migrations/20260925000001_attachments_checklists.sql` (app
+   schema v4: `attachments`, `checklist_forms`, `checklist_form_items`,
+   `checklists`, `checklist_answers`, plus the private Storage bucket
+   `attachments` with owner-only policies). **Must be run before a v4 app
+   build syncs** — without it the sync fails on the new tables and photos
+   can't upload.
 
 Check: **Table Editor** shows `vehicles`, `catalog_items`, `refuelings`,
 `refueling_fuels`, `entries`, `entry_items`, `routes`, `readings`,
-`reminders`, `profiles` — each with the **RLS enabled** badge. Both files are
-safe to run again if something failed halfway.
+`reminders`, `profiles`, `checklist_forms`, `checklist_form_items`,
+`checklists`, `checklist_answers`, `attachments` — each with the **RLS
+enabled** badge — and **Storage** shows a private `attachments` bucket (10 MB
+limit). Every file is safe to run again if something failed halfway.
 
 ## 3. Email login with links (≈2 min)
 1. **Authentication → Sign In / Providers → Email**: enabled; keep

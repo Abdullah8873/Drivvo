@@ -203,26 +203,6 @@ class DateTimeRow extends ConsumerWidget {
   }
 }
 
-/// Disabled "+ Attach file" button (attachments come with Supabase Storage).
-class AttachFilePlaceholder extends StatelessWidget {
-  const AttachFilePlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 40),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: TextButton.icon(
-          onPressed: null, // TODO(milestone-6): attachments.
-          icon: const Icon(Icons.add),
-          label: const Text('Attach file'),
-        ),
-      ),
-    );
-  }
-}
-
 /// "Delete this X?" confirmation; resolves true when confirmed.
 Future<bool> confirmDelete(BuildContext context, String what) async {
   final ok = await showDialog<bool>(

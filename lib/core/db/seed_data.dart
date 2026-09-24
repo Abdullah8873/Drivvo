@@ -24,6 +24,32 @@ class SeedData {
   static String idFor(CatalogKind kind, String name) =>
       'seed:${kind.name}:${slug(name)}';
 
+  /// Default checklist templates ("Forms"), as `(name, item labels)`.
+  static const checklistForms = <(String, List<String>)>[
+    (
+      'Pre-trip inspection',
+      [
+        'Tires',
+        'Lights',
+        'Brakes',
+        'Engine oil level',
+        'Coolant level',
+        'Windshield & wipers',
+        'Horn',
+        'Mirrors',
+        'Documents',
+      ],
+    ),
+  ];
+
+  /// Deterministic id of a seeded checklist template, e.g.
+  /// `seed:checklistForm:pre-trip-inspection` (same reasoning as [idFor]).
+  static String formIdFor(String name) => 'seed:checklistForm:${slug(name)}';
+
+  /// Deterministic id of one item of a seeded template.
+  static String formItemIdFor(String form, String label) =>
+      'seed:checklistFormItem:${slug(form)}:${slug(label)}';
+
   /// Lower-case, dash-separated form of [name] (`Gas Midgrade` ->
   /// `gas-midgrade`).
   static String slug(String name) => name

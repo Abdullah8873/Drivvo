@@ -8,6 +8,8 @@ import '../cloud/auth_state.dart';
 import '../cloud/cloud_config.dart';
 import '../providers.dart';
 import 'remote_store.dart';
+import 'remote_file_store.dart';
+import 'supabase_remote_file_store.dart';
 import 'supabase_remote_store.dart';
 import 'sync_engine.dart';
 
@@ -22,7 +24,19 @@ final remoteStoreProvider = Provider<RemoteStore?>((ref) {
 final syncEngineProvider = Provider<SyncEngine?>((ref) {
   final remote = ref.watch(remoteStoreProvider);
   if (remote == null) return null;
-  return SyncEngine(ref.watch(databaseProvider), remote);
+  return SyncEngine(
+    ref.watch(databaseProvider),
+    remote,
+    files: ref.watch(remoteFileStoreProvider),
+  );
+});
+
+/// Attachment file storage (Supabase Storage), or null in an offline-only
+/// build — then attachments stay on this device. Tests override it with an
+/// `InMemoryRemoteFileStore`.
+final remoteFileStoreProvider = Provider<RemoteFileStore?>((ref) {
+  final client = ref.watch(supabaseClientProvider);
+  return client == null ? null : SupabaseRemoteFileStore(client);
 });
 
 /// Whether sync runs by itself (on sign-in, on app resume and a few seconds

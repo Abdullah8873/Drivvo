@@ -341,8 +341,13 @@ void main() {
       final report = await small.sync(u1);
       expect(await laptop.watchReadings(vid).first, hasLength(30));
       // Resumed after the two pages that were applied: only the last 10
-      // readings came down again (every other table was already done).
-      expect(report.pulled, 10);
+      // readings came down again, plus the tables after `readings` that the
+      // failed run never reached (the seeded checklist template).
+      final seededChecklistRows = SeedData.checklistForms.fold<int>(
+        0,
+        (n, f) => n + 1 + f.$2.length,
+      );
+      expect(report.pulled, 10 + seededChecklistRows);
     });
   });
 
