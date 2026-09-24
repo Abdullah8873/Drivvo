@@ -12,7 +12,7 @@ class MoreScreen extends StatelessWidget {
   static final _sections = <List<(IconData, String, String?)>>[
     [
       (Icons.person, 'My account', null),
-      (Icons.cloud_sync, 'Synchronize data', null),
+      (Icons.cloud_sync, 'Synchronize data', '/sync'),
       (Icons.storage, 'Storage', null),
       (Icons.swap_horiz, 'Transfer', null),
     ],

@@ -14,6 +14,7 @@ import '../../features/reminders/reminder_form_screen.dart';
 import '../../features/reminders/reminders_screen.dart';
 import '../../features/reports/reports_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/sync/sync_screen.dart';
 import '../../features/vehicles/vehicle_form_screen.dart';
 import '../../features/vehicles/vehicles_screen.dart';
 import '../db/tables.dart';
@@ -31,7 +32,7 @@ import '../widgets/main_shell.dart';
 ///   /edit/<module>/<id>      edit a record
 ///   /record/<module>/<id>    record detail view
 ///   /vehicles, /vehicles/new, /vehicles/<id>
-///   /settings, /catalog/<CatalogKind.name>
+///   /settings, /catalog/<CatalogKind.name>, /sync
 /// ```
 GoRouter createRouter() => GoRouter(
   initialLocation: '/history',
@@ -93,6 +94,7 @@ GoRouter createRouter() => GoRouter(
       builder: (_, state) => VehicleFormScreen(id: state.pathParameters['id']),
     ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+    GoRoute(path: '/sync', builder: (_, _) => const SyncScreen()),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(
