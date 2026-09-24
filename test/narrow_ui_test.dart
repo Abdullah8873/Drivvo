@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:motolog/core/db/app_database.dart';
+import 'package:motolog/core/widgets/speed_dial_menu.dart';
+
 import 'helpers.dart';
 
 /// Manual QA on a ~350x480 px phone found several narrow-width layout bugs:
@@ -10,24 +13,19 @@ import 'helpers.dart';
 /// pixels — narrower, and a touch shorter, than the phone QA used — so the
 /// fixes hold at the edge.
 void main() {
+  late AppDatabase db;
+  setUp(() => db = testDatabase());
+  tearDown(() => db.close());
+
   Future<void> setNarrowSize(WidgetTester tester) async {
     tester.view.physicalSize = const Size(320, 480);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
   }
 
-  /// Unmounts the app (flushing drift's stream-cleanup timers) — call at the
-  /// end of every test.
-  Future<void> finish(WidgetTester tester) async {
-    await tester.pumpWidget(const SizedBox());
-    await tester.pump(Duration.zero);
-  }
-
   testWidgets('main shell fits a 320x480 screen with one-line nav labels', (
     tester,
   ) async {
-    final db = testDatabase();
-    addTearDown(db.close);
     await setNarrowSize(tester);
     await tester.pumpWidget(testApp(db));
     await tester.pumpAndSettle();
@@ -40,14 +38,12 @@ void main() {
       expect(find.text(tab), findsOneWidget);
     }
 
-    await finish(tester);
+    await unmountApp(tester);
   });
 
   testWidgets('speed-dial menu keeps every item reachable on a short screen', (
     tester,
   ) async {
-    final db = testDatabase();
-    addTearDown(db.close);
     await setNarrowSize(tester);
     await tester.pumpWidget(testApp(db));
     await tester.pumpAndSettle();
@@ -63,7 +59,10 @@ void main() {
     if (find.text('Reminder').hitTestable().evaluate().isEmpty) {
       await tester.dragUntilVisible(
         find.text('Reminder'),
-        find.byType(SingleChildScrollView),
+        find.descendant(
+          of: find.byType(SpeedDialMenu),
+          matching: find.byType(Scrollable),
+        ),
         const Offset(0, -40),
       );
       await tester.pumpAndSettle();
@@ -77,14 +76,12 @@ void main() {
     // Landed on the reminder form (its module-colored app bar title).
     expect(find.text('Reminder'), findsWidgets);
 
-    await finish(tester);
+    await unmountApp(tester);
   });
 
   testWidgets('refueling fuel-line fields fit a 320px-wide screen', (
     tester,
   ) async {
-    final db = testDatabase();
-    addTearDown(db.close);
     await setNarrowSize(tester);
     await tester.pumpWidget(testApp(db));
     await tester.pumpAndSettle();
@@ -113,6 +110,6 @@ void main() {
     final total = tester.widget<TextField>(field('Total cost'));
     expect(total.controller!.text, '1500.00');
 
-    await finish(tester);
+    await unmountApp(tester);
   });
 }

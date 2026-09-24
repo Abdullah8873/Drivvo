@@ -17,17 +17,24 @@ class SpeedDialMenu extends StatelessWidget {
   /// concrete width instead of `IntrinsicWidth`, which throws when asked to
   /// measure a scrolling viewport (see [build]).
   double _menuWidth(BuildContext context) {
+    // Measure with the style the label really renders with (inherited
+    // font + the user's text-size setting), or the menu comes out a few
+    // px too narrow and the row overflows.
+    final style = DefaultTextStyle.of(context).style.merge(_labelStyle);
+    final scaler = MediaQuery.textScalerOf(context);
     var maxLabelWidth = 0.0;
     for (final module in RecordModule.speedDialOrder) {
       final painter = TextPainter(
-        text: TextSpan(text: module.label, style: _labelStyle),
+        text: TextSpan(text: module.label, style: style),
         textDirection: Directionality.of(context),
+        textScaler: scaler,
         maxLines: 1,
       )..layout();
       if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
+      painter.dispose();
     }
     // Icon (32) + gap (16) + the row's left/right padding (12 + 28).
-    return 32 + 16 + 12 + 28 + maxLabelWidth;
+    return 32 + 16 + 12 + 28 + maxLabelWidth.ceilToDouble();
   }
 
   @override
@@ -60,7 +67,14 @@ class SpeedDialMenu extends StatelessWidget {
                         child: Icon(module.icon, size: 18, color: Colors.white),
                       ),
                       const SizedBox(width: 16),
-                      Text(module.label, style: _labelStyle),
+                      Flexible(
+                        child: Text(
+                          module.label,
+                          style: _labelStyle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
                 ),
