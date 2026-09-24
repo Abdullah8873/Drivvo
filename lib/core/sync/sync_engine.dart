@@ -247,8 +247,8 @@ class SyncEngine {
     final name = table.actualTableName;
     final user = state.user(userId);
     final saved = user.cursors[name];
-    var after = saved == null
-        ? null
+    var after = saved == null || pullOverlap == Duration.zero
+        ? saved
         : RemoteCursor.at(saved.time.subtract(pullOverlap));
     while (true) {
       final rows = await remote.pull(
