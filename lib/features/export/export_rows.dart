@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import '../../core/db/app_database.dart';
 import '../../core/theme/record_module.dart';
 import 'export_data.dart';
-import 'export_models.dart';
 
 final _dateFmt = DateFormat('yyyy-MM-dd');
 final _timeFmt = DateFormat('HH:mm');
@@ -93,7 +92,11 @@ ExportSection _buildRefuelingSection(ExportData data, String currencyCode) {
         _dateFmt.format(r.date),
         _timeFmt.format(r.date),
         _num(r.odometer),
-        '', '', '', '', '',
+        '',
+        '',
+        '',
+        '',
+        '',
         _yesNo(r.fullTank),
         _yesNo(r.missedPrevious),
         _text(data.catalogNames[r.gasStationId]),
@@ -136,10 +139,25 @@ ExportSection _buildRefuelingSection(ExportData data, String currencyCode) {
     module: RecordModule.refueling,
     title: 'Refueling',
     headers: const [
-      'Vehicle', 'Date', 'Time', 'Odometer', 'Fuel', 'Tank', 'Price/Unit',
-      'Volume', 'Line Total', 'Full Tank', 'Missed Previous', 'Gas Station',
-      'Payment Method', 'Reason', 'Driver', 'Discount', 'Total Cost',
-      'Currency', 'Notes',
+      'Vehicle',
+      'Date',
+      'Time',
+      'Odometer',
+      'Fuel',
+      'Tank',
+      'Price/Unit',
+      'Volume',
+      'Line Total',
+      'Full Tank',
+      'Missed Previous',
+      'Gas Station',
+      'Payment Method',
+      'Reason',
+      'Driver',
+      'Discount',
+      'Total Cost',
+      'Currency',
+      'Notes',
     ],
     rows: rows,
     recordCount: refuelings.length,
@@ -187,9 +205,22 @@ ExportSection _buildEntrySection(
     module: module,
     title: title,
     headers: const [
-      'Vehicle', 'Date', 'Time', 'Odometer', 'Title', 'Type', 'Item Amount',
-      'Place', 'Payment Method', 'Reason', 'Driver', 'Discount',
-      'Installment No', 'Installment Count', 'Total Cost', 'Currency',
+      'Vehicle',
+      'Date',
+      'Time',
+      'Odometer',
+      'Title',
+      'Type',
+      'Item Amount',
+      'Place',
+      'Payment Method',
+      'Reason',
+      'Driver',
+      'Discount',
+      'Installment No',
+      'Installment Count',
+      'Total Cost',
+      'Currency',
       'Notes',
     ],
     rows: rows,
@@ -259,25 +290,46 @@ ExportSection _buildRouteSection(ExportData data, String currencyCode) {
     module: RecordModule.route,
     title: 'Route',
     headers: const [
-      'Vehicle', 'Mode', 'Origin', 'Start Date', 'Start Time',
-      'Start Odometer', 'Destination', 'End Date', 'End Time',
-      'End Odometer', 'Value/Distance', 'Total', 'Cargo Type', 'Contractor',
-      'Cargo Unit', 'Cargo Amount', 'Cargo Weight', 'Cargo Volume',
-      'Freight Value', 'Installments', 'Driver', 'Reason', 'Currency',
+      'Vehicle',
+      'Mode',
+      'Origin',
+      'Start Date',
+      'Start Time',
+      'Start Odometer',
+      'Destination',
+      'End Date',
+      'End Time',
+      'End Odometer',
+      'Value/Distance',
+      'Total',
+      'Cargo Type',
+      'Contractor',
+      'Cargo Unit',
+      'Cargo Amount',
+      'Cargo Weight',
+      'Cargo Volume',
+      'Freight Value',
+      'Installments',
+      'Driver',
+      'Reason',
+      'Currency',
       'Notes',
     ],
     rows: rows,
     recordCount: routes.length,
     moneyTotal: routes.fold(
       0.0,
-      (s, r) => s + (r.mode == RouteMode.freight ? (r.freightValue ?? 0) : (r.total ?? 0)),
+      (s, r) =>
+          s +
+          (r.mode == RouteMode.freight
+              ? (r.freightValue ?? 0)
+              : (r.total ?? 0)),
     ),
   );
 }
 
 ExportSection _buildReadingSection(ExportData data) {
-  final readings = [...data.readings]
-    ..sort((a, b) => a.date.compareTo(b.date));
+  final readings = [...data.readings]..sort((a, b) => a.date.compareTo(b.date));
   final rows = [
     for (final r in readings)
       [
@@ -300,13 +352,14 @@ ExportSection _buildReadingSection(ExportData data) {
 }
 
 ExportSection _buildReminderSection(ExportData data) {
-  final reminders = [...data.reminders]..sort((a, b) {
-    final an = data.vehicleNames[a.vehicleId] ?? '';
-    final bn = data.vehicleNames[b.vehicleId] ?? '';
-    final byVehicle = an.compareTo(bn);
-    if (byVehicle != 0) return byVehicle;
-    return (a.dueDate ?? a.createdAt).compareTo(b.dueDate ?? b.createdAt);
-  });
+  final reminders = [...data.reminders]
+    ..sort((a, b) {
+      final an = data.vehicleNames[a.vehicleId] ?? '';
+      final bn = data.vehicleNames[b.vehicleId] ?? '';
+      final byVehicle = an.compareTo(bn);
+      if (byVehicle != 0) return byVehicle;
+      return (a.dueDate ?? a.createdAt).compareTo(b.dueDate ?? b.createdAt);
+    });
   final rows = [
     for (final r in reminders)
       [
@@ -331,9 +384,21 @@ ExportSection _buildReminderSection(ExportData data) {
     module: RecordModule.reminder,
     title: 'Reminders',
     headers: const [
-      'Vehicle', 'Target', 'Type', 'Repeat', 'By Distance', 'Due Odometer',
-      'Every Distance', 'By Date', 'Due Date', 'Every Amount', 'Every Unit',
-      'Last Done Odometer', 'Last Done Date', 'Active', 'Notes',
+      'Vehicle',
+      'Target',
+      'Type',
+      'Repeat',
+      'By Distance',
+      'Due Odometer',
+      'Every Distance',
+      'By Date',
+      'Due Date',
+      'Every Amount',
+      'Every Unit',
+      'Last Done Odometer',
+      'Last Done Date',
+      'Active',
+      'Notes',
     ],
     rows: rows,
     recordCount: reminders.length,

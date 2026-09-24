@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:drift/drift.dart';
 
@@ -118,10 +117,8 @@ class BackupService {
   /// replaces all data" confirm dialog.
   BackupSummary summarize(Map<String, dynamic> backup) {
     final tables = backup['tables'] as Map<String, dynamic>;
-    int liveCount(String table) => _rowsOf(
-      tables,
-      table,
-    ).where((r) => r['deletedAt'] == null).length;
+    int liveCount(String table) =>
+        _rowsOf(tables, table).where((r) => r['deletedAt'] == null).length;
     return BackupSummary(
       exportedAt: DateTime.parse(backup['exportedAt'] as String).toLocal(),
       schemaVersion: backup['schemaVersion'] as int,

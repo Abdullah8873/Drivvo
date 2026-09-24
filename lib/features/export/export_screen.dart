@@ -34,8 +34,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     final vehicles = ref.watch(vehiclesProvider).value ?? const [];
     final currentVehicle = ref.watch(currentVehicleProvider).value;
 
-    final canExport =
-        !_exporting && _modules.isNotEmpty && vehicles.isNotEmpty;
+    final canExport = !_exporting && _modules.isNotEmpty && vehicles.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Export')),
@@ -131,7 +130,9 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
               minimumSize: const Size.fromHeight(48),
               shape: const StadiumBorder(),
             ),
-            onPressed: canExport ? () => _export(vehicles, currentVehicle) : null,
+            onPressed: canExport
+                ? () => _export(vehicles, currentVehicle)
+                : null,
             child: _exporting
                 ? const SizedBox(
                     width: 20,
@@ -182,14 +183,11 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     try {
       final db = ref.read(databaseProvider);
       final currencyCode = ref.read(settingsProvider).currencyCode;
-      await ref
-          .read(exportServiceProvider)
-          .export(db, options, currencyCode);
+      await ref.read(exportServiceProvider).export(db, options, currencyCode);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _exporting = false);

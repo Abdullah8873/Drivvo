@@ -35,7 +35,12 @@ class ExportService {
   ) async {
     final data = await loadExportData(db, options);
     final sections = buildExportSections(data, options.modules, currencyCode);
-    final bytes = await _buildBytes(options.format, sections, options, currencyCode);
+    final bytes = await _buildBytes(
+      options.format,
+      sections,
+      options,
+      currencyCode,
+    );
     if (bytes.isEmpty) return;
     await sharer.shareBytes(
       filename: _filename(options),
@@ -69,8 +74,7 @@ class ExportService {
   }
 
   String _mimeType(ExportOptions options) {
-    if (options.format == ExportFormat.csv &&
-        options.modules.length > 1) {
+    if (options.format == ExportFormat.csv && options.modules.length > 1) {
       return 'application/zip';
     }
     return switch (options.format) {

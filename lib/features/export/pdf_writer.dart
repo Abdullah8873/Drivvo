@@ -54,7 +54,7 @@ Future<Uint8List> buildPdfBytes({
         alignment: pw.Alignment.centerRight,
         child: pw.Text(
           'Page ${context.pageNumber} of ${context.pagesCount}',
-          style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+          style: pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
         ),
       ),
       build: (context) => [
@@ -88,12 +88,12 @@ Future<Uint8List> buildPdfBytes({
           section.rows.isEmpty
               ? pw.Text(
                   'No records.',
-                  style: const pw.TextStyle(fontStyle: pw.FontStyle.italic),
+                  style: pw.TextStyle(fontStyle: pw.FontStyle.italic),
                 )
               : pw.TableHelper.fromTextArray(
                   headers: section.headers,
                   data: section.rows,
-                  cellStyle: const pw.TextStyle(fontSize: 7),
+                  cellStyle: pw.TextStyle(fontSize: 7),
                   headerStyle: pw.TextStyle(
                     fontSize: 7,
                     fontWeight: pw.FontWeight.bold,
