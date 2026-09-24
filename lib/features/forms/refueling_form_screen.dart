@@ -9,8 +9,11 @@ import '../../core/providers.dart';
 import '../../core/settings/app_settings.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
+import '../../core/widgets/select_list_screen.dart';
 import '../refueling/catalog_picker.dart';
 import '../refueling/refueling_queries.dart';
+import '../routes/record_form_parts.dart' show parseNumber;
+import '../vehicles/vehicle_labels.dart';
 
 /// Refueling form — the reference pattern for every module form.
 ///
@@ -56,6 +59,13 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
   bool _loading = false;
   bool _notFound = false;
   bool _saving = false;
+
+  /// True once the user has changed something — drives the unsaved-changes
+  /// back guard. Only flips once (further edits don't need another rebuild).
+  bool _dirty = false;
+  void _touch() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
 
   bool get _isEdit => widget.id != null;
 
@@ -153,8 +163,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
 
   /// Switches the form to [vehicle], loads its last odometer and, unless the
   /// user already chose a fuel, preselects the last fuel used on it (or its
-  /// only matching fuel).
-  Future<void> _useVehicle(Vehicle vehicle) async {
+  /// only matching fuel). [userChange] marks the form dirty — false for the
+  /// automatic selection made while the form first loads.
+  Future<void> _useVehicle(Vehicle vehicle, {bool userChange = false}) async {
+    if (userChange) _touch();
     setState(() => _vehicleId = vehicle.id);
     final db = ref.read(databaseProvider);
     final lastOdometer = await db.watchLastOdometer(vehicle.id).first;
@@ -202,25 +214,20 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
   // ---- Pickers ----------------------------------------------------------------
 
   Future<void> _pickVehicle(List<Vehicle> vehicles) async {
-    final picked = await showDialog<Vehicle>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Vehicle'),
-        children: [
-          for (final v in vehicles)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, v),
-              child: ListTile(
-                leading: Icon(_vehicleIcon(v)),
-                title: Text(v.name),
-                subtitle: v.model == null ? null : Text(v.model!),
-              ),
-            ),
-        ],
+    final picked = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => SelectListScreen(
+          title: 'Vehicles',
+          items: [for (final v in vehicles) v.name],
+        ),
       ),
     );
-    if (picked == null) return;
-    await _useVehicle(picked);
+    final name = picked?.firstOrNull;
+    if (name == null) return;
+    await _useVehicle(
+      vehicles.firstWhere((v) => v.name == name),
+      userChange: true,
+    );
   }
 
   Future<void> _addVehicle() async {
@@ -243,6 +250,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       newFuelKind: vehicle?.tank1Kind ?? FuelKind.liquid,
     );
     if (fuel == null) return;
+    _touch();
     setState(() {
       line.fuel = fuel;
       if (identical(line, _lines.first)) _fuelIsDefault = false;
@@ -259,12 +267,18 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       firstDate: DateTime(1990),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (d != null) setState(() => _date = d);
+    if (d != null) {
+      _touch();
+      setState(() => _date = d);
+    }
   }
 
   Future<void> _pickTime() async {
     final t = await showTimePicker(context: context, initialTime: _time);
-    if (t != null) setState(() => _time = t);
+    if (t != null) {
+      _touch();
+      setState(() => _time = t);
+    }
   }
 
   // ---- Save & delete ------------------------------------------------------------
@@ -281,21 +295,33 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
 
     final lines = <FuelLineDraft>[];
     for (final l in _lines) {
+      if (l.fuel == null) return error('Select the fuel');
       final total = _parse(l.total.text);
       final volume = _parse(l.volume.text);
-      if (l.fuel == null) return error('Select the fuel');
-      if (total == null || volume == null || volume <= 0) {
-        return error('Enter the total cost and the ${_volumeWord()}');
-      }
+      // Name only the fields that are actually missing, not every field.
+      final missing = [
+        if (total == null) 'the total cost',
+        if (volume == null || volume <= 0) 'the ${_volumeWord()}',
+      ];
+      if (missing.isNotEmpty) return error('Enter ${missing.join(' and ')}');
       lines.add(
         FuelLineDraft(
           fuelId: l.fuel!.id,
-          pricePerUnit: _parse(l.price.text) ?? total / volume,
-          total: total,
-          volume: volume,
+          pricePerUnit: _parse(l.price.text) ?? total! / volume!,
+          total: total!,
+          volume: volume!,
           tank: _tankFor(vehicle, l.fuel!),
         ),
       );
+    }
+
+    final linesTotal = lines.fold(0.0, (s, l) => s + l.total);
+    final discount = _parse(_discount.text);
+    if (_discount.text.trim().isNotEmpty && discount == null) {
+      return error('Enter a valid discount');
+    }
+    if (discount != null && (discount < 0 || discount > linesTotal)) {
+      return error("The discount can't be more than the total");
     }
 
     final db = ref.read(databaseProvider);
@@ -339,7 +365,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       paymentMethodId: _paymentMethod?.id,
       reasonId: _reason?.id,
       driver: _text(_driver),
-      discount: _parse(_discount.text),
+      discount: discount,
       notes: _text(_notes),
     );
     try {
@@ -399,7 +425,11 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
 
   // ---- Helpers ------------------------------------------------------------------
 
-  static double? _parse(String s) => double.tryParse(s.trim());
+  /// Lenient number parsing shared with the other forms: accepts "1,5" as
+  /// well as "1.5", and rejects blank text, garbage, NaN, Infinity and
+  /// negative numbers (none of those are valid odometers, prices or
+  /// volumes) — see [parseNumber].
+  static double? _parse(String s) => parseNumber(s);
 
   static String? _text(TextEditingController c) =>
       c.text.trim().isEmpty ? null : c.text.trim();
@@ -412,9 +442,29 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
         : s;
   }
 
-  static IconData _vehicleIcon(Vehicle? v) => v?.type == VehicleType.motorcycle
-      ? Icons.two_wheeler
-      : Icons.directions_car;
+  static IconData _vehicleIcon(Vehicle? v) =>
+      v?.type.icon ?? Icons.directions_car;
+
+  static const _ordinals = [
+    'SECOND',
+    'THIRD',
+    'FOURTH',
+    'FIFTH',
+    'SIXTH',
+    'SEVENTH',
+    'EIGHTH',
+    'NINTH',
+    'TENTH',
+  ];
+
+  /// "SECOND FUEL", "THIRD FUEL"… for the fuel line at [index] (1-based
+  /// among the extra lines, i.e. `_lines` index 1 is the second fuel).
+  static String _fuelOrdinal(int index) {
+    final word = index - 1 < _ordinals.length
+        ? _ordinals[index - 1]
+        : '${index + 1}TH';
+    return '$word FUEL';
+  }
 
   String _volumeWord() {
     final kind = _lines.first.fuel?.fuelKind ?? FuelKind.liquid;
@@ -447,6 +497,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
     }
 
     final fmt = ref.watch(formattersProvider);
+    final currency = ref.watch(settingsProvider).currencyCode;
     final vehicles = _vehicles;
     final vehicle = vehicles.where((v) => v.id == _vehicleId).firstOrNull;
     final lastOdometer = _lastOdometer;
@@ -454,6 +505,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
     return ModuleFormScaffold(
       module: module,
       onSave: () => _save(vehicle),
+      isDirty: () => _dirty,
       actions: [
         if (_isEdit)
           IconButton(
@@ -511,12 +563,15 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
                 vehicle?.distanceUnit ?? DistanceUnit.km,
               ),
             ),
+            onChanged: (_) => _touch(),
           ),
         ),
         for (final (i, line) in _lines.indexed)
           _FuelLineFields(
             key: ObjectKey(line),
             line: line,
+            // "SECOND FUEL", "THIRD FUEL"… above every line after the first.
+            ordinalLabel: i == 0 ? null : _fuelOrdinal(i),
             unitLabel: fmt.volumeUnitLabel(
               line.fuel?.fuelKind ?? FuelKind.liquid,
             ),
@@ -524,10 +579,13 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               fmt.settings,
               line.fuel?.fuelKind ?? FuelKind.liquid,
             ),
+            currencyCode: currency,
             onPickFuel: () => _pickFuel(line, vehicle),
+            onDirty: _touch,
             onRemove: i == 0
                 ? null
                 : () {
+                    _touch();
                     setState(() => _lines.remove(line));
                     line.dispose();
                   },
@@ -538,13 +596,21 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
             contentPadding: EdgeInsets.zero,
             title: const Text('Are you filling up the tank?'),
             value: _fullTank,
-            onChanged: (v) => setState(() => _fullTank = v),
+            onChanged: (v) {
+              _touch();
+              setState(() => _fullTank = v);
+            },
           ),
         ),
+        // Right after the full-tank toggle, but only once "+ More options"
+        // is open (matches Drivvo: a second fuel is an optional extra).
         if (_moreOptions)
           _AddButton(
             label: 'Fuel',
-            onPressed: () => setState(() => _lines.add(_FuelLine())),
+            onPressed: () {
+              _touch();
+              setState(() => _lines.add(_FuelLine()));
+            },
           ),
         FieldRow(
           icon: Icons.place,
@@ -556,7 +622,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
                 CatalogKind.gasStation,
                 'Gas stations',
               );
-              if (s != null) setState(() => _station = s);
+              if (s != null) {
+                _touch();
+                setState(() => _station = s);
+              }
             },
           ),
         ),
@@ -565,6 +634,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
           child: TextField(
             controller: _driver,
             decoration: const InputDecoration(labelText: 'Driver'),
+            onChanged: (_) => _touch(),
           ),
         ),
         if (!_moreOptions)
@@ -583,7 +653,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
                   CatalogKind.paymentMethod,
                   'Payment methods',
                 );
-                if (p != null) setState(() => _paymentMethod = p);
+                if (p != null) {
+                  _touch();
+                  setState(() => _paymentMethod = p);
+                }
               },
             ),
           ),
@@ -594,7 +667,11 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Discount'),
+              decoration: InputDecoration(
+                labelText: 'Discount',
+                prefixText: '$currency ',
+              ),
+              onChanged: (_) => _touch(),
             ),
           ),
           FieldRow(
@@ -604,7 +681,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               value: _reason?.name,
               onTap: () async {
                 final r = await _pickCatalog(CatalogKind.reason, 'Reasons');
-                if (r != null) setState(() => _reason = r);
+                if (r != null) {
+                  _touch();
+                  setState(() => _reason = r);
+                }
               },
             ),
           ),
@@ -614,17 +694,21 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               contentPadding: EdgeInsets.zero,
               title: const Text('Missed previous refueling?'),
               value: _missedPrevious,
-              onChanged: (v) => setState(() => _missedPrevious = v),
+              onChanged: (v) {
+                _touch();
+                setState(() => _missedPrevious = v);
+              },
             ),
           ),
-          // TODO(milestone-6): attachments via Supabase Storage.
-          _AddButton(label: 'Attach file', onPressed: () {}),
+          // TODO(milestone-6): enable once attachments (Supabase Storage) exist.
+          _AddButton(label: 'Attach file', onPressed: null),
           FieldRow(
             icon: Icons.notes,
             child: TextField(
               controller: _notes,
               maxLines: null,
               decoration: const InputDecoration(labelText: 'Notes'),
+              onChanged: (_) => _touch(),
             ),
           ),
         ],
@@ -653,11 +737,12 @@ class _NoVehicleCard extends StatelessWidget {
 }
 
 /// Left-aligned "+ Label" text button used for optional form sections.
+/// A null [onPressed] renders it disabled (e.g. "Attach file" for now).
 class _AddButton extends StatelessWidget {
   const _AddButton({required this.label, required this.onPressed});
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -696,24 +781,38 @@ class _FuelLineFields extends StatelessWidget {
   const _FuelLineFields({
     super.key,
     required this.line,
+    this.ordinalLabel,
     required this.unitLabel,
     required this.volumeLabel,
+    required this.currencyCode,
     required this.onPickFuel,
+    required this.onDirty,
     this.onRemove,
   });
 
   final _FuelLine line;
+
+  /// "SECOND FUEL", "THIRD FUEL"… shown as a header above every line after
+  /// the first; null for the first (unlabelled) line.
+  final String? ordinalLabel;
 
   /// Unit for the price label ("L" → "Price / L").
   final String unitLabel;
 
   /// Label of the volume field ("Liters", "kWh"…).
   final String volumeLabel;
+
+  /// e.g. "PKR" — shown as a prefix on the money fields.
+  final String currencyCode;
   final VoidCallback onPickFuel;
+
+  /// Marks the form dirty (for the unsaved-changes back guard).
+  final VoidCallback onDirty;
   final VoidCallback? onRemove;
 
   // "Enter any two, the third is calculated" (see FuelMath).
   void _onChanged(FuelField field) {
+    onDirty();
     line.edited = FuelMath.touch(line.edited, field);
     final result = FuelMath.solve(
       edited: line.edited,
@@ -730,43 +829,74 @@ class _FuelLineFields extends StatelessWidget {
     controller.text = result.value.toStringAsFixed(digits);
   }
 
-  Widget _number(String label, TextEditingController c, FuelField f) =>
-      Expanded(
-        child: TextField(
-          controller: c,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: label),
-          onChanged: (_) => _onChanged(f),
-        ),
-      );
+  Widget _number(
+    String label,
+    TextEditingController c,
+    FuelField f, {
+    bool money = false,
+  }) => Expanded(
+    child: TextField(
+      controller: c,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixText: money ? '$currencyCode ' : null,
+      ),
+      onChanged: (_) => _onChanged(f),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
+    final ordinal = ordinalLabel;
     return Column(
       children: [
+        if (ordinal != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(48, 12, 8, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    ordinal,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      color: RecordModule.refueling.color,
+                    ),
+                  ),
+                ),
+                if (onRemove != null)
+                  IconButton(
+                    tooltip: 'Remove',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close),
+                    onPressed: onRemove,
+                  ),
+              ],
+            ),
+          ),
         FieldRow(
           icon: Icons.local_gas_station,
-          child: Row(
-            children: [
-              Expanded(
-                child: PickerField(
-                  label: 'Fuel',
-                  value: line.fuel?.name,
-                  onTap: onPickFuel,
-                ),
-              ),
-              if (onRemove != null)
-                IconButton(icon: const Icon(Icons.close), onPressed: onRemove),
-            ],
+          child: PickerField(
+            label: 'Fuel',
+            value: line.fuel?.name,
+            onTap: onPickFuel,
           ),
         ),
         FieldRow(
           icon: Icons.payments_outlined,
           child: Row(
             children: [
-              _number('Price / $unitLabel', line.price, FuelField.price),
+              _number(
+                'Price / $unitLabel',
+                line.price,
+                FuelField.price,
+                money: true,
+              ),
               const SizedBox(width: 12),
-              _number('Total cost', line.total, FuelField.total),
+              _number('Total cost', line.total, FuelField.total, money: true),
               const SizedBox(width: 12),
               _number(volumeLabel, line.volume, FuelField.volume),
             ],

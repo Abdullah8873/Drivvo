@@ -12,6 +12,7 @@ class ModuleFormScaffold extends StatelessWidget {
     required this.onSave,
     this.title,
     this.actions,
+    this.isDirty,
   });
 
   final RecordModule module;
@@ -20,9 +21,15 @@ class ModuleFormScaffold extends StatelessWidget {
   final VoidCallback onSave;
   final List<Widget>? actions;
 
+  /// When provided, pressing the app bar back arrow or the system back
+  /// gesture while this returns true shows a "Discard changes?" dialog
+  /// instead of leaving straight away. Null (the default) skips the guard —
+  /// use it for forms with nothing to lose (e.g. [PlaceholderFormScreen]).
+  final bool Function()? isDirty;
+
   @override
   Widget build(BuildContext context) {
-    return Theme(
+    final scaffold = Theme(
       // Re-tint accents (cursor, switches, focused underline) with the module color.
       data: Theme.of(context).copyWith(
         colorScheme: Theme.of(context).colorScheme
@@ -56,6 +63,66 @@ class ModuleFormScaffold extends StatelessWidget {
           ),
         ),
       ),
+    );
+    final dirty = isDirty;
+    return dirty == null
+        ? scaffold
+        : UnsavedChangesGuard(isDirty: dirty, child: scaffold);
+  }
+}
+
+/// Shows a "Discard changes?" dialog and resolves to true when the user
+/// chose to discard (false when they chose to keep editing, or dismissed
+/// the dialog without picking).
+Future<bool> confirmDiscardChanges(BuildContext context) async {
+  final discard = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Discard changes?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('KEEP EDITING'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('DISCARD'),
+        ),
+      ],
+    ),
+  );
+  return discard ?? false;
+}
+
+/// Confirms before the app bar back arrow or a system back gesture leaves a
+/// form with unsaved edits. `Navigator.pop`/`maybePop` distinguish the two:
+/// the back arrow and system gestures go through `maybePop`, which respects
+/// [PopScope.canPop]; a form's own SAVE/DELETE flow calls `Navigator.pop`
+/// directly (including via go_router's `context.pop`), which always
+/// succeeds — so this guard never gets in the way of a normal save.
+class UnsavedChangesGuard extends StatelessWidget {
+  const UnsavedChangesGuard({
+    super.key,
+    required this.isDirty,
+    required this.child,
+  });
+
+  /// Polled when a pop is attempted — not a reactive listenable, since a
+  /// PopScope only re-reads it on rebuild, which flipping the flag triggers
+  /// (see the `_touch()` pattern in the forms that use this).
+  final bool Function() isDirty;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: !isDirty(),
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final discard = await confirmDiscardChanges(context);
+        if (discard && context.mounted) Navigator.of(context).pop();
+      },
+      child: child,
     );
   }
 }

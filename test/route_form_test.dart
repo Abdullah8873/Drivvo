@@ -22,6 +22,25 @@ void main() {
     await finish(tester);
   });
 
+  testWidgets(
+    'shows the distance unit suffix even without a last-odometer hint',
+    (tester) async {
+      useTallScreen(tester);
+      // No prior reading, so there's no "Last odometer" hint to lean on.
+      await seedVehicle(tester, db);
+      await tester.pumpWidget(testApp(db));
+      await tester.pumpAndSettle();
+      await openForm(tester, 'Route');
+
+      expect(find.textContaining('Last odometer'), findsNothing);
+      final initial = tester.widget<TextField>(field('Initial odometer'));
+      expect(initial.decoration!.suffixText, 'km');
+      final finalOdo = tester.widget<TextField>(field('Final odometer'));
+      expect(finalOdo.decoration!.suffixText, 'km');
+      await finish(tester);
+    },
+  );
+
   testWidgets('saves a trip with a computed total', (tester) async {
     useTallScreen(tester);
     final vid = await seedVehicle(tester, db, lastOdometer: 1000);
@@ -37,7 +56,7 @@ void main() {
     await tester.enterText(field('Origin'), 'Lahore');
     await tester.enterText(field('Destination'), 'Islamabad');
     await tester.enterText(field('Final odometer'), '1150');
-    await tester.enterText(field('Value km'), '12.5');
+    await tester.enterText(field('Value per km'), '12.5');
     await tester.pump();
     expect(find.text('PKR1,875.00'), findsOneWidget);
 
@@ -67,13 +86,13 @@ void main() {
     await tester.enterText(field('Final odometer'), '800');
     await tester.tap(find.text('FREIGHT'));
     await tester.pumpAndSettle();
-    expect(field('Value km'), findsNothing);
+    expect(field('Value per km'), findsNothing);
 
     await tester.enterText(field('Cargo type'), 'Wheat');
     await tester.enterText(field('Contractor'), 'Acme');
     await tester.enterText(field('Unit'), 'bags');
     await tester.enterText(field('Amount'), '40');
-    await tester.enterText(field('Weight'), '2000');
+    await tester.enterText(field('Weight (kg)'), '2000');
     await tester.enterText(field('Volume (m³)'), '3.5');
     await tester.enterText(field('Freight value'), '25000');
     await tester.enterText(field('Installments'), '2');

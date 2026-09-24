@@ -43,8 +43,12 @@ void main() {
 
   Finder field(String label) => find.widgetWithText(TextField, label);
 
-  /// Opens the type picker, ticks each item (via the search box), confirms
-  /// with ✓, then answers the price dialog shown for each new type.
+  /// Finder for a picker row's inline amount field (Drivvo-style: ticking a
+  /// type reveals a "Value" field right there in its row).
+  Finder amountField(String item) => find.byKey(Key('amount-$item'));
+
+  /// Opens the type picker, ticks each item (via the search box) and types
+  /// its amount into the row's inline "Value" field, then confirms with ✓.
   Future<void> pickTypes(
     WidgetTester tester,
     String fieldLabel,
@@ -62,23 +66,11 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ListTile, item));
       await tester.pumpAndSettle();
+      await tester.enterText(amountField(item), prices[item]!);
+      await tester.pumpAndSettle();
     }
     await tester.tap(find.byIcon(Icons.check));
     await tester.pumpAndSettle();
-    final priceField = find.byKey(const Key('price-dialog-field'));
-    while (priceField.evaluate().isNotEmpty) {
-      final title = tester.widget<Text>(
-        find
-            .descendant(
-              of: find.byType(AlertDialog),
-              matching: find.byType(Text),
-            )
-            .first,
-      );
-      await tester.enterText(priceField, prices[title.data]!);
-      await tester.tap(find.text('OK'));
-      await tester.pumpAndSettle();
-    }
   }
 
   Future<void> save(WidgetTester tester, String savedMessage) async {
@@ -177,4 +169,87 @@ void main() {
     expect(await liveItems(tester, db), hasLength(3));
     await unmount(tester);
   });
+
+  /// The price shown on a type-line row in the form itself (scoped past its
+  /// `type-line-<name>` key, since a single-line total can coincidentally
+  /// match the standalone "Total cost" row's text too).
+  Finder typeLinePrice(String type, String text) => find.descendant(
+    of: find.byKey(Key('type-line-$type')),
+    matching: find.text(text),
+  );
+
+  testWidgets('reopening the type picker keeps existing lines checked', (
+    tester,
+  ) async {
+    final db = testDatabase();
+    addTearDown(db.close);
+    await tester.runAsync(() => addTestVehicle(db));
+    await openForm(tester, db, 'Service');
+
+    await pickTypes(tester, 'Type of service', {'Oil Change': '1200'});
+    expect(typeLinePrice('Oil Change', 'PKR1,200.00'), findsOneWidget);
+
+    // Reopen via "+ Type of service": the existing line comes back checked,
+    // with its value already in the row's inline field.
+    await tester.tap(find.widgetWithText(TextButton, 'Type of service'));
+    final search = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byType(TextField),
+    );
+    await settle(tester, until: search);
+    await tester.enterText(search, 'Oil Change');
+    await tester.pumpAndSettle();
+    expect(amountField('Oil Change'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(amountField('Oil Change')).controller!.text,
+      '1200',
+    );
+
+    // Ticking a second type keeps the first one's value intact.
+    await tester.enterText(search, 'Air Filter');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Air Filter'));
+    await tester.pumpAndSettle();
+    await tester.enterText(amountField('Air Filter'), '800');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.check));
+    await settle(tester);
+
+    expect(typeLinePrice('Oil Change', 'PKR1,200.00'), findsOneWidget);
+    expect(typeLinePrice('Air Filter', 'PKR800.00'), findsOneWidget);
+    await unmount(tester);
+  });
+
+  testWidgets(
+    'installment preview matches the actual first installment total',
+    (tester) async {
+      final db = testDatabase();
+      addTearDown(db.close);
+      await tester.runAsync(() => addTestVehicle(db));
+      await openForm(tester, db, 'Service');
+
+      // Each item is split on its own and summed per installment, which can
+      // round a cent differently than splitting the 150 total directly
+      // (150 / 3 = 50.00, but 100/3 + 50/3 first-shares = 50.02).
+      await pickTypes(tester, 'Type of service', {
+        'Oil Change': '100',
+        'Air Filter': '50',
+      });
+      await tester.enterText(field('Installments'), '3');
+      await tester.pump();
+
+      // Two type lines push the interval preview below the fold.
+      await tester.dragUntilVisible(
+        find.text('Monthly'),
+        find.byType(ListView),
+        const Offset(0, -200),
+      );
+      expect(find.text('3 × PKR50.02'), findsOneWidget);
+
+      await save(tester, 'Service saved');
+      final rows = await liveEntries(tester, db);
+      expect(rows.map((r) => r.totalCost), [50.02, 49.99, 49.99]);
+      await unmount(tester);
+    },
+  );
 }

@@ -30,6 +30,13 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
   bool get _editing => widget.id != null;
   late bool _loading = _editing;
 
+  /// True once the user has changed something — drives the unsaved-changes
+  /// back guard. Only flips once (further edits don't need another rebuild).
+  bool _dirty = false;
+  void _touch() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
+
   String? _vehicleId;
   RouteMode _mode = RouteMode.trip;
   DateTime _start = _nowToMinute();
@@ -247,6 +254,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
   Future<void> _pickReason() async {
     final r = await pickReason(context, ref.read(databaseProvider));
     if (r != null) {
+      _touch();
       setState(() {
         _reasonId = r.id;
         _reasonName = r.name;
@@ -264,6 +272,8 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
     String label, {
     bool number = false,
     String? helper,
+    String? suffixText,
+    String? prefixText,
     ValueChanged<String>? onChanged,
   }) => TextField(
     controller: c,
@@ -273,8 +283,16 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
     textCapitalization: number
         ? TextCapitalization.none
         : TextCapitalization.sentences,
-    decoration: InputDecoration(labelText: label, helperText: helper),
-    onChanged: onChanged,
+    decoration: InputDecoration(
+      labelText: label,
+      helperText: helper,
+      suffixText: suffixText,
+      prefixText: prefixText,
+    ),
+    onChanged: (v) {
+      _touch();
+      onChanged?.call(v);
+    },
   );
 
   @override
@@ -290,6 +308,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
     }
 
     final fmt = ref.watch(formattersProvider);
+    final currency = ref.watch(settingsProvider).currencyCode;
     final vehicle = vehicles.where((v) => v.id == _vehicleId).firstOrNull;
     final unit = vehicle?.distanceUnit ?? DistanceUnit.km;
     final unitLabel = Formatters.distanceUnitLabel(unit);
@@ -301,6 +320,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
     return ModuleFormScaffold(
       module: module,
       onSave: _save,
+      isDirty: () => _dirty,
       actions: [
         if (_editing)
           IconButton(
@@ -314,6 +334,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
           vehicles: vehicles,
           vehicleId: _vehicleId,
           onChanged: (id) {
+            _touch();
             setState(() {
               _vehicleId = id;
               if (!_editing) _startOdo.clear();
@@ -324,7 +345,10 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
         FieldRow(icon: Icons.trip_origin, child: _text(_origin, 'Origin')),
         DateTimeRow(
           value: _start,
-          onChanged: _setStart,
+          onChanged: (d) {
+            _touch();
+            _setStart(d);
+          },
           dateLabel: 'Start date',
           timeLabel: 'Start time',
         ),
@@ -337,6 +361,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
             _startOdo,
             'Initial odometer',
             number: true,
+            suffixText: unitLabel,
             onChanged: (_) => setState(() {}),
           ),
         ),
@@ -347,10 +372,13 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
         FieldRow(icon: Icons.flag, child: _text(_destination, 'Destination')),
         DateTimeRow(
           value: _end,
-          onChanged: (d) => setState(() {
-            _end = d;
-            _endTouched = true;
-          }),
+          onChanged: (d) {
+            _touch();
+            setState(() {
+              _end = d;
+              _endTouched = true;
+            });
+          },
           icon: Icons.event_available,
           dateLabel: 'End date',
           timeLabel: 'End time',
@@ -361,6 +389,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
             _endOdo,
             'Final odometer',
             number: true,
+            suffixText: unitLabel,
             helper: 'Leave empty to finish the route later',
             onChanged: (_) => setState(() {}),
           ),
@@ -374,7 +403,10 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
               ButtonSegment(value: RouteMode.freight, label: Text('FREIGHT')),
             ],
             selected: {_mode},
-            onSelectionChanged: (s) => setState(() => _mode = s.first),
+            onSelectionChanged: (s) {
+              _touch();
+              setState(() => _mode = s.first);
+            },
           ),
         ),
         if (_mode == RouteMode.trip)
@@ -386,8 +418,9 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
                 Expanded(
                   child: _text(
                     _valuePerDistance,
-                    'Value $unitLabel',
+                    'Value per $unitLabel',
                     number: true,
+                    prefixText: '$currency ',
                     helper: '*optional',
                     onChanged: (_) => setState(() {}),
                   ),
@@ -422,7 +455,9 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
               children: [
                 Expanded(child: _text(_cargoAmount, 'Amount', number: true)),
                 const SizedBox(width: 12),
-                Expanded(child: _text(_cargoWeight, 'Weight', number: true)),
+                Expanded(
+                  child: _text(_cargoWeight, 'Weight (kg)', number: true),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: _text(_cargoVolume, 'Volume (m³)', number: true),
@@ -436,7 +471,12 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
               children: [
                 Expanded(
                   flex: 2,
-                  child: _text(_freightValue, 'Freight value', number: true),
+                  child: _text(
+                    _freightValue,
+                    'Freight value',
+                    number: true,
+                    prefixText: '$currency ',
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -446,6 +486,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
                     decoration: const InputDecoration(
                       labelText: 'Installments',
                     ),
+                    onChanged: (_) => _touch(),
                   ),
                 ),
               ],

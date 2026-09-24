@@ -7,14 +7,23 @@ import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
 import '../../core/widgets/select_list_screen.dart';
+import '../vehicles/vehicle_labels.dart';
 
 /// Small building blocks shared by the Route and Reading forms.
 
-/// Parses a user-typed number, accepting "," as decimal separator.
-/// Returns null for empty or invalid input.
+/// Parses a user-typed number, accepting "," as well as "." for the decimal
+/// separator (so "1,5" and "1.5" both mean one and a half).
+///
+/// Returns null for blank input and for anything that isn't a finite,
+/// non-negative number: unparseable text, NaN or Infinity (`double.parse`
+/// accepts the literal strings "nan" and "infinity"), and negative numbers —
+/// none of which are valid odometers, prices, weights or amounts here.
 double? parseNumber(String text) {
   final t = text.trim().replaceAll(',', '.');
-  return t.isEmpty ? null : double.tryParse(t);
+  if (t.isEmpty) return null;
+  final v = double.tryParse(t);
+  if (v == null || !v.isFinite || v < 0) return null;
+  return v;
 }
 
 /// Number → text for a form field ("56935" instead of "56935.0").
@@ -117,12 +126,12 @@ class VehicleField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = vehicles.where((v) => v.id == vehicleId).firstOrNull?.name;
+    final vehicle = vehicles.where((v) => v.id == vehicleId).firstOrNull;
     return FieldRow(
-      icon: Icons.two_wheeler,
+      icon: vehicle?.type.icon ?? Icons.directions_car,
       child: PickerField(
         label: 'Vehicle',
-        value: name,
+        value: vehicle?.name,
         onTap: () => _pick(context),
       ),
     );

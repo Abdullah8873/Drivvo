@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/db/app_database.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/module_form_scaffold.dart';
+import '../routes/record_form_parts.dart' show parseNumber;
 import 'vehicle_labels.dart';
 import 'vehicle_queries.dart';
 import 'vehicle_widgets.dart';
@@ -48,6 +49,13 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
   /// True while an existing vehicle is being loaded (edit mode).
   late bool _loading = widget.id != null;
   bool _notFound = false;
+
+  /// True once the user has changed something — drives the unsaved-changes
+  /// back guard. Only flips once (further edits don't need another rebuild).
+  bool _dirty = false;
+  void _touch() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
 
   List<TextEditingController> get _controllers => [
     _name,
@@ -128,8 +136,10 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
     return t.isEmpty ? null : t;
   }
 
-  static double? _number(TextEditingController c) =>
-      double.tryParse(c.text.trim().replaceAll(',', '.'));
+  /// Lenient number parsing shared with the record forms: accepts "1,5" as
+  /// well as "1.5", and rejects blank text, garbage, NaN, Infinity and
+  /// negative numbers — see [parseNumber].
+  static double? _number(TextEditingController c) => parseNumber(c.text);
 
   /// The form as a drift "companion" (a partial row, like a Prisma
   /// `data: {...}` object).
@@ -222,7 +232,10 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
       label: (t) => t.label,
       icon: (t) => t.icon,
     );
-    if (t != null) setState(() => _type = t);
+    if (t != null) {
+      _touch();
+      setState(() => _type = t);
+    }
   }
 
   Future<void> _pickDistanceUnit() async {
@@ -233,7 +246,10 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
       selected: _distanceUnit,
       label: (u) => u.label,
     );
-    if (u != null) setState(() => _distanceUnit = u);
+    if (u != null) {
+      _touch();
+      setState(() => _distanceUnit = u);
+    }
   }
 
   Widget _textField(
@@ -243,6 +259,7 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
     bool multiline = false,
     String? Function(String?)? validator,
     TextCapitalization caps = TextCapitalization.sentences,
+    String? prefixText,
   }) {
     return FieldRow(
       icon: icon,
@@ -251,7 +268,8 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
         textCapitalization: caps,
         maxLines: multiline ? null : 1,
         validator: validator,
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(labelText: label, prefixText: prefixText),
+        onChanged: (_) => _touch(),
       ),
     );
   }
@@ -290,7 +308,10 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
               selected: kind,
               label: (k) => k.label,
             );
-            if (k != null) setState(() => onKind(k));
+            if (k != null) {
+              _touch();
+              setState(() => onKind(k));
+            }
           },
         ),
       ),
@@ -303,6 +324,7 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
             labelText: 'Tank capacity',
             suffixText: unit,
           ),
+          onChanged: (_) => _touch(),
         ),
       ),
     ];
@@ -322,153 +344,174 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
       );
     }
 
-    return TealFormScaffold(
-      title: 'Vehicle',
-      formKey: _formKey,
-      onSave: _save,
-      actions: [
-        if (isEdit)
-          IconButton(
-            tooltip: 'Delete',
-            icon: const Icon(Icons.delete),
-            onPressed: _delete,
-          ),
-      ],
-      children: [
-        FieldRow(
-          icon: _type.icon,
-          child: PickerField(
-            label: 'Type of vehicle',
-            value: _type.label,
-            onTap: _pickType,
-          ),
-        ),
-        _textField(
-          _name,
-          'Name',
-          icon: Icons.label_outline,
-          validator: (v) =>
-              (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
-        ),
-        _textField(_manufacturer, 'Manufacturer', icon: Icons.factory),
-        _textField(_model, 'Model', icon: Icons.directions_car_outlined),
-        FieldRow(
-          icon: Icons.pin_outlined,
-          child: Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: _plate,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(labelText: 'License plate'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              SizedBox(
-                width: 96,
-                child: TextFormField(
-                  controller: _year,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Year'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: 48, top: 12, bottom: 4),
-          child: SegmentedToggle<int>(
-            options: const [(1, 'ONE TANK'), (2, 'TWO TANKS')],
-            selected: _tankCount,
-            onChanged: (n) => setState(() => _tankCount = n),
-          ),
-        ),
-        ..._tankFields(
-          tank: 1,
-          kind: _tank1Kind,
-          onKind: (k) => _tank1Kind = k,
-          capacity: _tank1Capacity,
-        ),
-        if (_tankCount == 2)
-          ..._tankFields(
-            tank: 2,
-            kind: _tank2Kind,
-            onKind: (k) => _tank2Kind = k,
-            capacity: _tank2Capacity,
-          ),
-        FieldRow(
-          icon: Icons.straighten,
-          child: PickerField(
-            label: 'Distance unit',
-            value: _distanceUnit.label,
-            onTap: _pickDistanceUnit,
-          ),
-        ),
-        FieldRow(
-          icon: Icons.check_circle_outline,
-          child: SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Active'),
-            value: _active,
-            onChanged: (v) => setState(() => _active = v),
-          ),
-        ),
-        if (!_moreOptions)
-          Padding(
-            padding: const EdgeInsets.only(left: 40),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => setState(() => _moreOptions = true),
-                icon: const Icon(Icons.add),
-                label: const Text('More options'),
-              ),
+    final currency = ref.watch(settingsProvider).currencyCode;
+
+    return UnsavedChangesGuard(
+      isDirty: () => _dirty,
+      child: TealFormScaffold(
+        title: 'Vehicle',
+        formKey: _formKey,
+        onSave: _save,
+        actions: [
+          if (isEdit)
+            IconButton(
+              tooltip: 'Delete',
+              icon: const Icon(Icons.delete),
+              onPressed: _delete,
             ),
-          )
-        else ...[
-          _textField(
-            _vin,
-            'VIN',
-            icon: Icons.qr_code,
-            caps: TextCapitalization.characters,
-          ),
-          _textField(
-            _registrationId,
-            'Registration ID',
-            icon: Icons.badge_outlined,
-            caps: TextCapitalization.characters,
-          ),
+        ],
+        children: [
           FieldRow(
-            icon: Icons.payments_outlined,
+            icon: _type.icon,
+            child: PickerField(
+              label: 'Type of vehicle',
+              value: _type.label,
+              onTap: _pickType,
+            ),
+          ),
+          _textField(
+            _name,
+            'Name',
+            icon: Icons.label_outline,
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
+          ),
+          _textField(_manufacturer, 'Manufacturer', icon: Icons.factory),
+          _textField(_model, 'Model', icon: Icons.directions_car_outlined),
+          FieldRow(
+            icon: Icons.pin_outlined,
             child: Row(
               children: [
                 Expanded(
                   child: TextFormField(
-                    controller: _purchasePrice,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
+                    controller: _plate,
+                    textCapitalization: TextCapitalization.characters,
                     decoration: const InputDecoration(
-                      labelText: 'Purchase price',
+                      labelText: 'License plate',
                     ),
+                    onChanged: (_) => _touch(),
                   ),
                 ),
                 const SizedBox(width: 16),
-                Expanded(
+                SizedBox(
+                  width: 96,
                   child: TextFormField(
-                    controller: _salePrice,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(labelText: 'Sale price'),
+                    controller: _year,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Year'),
+                    onChanged: (_) => _touch(),
                   ),
                 ),
               ],
             ),
           ),
-          _textField(_notes, 'Notes', icon: Icons.notes, multiline: true),
+          Padding(
+            padding: const EdgeInsets.only(left: 48, top: 12, bottom: 4),
+            child: SegmentedToggle<int>(
+              options: const [(1, 'ONE TANK'), (2, 'TWO TANKS')],
+              selected: _tankCount,
+              onChanged: (n) {
+                _touch();
+                setState(() => _tankCount = n);
+              },
+            ),
+          ),
+          ..._tankFields(
+            tank: 1,
+            kind: _tank1Kind,
+            onKind: (k) => _tank1Kind = k,
+            capacity: _tank1Capacity,
+          ),
+          if (_tankCount == 2)
+            ..._tankFields(
+              tank: 2,
+              kind: _tank2Kind,
+              onKind: (k) => _tank2Kind = k,
+              capacity: _tank2Capacity,
+            ),
+          FieldRow(
+            icon: Icons.straighten,
+            child: PickerField(
+              label: 'Distance unit',
+              value: _distanceUnit.label,
+              onTap: _pickDistanceUnit,
+            ),
+          ),
+          FieldRow(
+            icon: Icons.check_circle_outline,
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active'),
+              value: _active,
+              onChanged: (v) {
+                _touch();
+                setState(() => _active = v);
+              },
+            ),
+          ),
+          if (!_moreOptions)
+            Padding(
+              padding: const EdgeInsets.only(left: 40),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () => setState(() => _moreOptions = true),
+                  icon: const Icon(Icons.add),
+                  label: const Text('More options'),
+                ),
+              ),
+            )
+          else ...[
+            _textField(
+              _vin,
+              'VIN',
+              icon: Icons.qr_code,
+              caps: TextCapitalization.characters,
+            ),
+            _textField(
+              _registrationId,
+              'Registration ID',
+              icon: Icons.badge_outlined,
+              caps: TextCapitalization.characters,
+            ),
+            FieldRow(
+              icon: Icons.payments_outlined,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _purchasePrice,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Purchase price',
+                        prefixText: '$currency ',
+                      ),
+                      onChanged: (_) => _touch(),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _salePrice,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Sale price',
+                        prefixText: '$currency ',
+                      ),
+                      onChanged: (_) => _touch(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _textField(_notes, 'Notes', icon: Icons.notes, multiline: true),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

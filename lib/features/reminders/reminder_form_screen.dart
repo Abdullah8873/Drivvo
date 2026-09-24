@@ -9,6 +9,8 @@ import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
 import '../../core/widgets/select_list_screen.dart';
+import '../routes/record_form_parts.dart' show parseNumber;
+import '../vehicles/vehicle_labels.dart';
 import 'reminder_queries.dart';
 
 /// Create / edit a reminder (purple Reminder module).
@@ -32,6 +34,13 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
   /// The row being edited (null for a new reminder).
   Reminder? _existing;
   late bool _loading = widget.id != null;
+
+  /// True once the user has changed something — drives the unsaved-changes
+  /// back guard. Only flips once (further edits don't need another rebuild).
+  bool _dirty = false;
+  void _touch() {
+    if (!_dirty) setState(() => _dirty = true);
+  }
 
   String? _vehicleId;
   ReminderTarget _target = ReminderTarget.service;
@@ -110,6 +119,7 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
     );
     final name = picked?.firstOrNull;
     if (name == null) return;
+    _touch();
     setState(() => _vehicleId = vehicles.firstWhere((v) => v.name == name).id);
   }
 
@@ -133,7 +143,10 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
     // Re-read so a type created with "+" is included.
     final fresh = await _db.getCatalog(kind);
     final match = fresh.where((t) => t.name == name).firstOrNull;
-    if (match != null && mounted) setState(() => _typeId = match.id);
+    if (match != null && mounted) {
+      _touch();
+      setState(() => _typeId = match.id);
+    }
   }
 
   /// The "+" in the type picker: ask for a name and add it to the catalog.
@@ -179,15 +192,18 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 30),
     );
-    if (d != null) setState(() => _dueDate = d);
+    if (d != null) {
+      _touch();
+      setState(() => _dueDate = d);
+    }
   }
 
   // ---- Save / delete ----------------------------------------------------------
 
   Future<void> _save() async {
     final vehicleId = _vehicleId ?? ref.read(currentVehicleProvider).value?.id;
-    final dueOdo = double.tryParse(_dueOdometer.text.trim());
-    final everyDist = double.tryParse(_everyDistance.text.trim());
+    final dueOdo = parseNumber(_dueOdometer.text);
+    final everyDist = parseNumber(_everyDistance.text);
     final everyAmount = int.tryParse(_everyAmount.text.trim());
 
     // First failing rule wins (like a form validator returning one message).
@@ -309,6 +325,7 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
     return ModuleFormScaffold(
       module: _module,
       onSave: _save,
+      isDirty: () => _dirty,
       actions: [
         if (_existing != null)
           IconButton(
@@ -319,7 +336,7 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
       ],
       children: [
         FieldRow(
-          icon: Icons.two_wheeler,
+          icon: vehicle.type.icon,
           child: PickerField(
             label: 'Vehicle',
             value: vehicle.name,
@@ -333,10 +350,13 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
               ReminderTarget.expense: 'EXPENSE',
               ReminderTarget.service: 'SERVICE',
             },
-            onChanged: (t) => setState(() {
-              if (t != _target) _typeId = null;
-              _target = t;
-            }),
+            onChanged: (t) {
+              _touch();
+              setState(() {
+                if (t != _target) _typeId = null;
+                _target = t;
+              });
+            },
           ),
         ),
         FieldRow(
@@ -355,7 +375,10 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
           child: _Toggle<bool>(
             value: _repeat,
             options: const {false: 'JUST ONE TIME', true: 'REPEAT EVERY'},
-            onChanged: (v) => setState(() => _repeat = v),
+            onChanged: (v) {
+              _touch();
+              setState(() => _repeat = v);
+            },
           ),
         ),
         ..._repeat
@@ -373,6 +396,7 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
             controller: _notes,
             maxLines: null,
             decoration: const InputDecoration(labelText: 'Notes'),
+            onChanged: (_) => _touch(),
           ),
         ),
       ],
@@ -385,25 +409,37 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
       label: unit,
       helper: odometerHelper,
       checked: _byDistance,
-      onChanged: (v) => setState(() => _byDistance = v),
+      onChanged: (v) {
+        _touch();
+        setState(() => _byDistance = v);
+      },
       child: TextField(
         controller: _dueOdometer,
         enabled: _byDistance,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: const InputDecoration(labelText: 'Odometer'),
+        onChanged: (_) => _touch(),
       ),
     ),
     _TriggerRow(
       icon: Icons.event,
       label: 'Date',
       checked: _byDate,
-      onChanged: (v) => setState(() => _byDate = v),
+      onChanged: (v) {
+        _touch();
+        setState(() => _byDate = v);
+      },
       child: PickerField(
         label: 'Date',
         value: _dueDate == null
             ? null
             : ref.read(formattersProvider).date(_dueDate!),
-        onTap: _byDate ? _pickDate : () => setState(() => _byDate = true),
+        onTap: _byDate
+            ? _pickDate
+            : () {
+                _touch();
+                setState(() => _byDate = true);
+              },
       ),
     ),
   ];
@@ -413,24 +449,32 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
       icon: Icons.speed,
       label: unit,
       checked: _byDistance,
-      onChanged: (v) => setState(() => _byDistance = v),
+      onChanged: (v) {
+        _touch();
+        setState(() => _byDistance = v);
+      },
       child: TextField(
         controller: _everyDistance,
         enabled: _byDistance,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(labelText: 'Every ($unit)'),
+        onChanged: (_) => _touch(),
       ),
     ),
     _TriggerRow(
       icon: Icons.event_repeat,
       label: 'Time',
       checked: _byDate,
-      onChanged: (v) => setState(() => _byDate = v),
+      onChanged: (v) {
+        _touch();
+        setState(() => _byDate = v);
+      },
       child: TextField(
         controller: _everyAmount,
         enabled: _byDate,
         keyboardType: TextInputType.number,
         decoration: const InputDecoration(labelText: 'Amount'),
+        onChanged: (_) => _touch(),
       ),
     ),
     if (_byDate)
@@ -442,7 +486,10 @@ class _ReminderFormScreenState extends ConsumerState<ReminderFormScreen> {
             PeriodUnit.month: 'MONTHS',
             PeriodUnit.year: 'YEARS',
           },
-          onChanged: (u) => setState(() => _everyUnit = u),
+          onChanged: (u) {
+            _touch();
+            setState(() => _everyUnit = u);
+          },
         ),
       ),
   ];
