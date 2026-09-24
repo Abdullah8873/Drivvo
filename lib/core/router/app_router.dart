@@ -8,6 +8,7 @@ import '../../features/account/sign_up_screen.dart';
 import '../../features/achievements/achievements_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
 import '../../features/flex/flex_screen.dart';
+import '../../features/export/export_screen.dart';
 import '../../features/forms/entry_form_screen.dart';
 import '../../features/forms/placeholder_form_screen.dart';
 import '../../features/forms/reading_form_screen.dart';
@@ -133,6 +134,7 @@ GoRouter _buildRouter() => GoRouter(
       path: '/achievements',
       builder: (_, _) => const AchievementsScreen(),
     ),
+    GoRoute(path: '/export', builder: (_, _) => const ExportScreen()),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(

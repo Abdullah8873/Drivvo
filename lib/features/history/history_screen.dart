@@ -30,10 +30,7 @@ class HistoryScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Export',
             icon: const Icon(Icons.download),
-            // TODO(export): CSV/Excel/PDF export.
-            onPressed: () => ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(const SnackBar(content: Text('Export coming soon'))),
+            onPressed: () => context.push('/export'),
           ),
           IconButton(
             tooltip: 'Search',

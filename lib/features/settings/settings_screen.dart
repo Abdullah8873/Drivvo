@@ -9,6 +9,7 @@ import '../../core/providers.dart';
 import '../../core/settings/app_settings.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/select_list_screen.dart';
+import 'backup_restore_section.dart';
 import 'currencies.dart';
 import 'settings_dialogs.dart';
 
@@ -276,6 +277,8 @@ class SettingsScreen extends ConsumerWidget {
             value: 'Check that notifications work on this device',
             onTap: () => _sendTestNotification(context, ref),
           ),
+          const Divider(),
+          const BackupRestoreSection(),
         ],
       ),
     );
