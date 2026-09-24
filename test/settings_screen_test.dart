@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:motolog/core/db/app_database.dart';
+import 'package:motolog/core/notifications/notification_providers.dart';
 import 'package:motolog/core/providers.dart';
 import 'package:motolog/core/settings/app_settings.dart';
+import 'package:motolog/features/settings/settings_screen.dart';
 
 import 'catalog_test_utils.dart';
+import 'helpers.dart';
+import 'notification_controller_test.dart' show FakeNotificationScheduler;
 
 Future<AppDatabase> openSettings(WidgetTester tester) =>
     openFromMore(tester, 'Settings');
@@ -176,5 +181,33 @@ void main() {
     await tester.pumpAndSettle();
     expect((await stored(tester, db)).reminderDistanceAhead, 250);
     await closeApp(tester, db);
+  });
+
+  testWidgets('send test notification row calls the scheduler', (tester) async {
+    // Tall viewport so the row (near the bottom of a long list) doesn't
+    // need scrolling into view first.
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final db = testDatabase();
+    addTearDown(db.close);
+    final scheduler = FakeNotificationScheduler();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          notificationSchedulerProvider.overrideWithValue(scheduler),
+        ],
+        child: const MaterialApp(home: SettingsScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(scheduler.showNowCalled, isFalse);
+    await tester.tap(find.text('Send test notification'));
+    await tester.pumpAndSettle();
+    expect(scheduler.showNowCalled, isTrue);
+    await unmountApp(tester);
   });
 }

@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/notifications/notification_providers.dart';
 import '../../core/providers.dart';
 import '../../core/settings/app_settings.dart';
 import '../../core/theme/app_theme.dart';
@@ -268,9 +270,35 @@ class SettingsScreen extends ConsumerWidget {
             value: s.vibrate,
             onChanged: (v) => set((s) => s.copyWith(vibrate: v)),
           ),
+          _SettingTile(
+            icon: Icons.notifications,
+            title: 'Send test notification',
+            value: 'Check that notifications work on this device',
+            onTap: () => _sendTestNotification(context, ref),
+          ),
         ],
       ),
     );
+  }
+
+  /// Fires an immediate notification so the owner can verify delivery on
+  /// their phone — there's no other way to see whether channel/permission
+  /// setup actually works short of waiting for a real reminder to come due.
+  Future<void> _sendTestNotification(BuildContext context, WidgetRef ref) {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Notifications aren't available on the web version"),
+        ),
+      );
+      return Future.value();
+    }
+    return ref
+        .read(notificationSchedulerProvider)
+        .showNow(
+          title: 'MotoLog',
+          body: 'Test notification — if you can see this, it works.',
+        );
   }
 
   /// Full-screen searchable ISO 4217 list (reuses the app's Select screen).
