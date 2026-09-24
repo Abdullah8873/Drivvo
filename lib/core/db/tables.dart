@@ -255,3 +255,34 @@ class SettingsEntries extends Table {
   @override
   Set<Column<Object>> get primaryKey => {key};
 }
+
+// ---------------------------------------------------------------------------
+// Cloud sync bookkeeping (local only, never synced itself)
+// ---------------------------------------------------------------------------
+
+/// The sync "outbox": one row per synced record that changed locally and
+/// hasn't been uploaded yet — like a queue of dirty rows.
+///
+/// It is filled by SQLite triggers (see `AppDatabase.createSyncTriggers`),
+/// not by feature code, so every insert/update of a synced table is caught
+/// automatically, even ones made in the same millisecond as the previous
+/// upload or with a device clock that jumped backwards (a timestamp cursor
+/// would miss both). The sync engine uploads the queued rows and then
+/// deletes exactly the queue entries it read (by [seq]); an edit made while
+/// the upload was in flight re-queues the row with a newer [seq], so it is
+/// never lost.
+class SyncOutbox extends Table {
+  /// Monotonic queue position (SQLite `AUTOINCREMENT` never reuses values).
+  IntColumn get seq => integer().autoIncrement()();
+
+  /// SQL name of the changed table, e.g. `refuelings`.
+  TextColumn get targetTable => text()();
+
+  /// `id` of the changed row.
+  TextColumn get rowId => text()();
+
+  @override
+  List<Set<Column<Object>>> get uniqueKeys => [
+    {targetTable, rowId},
+  ];
+}

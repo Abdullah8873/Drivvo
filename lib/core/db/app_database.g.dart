@@ -8151,6 +8151,272 @@ class SettingsEntriesCompanion extends UpdateCompanion<SettingsEntry> {
   }
 }
 
+class $SyncOutboxTable extends SyncOutbox
+    with TableInfo<$SyncOutboxTable, SyncOutboxData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SyncOutboxTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _seqMeta = const VerificationMeta('seq');
+  @override
+  late final GeneratedColumn<int> seq = GeneratedColumn<int>(
+    'seq',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _targetTableMeta = const VerificationMeta(
+    'targetTable',
+  );
+  @override
+  late final GeneratedColumn<String> targetTable = GeneratedColumn<String>(
+    'target_table',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _rowIdMeta = const VerificationMeta('rowId');
+  @override
+  late final GeneratedColumn<String> rowId = GeneratedColumn<String>(
+    'row_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [seq, targetTable, rowId];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sync_outbox';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SyncOutboxData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('seq')) {
+      context.handle(
+        _seqMeta,
+        seq.isAcceptableOrUnknown(data['seq']!, _seqMeta),
+      );
+    }
+    if (data.containsKey('target_table')) {
+      context.handle(
+        _targetTableMeta,
+        targetTable.isAcceptableOrUnknown(
+          data['target_table']!,
+          _targetTableMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_targetTableMeta);
+    }
+    if (data.containsKey('row_id')) {
+      context.handle(
+        _rowIdMeta,
+        rowId.isAcceptableOrUnknown(data['row_id']!, _rowIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rowIdMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {seq};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {targetTable, rowId},
+  ];
+  @override
+  SyncOutboxData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SyncOutboxData(
+      seq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seq'],
+      )!,
+      targetTable: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_table'],
+      )!,
+      rowId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}row_id'],
+      )!,
+    );
+  }
+
+  @override
+  $SyncOutboxTable createAlias(String alias) {
+    return $SyncOutboxTable(attachedDatabase, alias);
+  }
+}
+
+class SyncOutboxData extends DataClass implements Insertable<SyncOutboxData> {
+  /// Monotonic queue position (SQLite `AUTOINCREMENT` never reuses values).
+  final int seq;
+
+  /// SQL name of the changed table, e.g. `refuelings`.
+  final String targetTable;
+
+  /// `id` of the changed row.
+  final String rowId;
+  const SyncOutboxData({
+    required this.seq,
+    required this.targetTable,
+    required this.rowId,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['seq'] = Variable<int>(seq);
+    map['target_table'] = Variable<String>(targetTable);
+    map['row_id'] = Variable<String>(rowId);
+    return map;
+  }
+
+  SyncOutboxCompanion toCompanion(bool nullToAbsent) {
+    return SyncOutboxCompanion(
+      seq: Value(seq),
+      targetTable: Value(targetTable),
+      rowId: Value(rowId),
+    );
+  }
+
+  factory SyncOutboxData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SyncOutboxData(
+      seq: serializer.fromJson<int>(json['seq']),
+      targetTable: serializer.fromJson<String>(json['targetTable']),
+      rowId: serializer.fromJson<String>(json['rowId']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'seq': serializer.toJson<int>(seq),
+      'targetTable': serializer.toJson<String>(targetTable),
+      'rowId': serializer.toJson<String>(rowId),
+    };
+  }
+
+  SyncOutboxData copyWith({int? seq, String? targetTable, String? rowId}) =>
+      SyncOutboxData(
+        seq: seq ?? this.seq,
+        targetTable: targetTable ?? this.targetTable,
+        rowId: rowId ?? this.rowId,
+      );
+  SyncOutboxData copyWithCompanion(SyncOutboxCompanion data) {
+    return SyncOutboxData(
+      seq: data.seq.present ? data.seq.value : this.seq,
+      targetTable: data.targetTable.present
+          ? data.targetTable.value
+          : this.targetTable,
+      rowId: data.rowId.present ? data.rowId.value : this.rowId,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncOutboxData(')
+          ..write('seq: $seq, ')
+          ..write('targetTable: $targetTable, ')
+          ..write('rowId: $rowId')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(seq, targetTable, rowId);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SyncOutboxData &&
+          other.seq == this.seq &&
+          other.targetTable == this.targetTable &&
+          other.rowId == this.rowId);
+}
+
+class SyncOutboxCompanion extends UpdateCompanion<SyncOutboxData> {
+  final Value<int> seq;
+  final Value<String> targetTable;
+  final Value<String> rowId;
+  const SyncOutboxCompanion({
+    this.seq = const Value.absent(),
+    this.targetTable = const Value.absent(),
+    this.rowId = const Value.absent(),
+  });
+  SyncOutboxCompanion.insert({
+    this.seq = const Value.absent(),
+    required String targetTable,
+    required String rowId,
+  }) : targetTable = Value(targetTable),
+       rowId = Value(rowId);
+  static Insertable<SyncOutboxData> custom({
+    Expression<int>? seq,
+    Expression<String>? targetTable,
+    Expression<String>? rowId,
+  }) {
+    return RawValuesInsertable({
+      if (seq != null) 'seq': seq,
+      if (targetTable != null) 'target_table': targetTable,
+      if (rowId != null) 'row_id': rowId,
+    });
+  }
+
+  SyncOutboxCompanion copyWith({
+    Value<int>? seq,
+    Value<String>? targetTable,
+    Value<String>? rowId,
+  }) {
+    return SyncOutboxCompanion(
+      seq: seq ?? this.seq,
+      targetTable: targetTable ?? this.targetTable,
+      rowId: rowId ?? this.rowId,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (seq.present) {
+      map['seq'] = Variable<int>(seq.value);
+    }
+    if (targetTable.present) {
+      map['target_table'] = Variable<String>(targetTable.value);
+    }
+    if (rowId.present) {
+      map['row_id'] = Variable<String>(rowId.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SyncOutboxCompanion(')
+          ..write('seq: $seq, ')
+          ..write('targetTable: $targetTable, ')
+          ..write('rowId: $rowId')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   late final $VehiclesTable vehicles = $VehiclesTable(this);
@@ -8165,6 +8431,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SettingsEntriesTable settingsEntries = $SettingsEntriesTable(
     this,
   );
+  late final $SyncOutboxTable syncOutbox = $SyncOutboxTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -8180,6 +8447,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     readings,
     reminders,
     settingsEntries,
+    syncOutbox,
   ];
   @override
   DriftDatabaseOptions get options =>
