@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:motolog/core/db/app_database.dart';
 import 'package:motolog/core/providers.dart';
+import 'package:motolog/core/widgets/module_form_scaffold.dart';
 
 import 'helpers.dart';
 
@@ -301,5 +302,81 @@ void main() {
       db.readings,
     )..where((r) => r.vehicleId.equals(id))).getSingle();
     expect(reading.deletedAt, isNotNull);
+  });
+
+  group('manufacturer picker', () {
+    testWidgets('picking a brand fills the field and saves', (tester) async {
+      await pumpApp(tester);
+      await tester.tap(find.text('Add a vehicle'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(field('Name'), 'City Car');
+      await tester.tap(find.widgetWithText(PickerField, 'Manufacturer'));
+      await tester.pumpAndSettle();
+      // Filter with the picker's own search field so "Toyota" (near the end
+      // of a ~60-brand list) doesn't need scrolling into view.
+      await tester.enterText(find.byType(TextField), 'Toy');
+      await tester.pump();
+      await tester.tap(find.text('Toyota'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(PickerField, 'Toyota'), findsOneWidget);
+
+      await tapSave(tester);
+      expect((await allRows()).single.manufacturer, 'Toyota');
+    });
+
+    testWidgets('the "+" button adds a custom manufacturer name', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      await tester.tap(find.text('Add a vehicle'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(field('Name'), 'Kit Car');
+      await tester.tap(find.widgetWithText(PickerField, 'Manufacturer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle();
+      // The dialog's "Name" field, not the picker's search field underneath.
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Name'),
+        'Homebrew Motors',
+      );
+      await tester.tap(find.text('SAVE'));
+      await tester.pumpAndSettle();
+
+      // Adding doesn't select it — tap it in the (now filtered) list too.
+      await tester.enterText(find.byType(TextField), 'Homebrew');
+      await tester.pump();
+      await tester.tap(find.text('Homebrew Motors'));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(PickerField, 'Homebrew Motors'),
+        findsOneWidget,
+      );
+
+      await tapSave(tester);
+      expect((await allRows()).single.manufacturer, 'Homebrew Motors');
+    });
+
+    testWidgets('an existing unknown manufacturer still shows', (tester) async {
+      final id = await addTestVehicle(db);
+      await (db.update(db.vehicles)..where((v) => v.id.equals(id))).write(
+        const VehiclesCompanion(manufacturer: Value('Totally Obscure Co')),
+      );
+      await pumpApp(tester);
+      await openVehicleList(tester);
+      await tester.tap(find.text('Honda'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Totally Obscure Co'), findsOneWidget);
+
+      // It's still in the list (and selectable) even though it isn't one of
+      // the built-in brand suggestions — the field shows the value itself
+      // once it's set (the label has floated above it).
+      await tester.tap(find.widgetWithText(PickerField, 'Totally Obscure Co'));
+      await tester.pumpAndSettle();
+      expect(find.text('Totally Obscure Co'), findsOneWidget);
+    });
   });
 }

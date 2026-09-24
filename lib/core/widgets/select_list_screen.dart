@@ -18,6 +18,7 @@ class SelectListScreen extends StatefulWidget {
     this.initialSelection = const {},
     this.selected,
     this.onAddNew,
+    this.leadingBuilder,
   });
 
   final String title;
@@ -31,6 +32,10 @@ class SelectListScreen extends StatefulWidget {
 
   /// Called by the "+" button; should return the created item's label.
   final Future<String?> Function()? onAddNew;
+
+  /// Optional per-row leading widget (e.g. a brand's colored initial
+  /// avatar). Ignored in multi-select mode, which always shows a checkbox.
+  final Widget Function(String item)? leadingBuilder;
 
   @override
   State<SelectListScreen> createState() => _SelectListScreenState();
@@ -138,7 +143,7 @@ class _SelectListScreenState extends State<SelectListScreen> {
                     value: _selected.contains(item),
                     onChanged: (_) => _tap(item),
                   )
-                : null,
+                : widget.leadingBuilder?.call(item),
             title: Text(item, maxLines: 1, overflow: TextOverflow.ellipsis),
             trailing: isSelected
                 ? const Icon(Icons.check, color: AppTheme.primary)
