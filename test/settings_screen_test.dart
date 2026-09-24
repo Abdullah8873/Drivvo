@@ -1,13 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:motolog/app.dart';
 import 'package:motolog/core/db/app_database.dart';
+import 'package:motolog/core/files/file_sharer.dart';
 import 'package:motolog/core/providers.dart';
 import 'package:motolog/core/settings/app_settings.dart';
 
 import 'catalog_test_utils.dart';
+import 'export_screen_test.dart' show FakeFileSharer;
+import 'helpers.dart';
 
 Future<AppDatabase> openSettings(WidgetTester tester) =>
     openFromMore(tester, 'Settings');
+
+/// Same flow as [openSettings], but with [fileSharerProvider] overridden so
+/// "Create backup file" can be tested without touching a real share sheet.
+Future<AppDatabase> openSettingsWithFakeSharer(
+  WidgetTester tester,
+  FakeFileSharer sharer,
+) async {
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
+
+  final db = testDatabase();
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        fileSharerProvider.overrideWithValue(sharer),
+      ],
+      child: const MotoLogApp(),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('More'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Settings'));
+  await tester.pumpAndSettle();
+  return db;
+}
 
 /// Settings as stored in the database (proves the change was persisted).
 Future<AppSettings> stored(WidgetTester tester, AppDatabase db) async =>
@@ -175,6 +208,31 @@ void main() {
     await tester.tap(find.text('OK'));
     await tester.pumpAndSettle();
     expect((await stored(tester, db)).reminderDistanceAhead, 250);
+    await closeApp(tester, db);
+  });
+
+  testWidgets('shows the Backup & restore section', (tester) async {
+    final db = await openSettings(tester);
+    expect(find.text('BACKUP & RESTORE'), findsOneWidget);
+    expect(find.text('Create backup file'), findsOneWidget);
+    expect(find.text('Restore from backup'), findsOneWidget);
+    await closeApp(tester, db);
+  });
+
+  testWidgets('Create backup file shares a .json file', (tester) async {
+    final sharer = FakeFileSharer();
+    final db = await openSettingsWithFakeSharer(tester, sharer);
+
+    await tester.tap(find.text('Create backup file'));
+    await tester.pumpAndSettle();
+
+    expect(sharer.callCount, 1);
+    expect(
+      sharer.filename,
+      matches(RegExp(r'^motolog-backup-\d{8}-\d{4}\.json$')),
+    );
+    expect(sharer.mimeType, 'application/json');
+    expect(sharer.bytes, isNotNull);
     await closeApp(tester, db);
   });
 }
