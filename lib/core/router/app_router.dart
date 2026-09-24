@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/catalog/catalog_screen.dart';
+import '../../features/export/export_screen.dart';
 import '../../features/forms/entry_form_screen.dart';
 import '../../features/forms/placeholder_form_screen.dart';
 import '../../features/forms/reading_form_screen.dart';
@@ -93,6 +94,7 @@ GoRouter createRouter() => GoRouter(
       builder: (_, state) => VehicleFormScreen(id: state.pathParameters['id']),
     ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+    GoRoute(path: '/export', builder: (_, _) => const ExportScreen()),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(

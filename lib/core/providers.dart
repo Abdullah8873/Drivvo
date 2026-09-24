@@ -51,6 +51,14 @@ class SettingsNotifier extends Notifier<AppSettings> {
           mode: InsertMode.insertOrReplace,
         );
   }
+
+  /// Re-reads settings straight from the database, bypassing the cached
+  /// [state]. Unlike [update], this doesn't write anything back — call it
+  /// after something *else* changed the `settings_entries` row directly
+  /// (a backup restore), so the UI picks up rows it didn't write itself.
+  Future<void> reload() async {
+    state = await loadSettings(ref.read(databaseProvider));
+  }
 }
 
 final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(
