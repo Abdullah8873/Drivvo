@@ -1,7 +1,43 @@
+import 'tables.dart';
+
 /// Default catalog entries created for a new account (same defaults Drivvo
 /// ships with). Users can add, rename or delete them from the More tab.
 class SeedData {
   SeedData._();
+
+  /// Every seeded catalog, as `(kind, names)` pairs.
+  static const catalogs = <(CatalogKind, List<String>)>[
+    (CatalogKind.fuel, fuels),
+    (CatalogKind.serviceType, serviceTypes),
+    (CatalogKind.expenseType, expenseTypes),
+    (CatalogKind.incomeType, incomeTypes),
+    (CatalogKind.reason, reasons),
+    (CatalogKind.paymentMethod, paymentMethods),
+  ];
+
+  /// Deterministic id of a seeded catalog item, e.g. `seed:fuel:petrol` or
+  /// `seed:serviceType:oil-change`.
+  ///
+  /// Why not a random UUID: seeding must be idempotent (an interrupted first
+  /// launch runs it again) and every device must seed the *same* rows, so
+  /// cloud sync doesn't end up with one "Petrol" per device.
+  static String idFor(CatalogKind kind, String name) =>
+      'seed:${kind.name}:${slug(name)}';
+
+  /// Lower-case, dash-separated form of [name] (`Gas Midgrade` ->
+  /// `gas-midgrade`).
+  static String slug(String name) => name
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+
+  /// Tank kind a seeded fuel belongs to.
+  static FuelKind fuelKindOf(String fuel) => switch (fuel) {
+    'CNG' || 'LPG' => FuelKind.gas,
+    'Electric' => FuelKind.electric,
+    _ => FuelKind.liquid,
+  };
 
   static const fuels = [
     'CNG',

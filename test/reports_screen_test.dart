@@ -97,7 +97,8 @@ void main() {
     expect(cost, contains('PKR138.45')); // by day
     expect(cost, contains('PKR17.721/km')); // by km
     expect(statText(tester, 'stat-income'), contains('PKR5,000.00'));
-    expect(statText(tester, 'stat-balance'), contains('PKR569.70'));
+    // Balance = cost − income: earned 569.70 more than spent → negative.
+    expect(statText(tester, 'stat-balance'), contains('-PKR569.70'));
     final distance = statText(tester, 'stat-distance');
     expect(distance, contains('250 km'));
     expect(distance, contains('7.8 km'));

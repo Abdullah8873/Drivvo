@@ -97,6 +97,8 @@ class RefuelingReportTab extends StatelessWidget {
           primaryTankCapacity: vehicle.tank1Capacity,
         );
         final tank1Kind = vehicle.tank1Kind;
+        final fuelKinds = {for (final f in report.fuels) f.kind}.toList();
+        if (fuelKinds.isEmpty) fuelKinds.add(tank1Kind);
 
         String money(double? v) => v == null ? StatCard.dash : fmt.money(v);
         String costPerDistance(double? v) =>
@@ -130,7 +132,7 @@ class RefuelingReportTab extends StatelessWidget {
                 title: 'Volume',
                 icon: Icons.local_gas_station,
                 color: RecordModule.refueling.color,
-                value: volume(report.totalVolume, tank1Kind),
+                value: volume(report.primaryVolume, tank1Kind),
                 subValues: [
                   (
                     label: 'Per refueling',
@@ -186,24 +188,27 @@ class RefuelingReportTab extends StatelessWidget {
               ],
             ),
           ),
-          _FuelSection(report: report, fmt: fmt, unit: unit),
+          _FuelSection(
+            report: report,
+            fmt: fmt,
+            unit: unit,
+            primaryKind: tank1Kind,
+          ),
           _StationsSection(stations: report.stations, fmt: fmt),
           ReportSection(
             title: 'Fuels chart',
             icon: Icons.pie_chart,
             color: RecordModule.refueling.color,
             child: DonutChart(
-              formatValue: (v) => fmt.volume(
-                v,
-                kind: report.fuels.isEmpty
-                    ? FuelKind.liquid
-                    : report.fuels.first.kind,
-              ),
+              formatValue: (v) => fmt.volume(v, kind: fuelKinds.first),
+              // L + kg has no total; each slice still shows its own unit.
+              showTotal: fuelKinds.length == 1,
               slices: [
                 for (final (i, f) in report.fuels.indexed)
                   DonutSlice(
                     label: f.fuelName,
                     value: f.volume,
+                    valueText: fmt.volume(f.volume, kind: f.kind),
                     color: fuelColor(i),
                   ),
               ],
@@ -230,15 +235,20 @@ class RefuelingReportTab extends StatelessWidget {
             icon: Icons.show_chart,
             color: RecordModule.refueling.color,
             subtitle: 'Cycle efficiency by odometer',
+            // One line per fuel (never a zig-zag between fuels), each
+            // labelled in its own unit; the dashed average is tank 1's.
             child: LineChartCard(
               color: Theme.of(context).colorScheme.outline,
-              points: [
+              series: [
                 for (final (i, f) in report.fuels.indexed)
-                  for (final c in f.cycles)
-                    LinePoint(
-                      x: c.endOdometer,
-                      y: c.efficiency,
+                  if (f.cycles.isNotEmpty)
+                    LineSeries(
                       color: fuelColor(i),
+                      formatY: (y) => efficiency(y, f.kind) ?? StatCard.dash,
+                      points: [
+                        for (final c in f.cycles)
+                          LinePoint(x: c.endOdometer, y: c.efficiency),
+                      ],
                     ),
               ],
               formatX: (x) => fmt.distance(x, unit),
@@ -259,10 +269,17 @@ class RefuelingReportTab extends StatelessWidget {
             subtitle: 'Price per unit over time',
             child: LineChartCard(
               color: Theme.of(context).colorScheme.outline,
-              points: [
+              series: [
                 for (final (i, f) in report.fuels.indexed)
-                  for (final p in f.priceSeries)
-                    LinePoint.date(p.date, p.pricePerUnit, color: fuelColor(i)),
+                  if (f.priceSeries.isNotEmpty)
+                    LineSeries(
+                      color: fuelColor(i),
+                      formatY: (y) => pricePerUnit(y, f.kind) ?? StatCard.dash,
+                      points: [
+                        for (final p in f.priceSeries)
+                          LinePoint.date(p.date, p.pricePerUnit),
+                      ],
+                    ),
               ],
               formatX: (x) => fmt.date(LinePoint.xToDate(x)),
               formatAxisX: (x) => fmt.shortDate(LinePoint.xToDate(x)),
@@ -417,20 +434,25 @@ class _RoutineRow extends StatelessWidget {
 }
 
 /// The "Fuel" card: a chip per fuel used in the period (plus "All"), and
-/// the selected fuel's efficiency / cost-per-distance range and volume /
-/// cost totals. "All" shows the primary tank's figures (the same ones on
-/// the top stat grid), since averaging across fuels with different volume
-/// units isn't meaningful.
+/// the selected chip's efficiency / cost-per-distance range and volume /
+/// cost totals (see `fuelCardFigures`). "All" shows the primary tank's
+/// figures (the same ones on the top stat grid), since averaging across
+/// fuels with different volume units isn't meaningful; a fuel chip shows
+/// only that fuel ("—" where it has no figure).
 class _FuelSection extends StatefulWidget {
   const _FuelSection({
     required this.report,
     required this.fmt,
     required this.unit,
+    required this.primaryKind,
   });
 
   final RefuelingReport report;
   final Formatters fmt;
   final DistanceUnit unit;
+
+  /// The vehicle's tank-1 fuel kind (unit of the "All" figures).
+  final FuelKind primaryKind;
 
   @override
   State<_FuelSection> createState() => _FuelSectionState();
@@ -449,34 +471,17 @@ class _FuelSectionState extends State<_FuelSection> {
     final selectedName = fuels.any((f) => f.fuelName == _selected)
         ? _selected
         : null;
-    final selected = selectedName == null
-        ? null
-        : fuels.firstWhere((f) => f.fuelName == selectedName);
-
-    final kind =
-        selected?.kind ?? (fuels.isEmpty ? FuelKind.liquid : fuels.first.kind);
-    final lastEfficiency =
-        selected?.lastEfficiency ?? report.primaryLastEfficiency;
-    final avgEfficiency =
-        selected?.averageEfficiency ?? report.primaryEfficiency;
-    final lowEfficiency = selected?.lowestEfficiency ?? report.lowestEfficiency;
-    final highEfficiency =
-        selected?.highestEfficiency ?? report.highestEfficiency;
-    final lastCostKm =
-        selected?.lastCostPerDistance ?? report.primaryLastCostPerDistance;
-    final lowCostKm =
-        selected?.lowestCostPerDistance ?? report.primaryLowestCostPerDistance;
-    final highCostKm =
-        selected?.highestCostPerDistance ??
-        report.primaryHighestCostPerDistance;
-    final volume = selected?.volume ?? report.totalVolume;
-    final cost = selected?.cost ?? report.totalCost;
+    final figures = fuelCardFigures(
+      report,
+      fuelName: selectedName,
+      primaryKind: widget.primaryKind,
+    );
+    final kind = figures.kind;
+    final unitLabel = Formatters.distanceUnitLabel(widget.unit);
 
     String? eff(double? v) =>
         v == null ? null : efficiencyText(fmt, widget.unit, v, kind: kind);
-    String? costKm(double? v) => v == null
-        ? null
-        : fmt.unitPrice(v, Formatters.distanceUnitLabel(widget.unit));
+    String? costKm(double? v) => v == null ? null : fmt.unitPrice(v, unitLabel);
 
     return ReportSection(
       title: 'Fuel',
@@ -488,7 +493,7 @@ class _FuelSectionState extends State<_FuelSection> {
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              '${report.entryCount} records',
+              recordCountLabel(figures.recordCount),
               style: theme.textTheme.bodySmall?.copyWith(color: muted),
             ),
           ),
@@ -516,7 +521,8 @@ class _FuelSectionState extends State<_FuelSection> {
             style: theme.textTheme.labelSmall?.copyWith(color: muted),
           ),
           Text(
-            eff(lastEfficiency) ?? StatCard.dash,
+            eff(figures.lastEfficiency) ?? StatCard.dash,
+            key: const Key('fuel-card-efficiency'),
             style: theme.textTheme.titleLarge?.copyWith(
               color: RecordModule.refueling.color,
               fontWeight: FontWeight.w700,
@@ -524,22 +530,24 @@ class _FuelSectionState extends State<_FuelSection> {
           ),
           const SizedBox(height: 4),
           _RangeBar(
-            low: lowEfficiency,
-            high: highEfficiency,
-            marker: lastEfficiency,
+            low: figures.lowestEfficiency,
+            high: figures.highestEfficiency,
+            marker: figures.lastEfficiency,
             format: eff,
           ),
           Text(
-            'Period average ${eff(avgEfficiency) ?? StatCard.dash}',
+            'Period average '
+            '${eff(figures.averageEfficiency) ?? StatCard.dash}',
             style: theme.textTheme.bodySmall?.copyWith(color: muted),
           ),
           const SizedBox(height: 16),
           Text(
-            'Cost / Km — Last',
+            'Cost / $unitLabel — Last',
             style: theme.textTheme.labelSmall?.copyWith(color: muted),
           ),
           Text(
-            costKm(lastCostKm) ?? StatCard.dash,
+            costKm(figures.lastCostPerDistance) ?? StatCard.dash,
+            key: const Key('fuel-card-cost-per-distance'),
             style: theme.textTheme.titleLarge?.copyWith(
               color: RecordModule.refueling.color,
               fontWeight: FontWeight.w700,
@@ -547,10 +555,15 @@ class _FuelSectionState extends State<_FuelSection> {
           ),
           const SizedBox(height: 4),
           _RangeBar(
-            low: lowCostKm,
-            high: highCostKm,
-            marker: lastCostKm,
+            low: figures.lowestCostPerDistance,
+            high: figures.highestCostPerDistance,
+            marker: figures.lastCostPerDistance,
             format: costKm,
+          ),
+          Text(
+            'Period average '
+            '${costKm(figures.averageCostPerDistance) ?? StatCard.dash}',
+            style: theme.textTheme.bodySmall?.copyWith(color: muted),
           ),
           const SizedBox(height: 16),
           Row(
@@ -558,13 +571,13 @@ class _FuelSectionState extends State<_FuelSection> {
               Expanded(
                 child: _FuelFooterStat(
                   label: 'Volume',
-                  value: fmt.volume(volume, kind: kind),
+                  value: fmt.volume(figures.volume, kind: kind),
                 ),
               ),
               Expanded(
                 child: _FuelFooterStat(
                   label: 'Total cost',
-                  value: fmt.money(cost),
+                  value: fmt.money(figures.cost),
                 ),
               ),
             ],
@@ -666,16 +679,24 @@ class _RangeBar extends StatelessWidget {
           },
         ),
         const SizedBox(height: 4),
+        // Each half may wrap onto a second line on a 320px phone rather
+        // than overflowing the row.
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Lower ${format(low) ?? StatCard.dash}',
-              style: theme.textTheme.labelSmall?.copyWith(color: muted),
+            Expanded(
+              child: Text(
+                'Lower ${format(low) ?? StatCard.dash}',
+                style: theme.textTheme.labelSmall?.copyWith(color: muted),
+              ),
             ),
-            Text(
-              'Larger ${format(high) ?? StatCard.dash}',
-              style: theme.textTheme.labelSmall?.copyWith(color: muted),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Larger ${format(high) ?? StatCard.dash}',
+                textAlign: TextAlign.end,
+                style: theme.textTheme.labelSmall?.copyWith(color: muted),
+              ),
             ),
           ],
         ),
@@ -724,7 +745,17 @@ class _StationRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
-    final price = station.averagePricePerUnit;
+    // Per fuel kind, never summed: "10.00 L · 20.00 kg".
+    final kinds = station.volumeByKind.keys.toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+    final volumes = [
+      for (final k in kinds) fmt.volume(station.volumeByKind[k]!, kind: k),
+    ];
+    final prices = [
+      for (final k in kinds)
+        if (station.pricePerUnit(k) case final p?)
+          fmt.unitPrice(p, fmt.volumeUnitLabel(k)),
+    ];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -736,20 +767,22 @@ class _StationRow extends StatelessWidget {
               children: [
                 Text(station.name, style: theme.textTheme.bodyMedium),
                 Text(
-                  '${station.recordCount} records · '
-                  '${fmt.volume(station.volume)}',
+                  [
+                    recordCountLabel(station.recordCount),
+                    ...volumes,
+                  ].join(' · '),
                   style: theme.textTheme.bodySmall?.copyWith(color: muted),
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                price == null
-                    ? StatCard.dash
-                    : fmt.unitPrice(price, fmt.volumeUnitLabel()),
+                prices.isEmpty ? StatCard.dash : prices.join('\n'),
+                textAlign: TextAlign.end,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),

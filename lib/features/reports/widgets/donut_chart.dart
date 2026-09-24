@@ -9,11 +9,16 @@ class DonutSlice {
     required this.label,
     required this.value,
     required this.color,
+    this.valueText,
   });
 
   final String label;
   final double value;
   final Color color;
+
+  /// This slice's value already formatted (e.g. in its own unit, "20.00 kg"
+  /// next to "10.00 L"); null = the chart's `formatValue`.
+  final String? valueText;
 }
 
 /// Part-to-whole donut with the total in the middle and a legend table
@@ -37,12 +42,17 @@ class DonutChart extends StatelessWidget {
     required this.slices,
     required this.formatValue,
     this.centerLabel = 'Total',
+    this.showTotal = true,
     this.size = 200,
   });
 
   final List<DonutSlice> slices;
   final String Function(double value) formatValue;
   final String centerLabel;
+
+  /// False when the slices are in different units (L and kg), where a
+  /// "Total" would add unlike things; the middle of the ring stays empty.
+  final bool showTotal;
 
   /// Diameter of the ring.
   final double size;
@@ -81,29 +91,30 @@ class DonutChart extends StatelessWidget {
                   ],
                 ),
               ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: ring + 12),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      centerLabel,
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        formatValue(total),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
+              if (showTotal)
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: ring + 12),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        centerLabel,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
-                    ),
-                  ],
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          formatValue(total),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -124,7 +135,7 @@ class DonutChart extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '${s.label} - ${formatValue(s.value)}',
+                    '${s.label} - ${s.valueText ?? formatValue(s.value)}',
                     style: theme.textTheme.bodyMedium,
                   ),
                 ),

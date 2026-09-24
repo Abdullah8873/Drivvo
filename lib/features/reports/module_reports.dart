@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart' show Color;
 
+import '../../core/theme/record_module.dart';
 import '../history/history_calc.dart';
 import '../history/history_queries.dart';
 import '../routes/route_math.dart';
@@ -70,6 +71,22 @@ List<ColoredAmount> typeBreakdown(Iterable<TypeAmount> lines, {int top = 4}) {
   return result;
 }
 
+/// The per-type lines of one expense/service/income record, scaled so they
+/// add up to the record's post-discount `amount`: each item gets
+/// `item × amount / itemsSum`. Without this the donut would show the
+/// pre-discount prices while the card shows the discounted total. A record
+/// with no items (or items that are all 0) becomes one line named after it.
+List<TypeAmount> entryTypeAmounts(TimelineRecord r) {
+  final itemsSum = r.items.fold(0.0, (s, i) => s + i.amount);
+  if (itemsSum == 0) {
+    return [if (r.amount != 0) TypeAmount(name: r.title, amount: r.amount)];
+  }
+  return [
+    for (final item in r.items)
+      TypeAmount(name: item.name, amount: item.amount * r.amount / itemsSum),
+  ];
+}
+
 /// Every figure and chart series for the Expense / Income / Service tabs.
 class ModuleMoneyReport {
   const ModuleMoneyReport({
@@ -117,13 +134,7 @@ ModuleMoneyReport buildModuleMoneyReport({
     total += r.amount;
     final m = monthOf(r.date);
     monthly[m] = (monthly[m] ?? 0) + r.amount;
-    if (r.items.isEmpty) {
-      if (r.amount != 0) lines.add(TypeAmount(name: r.title, amount: r.amount));
-    } else {
-      for (final item in r.items) {
-        lines.add(TypeAmount(name: item.name, amount: item.amount));
-      }
-    }
+    lines.addAll(entryTypeAmounts(r));
   }
   return ModuleMoneyReport(
     total: total,
@@ -179,24 +190,67 @@ RouteReport buildRouteReport({
 
 /// Every figure and chart series for the Reading tab.
 class ReadingReport {
-  const ReadingReport({required this.stats, required this.monthlyDistance});
+  const ReadingReport({
+    required this.count,
+    required this.distance,
+    required this.days,
+    required this.averageDaysBetween,
+    required this.monthlyDistance,
+  });
 
-  final ReadingStats stats;
+  /// Readings in the period.
+  final int count;
+
+  /// Distance driven in the period, by readings alone: the highest reading
+  /// in the period minus the last one before it (the same rule as General's
+  /// `periodDistance`), or the period's own max − min when there's none
+  /// before. 0 = unknown.
+  final double distance;
+
+  /// Days the period covers (`ReportScope.days`, the same denominator as
+  /// General's daily average); 0 = no daily average.
+  final int days;
+
+  /// Average days between consecutive readings in the period, or null
+  /// with fewer than two.
+  final double? averageDaysBetween;
 
   /// Month (first day) → distance driven between readings that end in it
   /// (same "attribute to the later end" rule as `monthEfficiency`'s fuel
-  /// cycles). Only built when there are ≥2 readings.
+  /// cycles). The first reading in the period is measured from the last
+  /// one before it, so the bars add up to [distance].
   final Map<DateTime, double> monthlyDistance;
+
+  /// Distance per day of the period, or null when either is unknown.
+  double? get dailyAverage => days > 0 && distance > 0 ? distance / days : null;
 }
 
-/// Builds the Reading report from [records] — already the period's reading
-/// records (`scope.recordsOf({RecordModule.reading})`).
-ReadingReport buildReadingReport({required List<TimelineRecord> records}) {
-  final points = [
-    for (final r in records) (date: r.date, odometer: r.odometer!),
+/// Builds the Reading report from the vehicle's whole [timeline]
+/// (`scope.timeline`, any order — only readings are used) for [range];
+/// [days] is the period's day count (`scope.days`).
+ReadingReport buildReadingReport({
+  required List<TimelineRecord> timeline,
+  required ReportRange range,
+  required int days,
+}) {
+  final readings = [
+    for (final r in timeline)
+      if (r.module == RecordModule.reading && r.odometer != null) r,
   ]..sort((a, b) => a.date.compareTo(b.date));
-  final stats = ReadingMath.stats(points);
+  final inPeriod = [
+    for (final r in readings)
+      if (range.contains(r.date)) (date: r.date, odometer: r.odometer!),
+  ];
+  final stats = ReadingMath.stats(inPeriod);
 
+  // Baseline: the last reading before the period, when there is one.
+  final before = range.from == null
+      ? null
+      : readings.lastWhereOrNull((r) => r.date.isBefore(range.from!));
+  final points = [
+    if (before != null) (date: before.date, odometer: before.odometer!),
+    ...inPeriod,
+  ];
   final monthly = <DateTime, double>{};
   for (var i = 1; i < points.length; i++) {
     final d = points[i].odometer - points[i - 1].odometer;
@@ -204,5 +258,20 @@ ReadingReport buildReadingReport({required List<TimelineRecord> records}) {
     final m = monthOf(points[i].date);
     monthly[m] = (monthly[m] ?? 0) + d;
   }
-  return ReadingReport(stats: stats, monthlyDistance: monthly);
+  return ReadingReport(
+    count: inPeriod.length,
+    distance: periodDistance(readings, range),
+    days: days,
+    averageDaysBetween: stats.averageDaysBetween,
+    monthlyDistance: monthly,
+  );
+}
+
+extension<T> on List<T> {
+  T? lastWhereOrNull(bool Function(T) test) {
+    for (var i = length - 1; i >= 0; i--) {
+      if (test(this[i])) return this[i];
+    }
+    return null;
+  }
 }

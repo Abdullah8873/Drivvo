@@ -194,20 +194,119 @@ class FuelSummary {
 }
 
 /// Figures for one gas station's rows in the period.
+///
+/// Volume and price are kept per [FuelKind]: a station that sold both
+/// petrol (L) and CNG (kg) has no meaningful "total volume".
 class StationSummary {
   const StationSummary({
     required this.name,
     required this.recordCount,
-    required this.volume,
     required this.cost,
+    this.volumeByKind = const {},
+    this.costByKind = const {},
   });
 
   final String name;
   final int recordCount;
-  final double volume;
+
+  /// Total money spent there (all fuels — money always adds up).
   final double cost;
 
-  double? get averagePricePerUnit => volume > 0 ? cost / volume : null;
+  /// Volume bought per fuel kind (zeros left out).
+  final Map<FuelKind, double> volumeByKind;
+
+  /// Post-discount cost per fuel kind (for [pricePerUnit]).
+  final Map<FuelKind, double> costByKind;
+
+  /// Average price paid per unit of [kind] there, or null when none of that
+  /// kind was bought.
+  double? pricePerUnit(FuelKind kind) {
+    final v = volumeByKind[kind] ?? 0;
+    return v > 0 ? (costByKind[kind] ?? 0) / v : null;
+  }
+}
+
+/// "1 record" / "3 records".
+String recordCountLabel(int n) => n == 1 ? '1 record' : '$n records';
+
+/// What the "Fuel" card shows for the selected chip, built by
+/// [fuelCardFigures].
+class FuelCardFigures {
+  const FuelCardFigures({
+    required this.kind,
+    required this.recordCount,
+    required this.volume,
+    required this.cost,
+    this.lastEfficiency,
+    this.averageEfficiency,
+    this.lowestEfficiency,
+    this.highestEfficiency,
+    this.lastCostPerDistance,
+    this.averageCostPerDistance,
+    this.lowestCostPerDistance,
+    this.highestCostPerDistance,
+  });
+
+  /// Unit of [volume] and of the efficiency figures.
+  final FuelKind kind;
+  final int recordCount;
+  final double volume;
+  final double cost;
+  final double? lastEfficiency;
+  final double? averageEfficiency;
+  final double? lowestEfficiency;
+  final double? highestEfficiency;
+  final double? lastCostPerDistance;
+  final double? averageCostPerDistance;
+  final double? lowestCostPerDistance;
+  final double? highestCostPerDistance;
+}
+
+/// The "Fuel" card's figures for the chip named [fuelName] (null or an
+/// unknown name = "All").
+///
+/// - A fuel chip shows only that fuel's own figures: null (shown as "—")
+///   where it has none — never the "All" ones, which would silently
+///   describe a different fuel.
+/// - "All" shows the primary tank (tank 1) figures, the same as the top
+///   stat grid, in the vehicle's tank-1 [primaryKind]; its volume is the
+///   tank-1 volume so L and kg are never added.
+FuelCardFigures fuelCardFigures(
+  RefuelingReport report, {
+  String? fuelName,
+  required FuelKind primaryKind,
+}) {
+  final fuel = report.fuels.where((f) => f.fuelName == fuelName).firstOrNull;
+  if (fuel == null) {
+    return FuelCardFigures(
+      kind: primaryKind,
+      recordCount: report.entryCount,
+      volume: report.primaryVolume,
+      cost: report.totalCost,
+      lastEfficiency: report.primaryLastEfficiency,
+      averageEfficiency: report.primaryEfficiency,
+      lowestEfficiency: report.lowestEfficiency,
+      highestEfficiency: report.highestEfficiency,
+      lastCostPerDistance: report.primaryLastCostPerDistance,
+      averageCostPerDistance: report.primaryCostPerDistance,
+      lowestCostPerDistance: report.primaryLowestCostPerDistance,
+      highestCostPerDistance: report.primaryHighestCostPerDistance,
+    );
+  }
+  return FuelCardFigures(
+    kind: fuel.kind,
+    recordCount: fuel.recordCount,
+    volume: fuel.volume,
+    cost: fuel.cost,
+    lastEfficiency: fuel.lastEfficiency,
+    averageEfficiency: fuel.averageEfficiency,
+    lowestEfficiency: fuel.lowestEfficiency,
+    highestEfficiency: fuel.highestEfficiency,
+    lastCostPerDistance: fuel.lastCostPerDistance,
+    averageCostPerDistance: fuel.averageCostPerDistance,
+    lowestCostPerDistance: fuel.lowestCostPerDistance,
+    highestCostPerDistance: fuel.highestCostPerDistance,
+  );
 }
 
 /// One gap between two consecutive refuelings of the primary tank (any
@@ -240,7 +339,8 @@ class RefuelingReport {
     required this.days,
     required this.distance,
     required this.totalCost,
-    required this.totalVolume,
+    required this.primaryVolume,
+    required this.primaryRefuelCount,
     required this.fullTankCount,
     required this.primaryPricePerUnit,
     required this.lowestPricePerUnit,
@@ -250,6 +350,7 @@ class RefuelingReport {
     required this.lowestEfficiency,
     required this.highestEfficiency,
     required this.primaryLastCostPerDistance,
+    required this.primaryCostPerDistance,
     required this.primaryLowestCostPerDistance,
     required this.primaryHighestCostPerDistance,
     required this.averageDistanceBetween,
@@ -270,9 +371,17 @@ class RefuelingReport {
   /// Distance driven in the period (see `periodDistance`); 0 = unknown.
   final double distance;
 
-  /// Cost / volume of every refueling in the period (all tanks).
+  /// Cost of every refueling in the period (all tanks — money adds up).
   final double totalCost;
-  final double totalVolume;
+
+  /// Volume put in the primary tank (tank 1) in the period. Tank 2 is left
+  /// out on purpose: on a two-tank vehicle it can be another unit (kg of
+  /// CNG vs L of petrol), and L + kg is meaningless.
+  final double primaryVolume;
+
+  /// Refuelings in the period that filled the primary tank (the
+  /// "Per refueling" denominator; a tank-2-only refueling isn't one).
+  final int primaryRefuelCount;
 
   /// How many of [entryCount] filled the tank.
   final int fullTankCount;
@@ -298,6 +407,10 @@ class RefuelingReport {
   /// Cost per distance of the primary tank's most recent cycle in the
   /// period.
   final double? primaryLastCostPerDistance;
+
+  /// Primary tank's cost per distance over its cycles in the period
+  /// (weighted: total cost / total distance).
+  final double? primaryCostPerDistance;
   final double? primaryLowestCostPerDistance;
   final double? primaryHighestCostPerDistance;
 
@@ -328,9 +441,9 @@ class RefuelingReport {
 
   double? get costPerDay => perDay(totalCost);
   double? get costPerDistance => perDistance(totalCost);
-  double? get volumePerDay => perDay(totalVolume);
+  double? get volumePerDay => perDay(primaryVolume);
   double? get averageVolumePerRefuel =>
-      entryCount > 0 ? totalVolume / entryCount : null;
+      primaryRefuelCount > 0 ? primaryVolume / primaryRefuelCount : null;
 
   double? get fullTankRatio =>
       entryCount > 0 ? fullTankCount / entryCount : null;
@@ -381,7 +494,13 @@ RefuelingReport buildRefuelingReport({
   ];
 
   final totalCost = periodEntries.fold(0.0, (s, e) => s + e.totalCost);
-  final totalVolume = periodEntries.fold(0.0, (s, e) => s + e.volume);
+  final primaryVolume = periodEntries.fold(
+    0.0,
+    (s, e) => s + e.volumeForTank(primaryTank),
+  );
+  final primaryRefuelCount = periodEntries
+      .where((e) => e.lines.any((l) => l.tank == primaryTank))
+      .length;
   final fullTankCount = periodEntries.where((e) => e.fullTank).length;
 
   final primaryPriceResults = [
@@ -445,14 +564,22 @@ RefuelingReport buildRefuelingReport({
       ),
   ];
 
-  // Gas stations: grouped by name, largest cost first.
-  final stationVolume = <String, double>{};
+  // Gas stations: grouped by name, largest cost first; volume kept per
+  // fuel kind (never L + kg).
+  final stationVolume = <String, Map<FuelKind, double>>{};
+  final stationKindCost = <String, Map<FuelKind, double>>{};
   final stationCost = <String, double>{};
   final stationRecords = <String, int>{};
   for (final e in periodEntries) {
     final station = e.gasStation;
     if (station == null || station.isEmpty) continue;
-    stationVolume[station] = (stationVolume[station] ?? 0) + e.volume;
+    final volumes = stationVolume.putIfAbsent(station, () => {});
+    final costs = stationKindCost.putIfAbsent(station, () => {});
+    for (final l in e.lines) {
+      if (l.volume <= 0) continue;
+      volumes[l.kind] = (volumes[l.kind] ?? 0) + l.volume;
+      costs[l.kind] = (costs[l.kind] ?? 0) + e.costForLine(l);
+    }
     stationCost[station] = (stationCost[station] ?? 0) + e.totalCost;
     stationRecords[station] = (stationRecords[station] ?? 0) + 1;
   }
@@ -463,8 +590,9 @@ RefuelingReport buildRefuelingReport({
       StationSummary(
         name: name,
         recordCount: stationRecords[name] ?? 0,
-        volume: stationVolume[name] ?? 0,
         cost: stationCost[name] ?? 0,
+        volumeByKind: stationVolume[name] ?? const {},
+        costByKind: stationKindCost[name] ?? const {},
       ),
   ];
 
@@ -487,7 +615,8 @@ RefuelingReport buildRefuelingReport({
     days: days,
     distance: distance,
     totalCost: totalCost,
-    totalVolume: totalVolume,
+    primaryVolume: primaryVolume,
+    primaryRefuelCount: primaryRefuelCount,
     fullTankCount: fullTankCount,
     primaryPricePerUnit: primaryPriceVolume > 0
         ? primaryPriceResults.fold(0.0, (s, r) => s + r.refuel.cost) /
@@ -508,6 +637,7 @@ RefuelingReport buildRefuelingReport({
         ? null
         : primaryCycles.map((c) => c.efficiency).reduce(math.max),
     primaryLastCostPerDistance: primaryCycles.lastOrNull?.costPerDistance,
+    primaryCostPerDistance: _weightedCostPerDistance(primaryCycles),
     primaryLowestCostPerDistance: primaryCycles.isEmpty
         ? null
         : primaryCycles.map((c) => c.costPerDistance).reduce(math.min),

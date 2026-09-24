@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -68,8 +70,36 @@ class ChartStyle {
   }
 
   /// "1.2K", "35K", "1.5M" for axis ticks.
-  static String compact(double value) =>
-      NumberFormat.compact(locale: 'en').format(value);
+  ///
+  /// Pass the axis [step] (the tick interval) so the decimals follow it:
+  /// ticks 280.5 / 281.0 / 281.5 would all round to "281"/"282" with the
+  /// plain compact format, so neighbouring labels repeated. With a step,
+  /// every tick of that axis gets just enough decimals to stay distinct.
+  static String compact(double value, {double? step}) {
+    if (step == null || step <= 0) {
+      return NumberFormat.compact(locale: 'en').format(value);
+    }
+    // Use a K / M suffix only when the step is coarse enough that it
+    // costs at most two decimals; otherwise print the plain number.
+    var divisor = 1.0;
+    var suffix = '';
+    for (final (d, s) in const [(1e6, 'M'), (1e3, 'K')]) {
+      if (value.abs() >= d && step >= d / 100) {
+        divisor = d;
+        suffix = s;
+        break;
+      }
+    }
+    final scaledStep = step / divisor;
+    var decimals = 0;
+    while (decimals < 6) {
+      final scaled = scaledStep * math.pow(10, decimals);
+      if ((scaled - scaled.roundToDouble()).abs() < 1e-6) break;
+      decimals++;
+    }
+    final pattern = decimals == 0 ? '#,##0' : '#,##0.${'0' * decimals}';
+    return '${NumberFormat(pattern, 'en').format(value / divisor)}$suffix';
+  }
 }
 
 /// One legend entry: a color key + label.
@@ -104,7 +134,16 @@ class ChartLegend extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              Text(item.label, style: style),
+              // Long names (gas stations, fuels) ellipsize on narrow
+              // phones instead of overflowing the row.
+              Flexible(
+                child: Text(
+                  item.label,
+                  style: style,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
       ],

@@ -70,10 +70,11 @@ class StatCard extends StatelessWidget {
       fontWeight: FontWeight.w600,
     );
 
+    final dense = _StatGridDensity.of(context);
     return Card(
       color: ChartStyle.of(context).surface,
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(dense ? 8 : 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -228,8 +229,27 @@ class _Fit extends StatelessWidget {
   );
 }
 
+/// Tells the [StatCard]s inside a narrow [StatGrid] to use tighter padding
+/// (an InheritedWidget ≈ a React context provider). The grid can't let each
+/// card measure itself with a `LayoutBuilder`: rows use `IntrinsicHeight`
+/// for equal heights, and `LayoutBuilder` has no intrinsic size.
+class _StatGridDensity extends InheritedWidget {
+  const _StatGridDensity({required this.dense, required super.child});
+
+  final bool dense;
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_StatGridDensity>()?.dense ??
+      false;
+
+  @override
+  bool updateShouldNotify(_StatGridDensity old) => old.dense != dense;
+}
+
 /// Lays [children] (usually [StatCard]s) out two per row with equal
-/// heights; one per row on very narrow screens.
+/// heights — also on narrow phones (Drivvo keeps a 2×2 grid at 320px):
+/// below [_denseWidth] the spacing and card padding shrink and long
+/// figures scale down instead of the grid collapsing to one column.
 ///
 /// ```dart
 /// StatGrid(children: [balanceCard, distanceCard, costCard, incomeCard])
@@ -240,11 +260,18 @@ class StatGrid extends StatelessWidget {
   final List<Widget> children;
   final double spacing;
 
+  /// Grid widths below this get the dense layout (a 360px phone's grid is
+  /// ~336px wide; a 320px one's ~296px).
+  static const _denseWidth = 340.0;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth < 320 ? 1 : 2;
+        // One column only on absurdly narrow widths (split-screen etc.).
+        final columns = constraints.maxWidth < 200 ? 1 : 2;
+        final dense = constraints.maxWidth < _denseWidth;
+        final spacing = dense ? 8.0 : this.spacing;
         final rows = <Widget>[];
         for (var i = 0; i < children.length; i += columns) {
           if (rows.isNotEmpty) rows.add(SizedBox(height: spacing));
@@ -266,7 +293,10 @@ class StatGrid extends StatelessWidget {
             ),
           );
         }
-        return Column(children: rows);
+        return _StatGridDensity(
+          dense: dense,
+          child: Column(children: rows),
+        );
       },
     );
   }
