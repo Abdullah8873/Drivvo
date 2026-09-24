@@ -141,11 +141,12 @@ class _PasswordFieldState extends State<PasswordField> {
   }
 }
 
-/// "Resend code" link with a 60-second cooldown (configurable), so a code
-/// screen can't spam the email/SMS provider. Starts counting down as soon
-/// as it's shown, since a code was just sent to land on this screen.
-class ResendCodeButton extends StatefulWidget {
-  const ResendCodeButton({
+/// "Resend email" link with a 60-second cooldown (configurable), so a
+/// "check your email" screen can't spam the email provider. Starts counting
+/// down as soon as it's shown, since a link was just sent to land on this
+/// screen.
+class ResendEmailButton extends StatefulWidget {
+  const ResendEmailButton({
     super.key,
     required this.onResend,
     this.cooldown = const Duration(seconds: 60),
@@ -155,10 +156,10 @@ class ResendCodeButton extends StatefulWidget {
   final Duration cooldown;
 
   @override
-  State<ResendCodeButton> createState() => _ResendCodeButtonState();
+  State<ResendEmailButton> createState() => _ResendEmailButtonState();
 }
 
-class _ResendCodeButtonState extends State<ResendCodeButton> {
+class _ResendEmailButtonState extends State<ResendEmailButton> {
   Timer? _timer;
   int _secondsLeft = 0;
 
@@ -194,7 +195,7 @@ class _ResendCodeButtonState extends State<ResendCodeButton> {
     final ready = _secondsLeft <= 0;
     return TextButton(
       onPressed: ready ? _resend : null,
-      child: Text(ready ? 'Resend code' : 'Resend code (${_secondsLeft}s)'),
+      child: Text(ready ? 'Resend email' : 'Resend email (${_secondsLeft}s)'),
     );
   }
 }

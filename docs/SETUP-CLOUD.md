@@ -40,19 +40,17 @@ Check: **Table Editor** shows `vehicles`, `catalog_items`, `refuelings`,
 `reminders`, `profiles` — each with the **RLS enabled** badge. Both files are
 safe to run again if something failed halfway.
 
-## 3. Email login with 6-digit codes (≈5 min)
+## 3. Email login with links (≈2 min)
 1. **Authentication → Sign In / Providers → Email**: enabled; keep
-   **Confirm email** on; email OTP length **6**.
-2. **Authentication → Emails → Templates** — the app types codes instead of
-   clicking links, so each of these templates must show the code. Replace the
-   link line with a code line containing `{{ .Token }}`, e.g.
-   `Your MotoLog code is: {{ .Token }}`:
-   - **Confirm signup**
-   - **Magic Link** (used for "Email me a code")
-   - **Reset Password**
+   **Confirm email** on.
+2. Nothing else to do here — the app now uses Supabase's *default* email
+   templates, which already send a clickable link (editing templates needs
+   custom SMTP, which we're not setting up).
 3. **Authentication → URL Configuration**: Site URL `http://localhost:8085`;
    add Redirect URLs `http://localhost:8085` and `http://localhost:8086`
-   (needed for Google sign-in on the web; add your real web address later).
+   (also needed for Google sign-in on the web; add your real web address
+   later). The app sends this same origin back as the link's redirect, so
+   whichever port you ran on is where the link returns you.
 4. Note: Supabase's built-in email sender allows only a few emails per hour —
    fine for testing. For real use, add your own SMTP later
    (Authentication → Emails → SMTP).
@@ -84,8 +82,9 @@ safe to run again if something failed halfway.
 ```bash
 flutter run -d chrome --web-port 8085 --dart-define-from-file=env/cloud.json
 ```
-More → My account → create an account (you'll get a 6-digit code by email),
-then More → Synchronize data → Sync now.
+More → My account → create an account (you'll get a confirmation link by
+email — open it on this same browser tab/device), then More → Synchronize
+data → Sync now.
 
 **Then tell Claude "cloud is set up"** — it will run the end-to-end checks
 (sign-up, sync between two browsers, conflict, delete account) and fix

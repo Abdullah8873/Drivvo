@@ -62,8 +62,8 @@ class AuthServiceException implements Exception {
 abstract class AuthService {
   /// Creates an account. Returns true when a session was created
   /// immediately (no email confirmation required by the project), false
-  /// when the caller must confirm via [verifyEmailCode] with
-  /// `signUpConfirmation: true`.
+  /// when the caller must confirm by clicking the link Supabase just
+  /// emailed (resend it with [resendSignUpConfirmation]).
   Future<bool> signUp({required String email, required String password});
 
   Future<void> signInWithPassword({
@@ -71,27 +71,22 @@ abstract class AuthService {
     required String password,
   });
 
-  /// Emails a 6-digit one-time code for passwordless sign-in.
-  Future<void> sendEmailCode(String email);
+  /// Emails a magic sign-in link (`signInWithOtp`). Opening it on this
+  /// device signs the app in — there is no code to type.
+  Future<void> sendSignInLink(String email);
 
-  /// Verifies a code from [sendEmailCode] (or, with `signUpConfirmation:
-  /// true`, the confirmation code from [signUp]) and completes sign-in.
-  Future<void> verifyEmailCode({
-    required String email,
-    required String code,
-    bool signUpConfirmation = false,
-  });
+  /// Re-sends the sign-up confirmation link from [signUp].
+  Future<void> resendSignUpConfirmation(String email);
 
-  /// Emails a 6-digit code for the "forgot password" flow.
-  Future<void> sendPasswordResetCode(String email);
+  /// Emails a password-reset link for the "forgot password" flow. Opening
+  /// it fires `AuthChangeEvent.passwordRecovery` (see
+  /// `passwordRecoveryEventProvider`), which routes to the "Set new
+  /// password" screen.
+  Future<void> sendPasswordResetLink(String email);
 
-  /// Verifies the code from [sendPasswordResetCode] and sets [newPassword]
-  /// in one step.
-  Future<void> resetPasswordWithCode({
-    required String email,
-    required String code,
-    required String newPassword,
-  });
+  /// Sets the current user's password — called by the "Set new password"
+  /// screen once a password-recovery link has been opened.
+  Future<void> updatePassword(String newPassword);
 
   /// Web: opens Google's OAuth redirect. Android/other native platforms:
   /// uses `google_sign_in` to get an ID token, then hands it to Supabase.
@@ -137,7 +132,11 @@ class SupabaseAuthService implements AuthService {
   @override
   Future<bool> signUp({required String email, required String password}) =>
       _guard(() async {
-        final res = await _auth.signUp(email: email, password: password);
+        final res = await _auth.signUp(
+          email: email,
+          password: password,
+          emailRedirectTo: authRedirectUrl(),
+        );
         return res.session != null;
       });
 
@@ -149,35 +148,27 @@ class SupabaseAuthService implements AuthService {
       _guard(() => _auth.signInWithPassword(email: email, password: password));
 
   @override
-  Future<void> sendEmailCode(String email) =>
-      _guard(() => _auth.signInWithOtp(email: email));
+  Future<void> sendSignInLink(String email) => _guard(
+    () => _auth.signInWithOtp(email: email, emailRedirectTo: authRedirectUrl()),
+  );
 
   @override
-  Future<void> verifyEmailCode({
-    required String email,
-    required String code,
-    bool signUpConfirmation = false,
-  }) => _guard(
-    () => _auth.verifyOTP(
+  Future<void> resendSignUpConfirmation(String email) => _guard(
+    () => _auth.resend(
+      type: OtpType.signup,
       email: email,
-      token: code,
-      type: signUpConfirmation ? OtpType.signup : OtpType.email,
+      emailRedirectTo: authRedirectUrl(),
     ),
   );
 
   @override
-  Future<void> sendPasswordResetCode(String email) =>
-      _guard(() => _auth.resetPasswordForEmail(email));
+  Future<void> sendPasswordResetLink(String email) => _guard(
+    () => _auth.resetPasswordForEmail(email, redirectTo: authRedirectUrl()),
+  );
 
   @override
-  Future<void> resetPasswordWithCode({
-    required String email,
-    required String code,
-    required String newPassword,
-  }) => _guard(() async {
-    await _auth.verifyOTP(email: email, token: code, type: OtpType.recovery);
-    await _auth.updateUser(UserAttributes(password: newPassword));
-  });
+  Future<void> updatePassword(String newPassword) =>
+      _guard(() => _auth.updateUser(UserAttributes(password: newPassword)));
 
   @override
   Future<void> signInWithGoogle() => _guard(() async {
@@ -302,7 +293,7 @@ String _friendlyAuthMessage(AuthException e) {
     case 'over_sms_send_rate_limit':
       return 'Too many attempts. Please wait a moment and try again.';
     case 'otp_expired':
-      return 'This code has expired or is invalid. Request a new one.';
+      return 'This link has expired or is invalid. Request a new one.';
     case 'same_password':
       return 'New password must be different from the old one.';
     case 'user_not_found':

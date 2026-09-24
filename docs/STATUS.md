@@ -11,11 +11,13 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   fuel chips, balance = cost − income, chart freeze on float-noise ranges,
   duplicate axis labels) · narrow-phone UI fixes (hands-on QA'd at 360×640)
 - **M6 cloud (code done, never run against a real server):**
-  - Optional login (`lib/features/account/`): email+password, 6-digit email
-    codes (sign-in, sign-up confirm, password reset — no deep links), Google
-    (web OAuth redirect; Android native `google_sign_in` v7 → ID token),
-    My account (name, driver's license fields → `profiles`), sign out,
-    delete account (`delete_my_account()` RPC).
+  - Optional login (`lib/features/account/`): email+password, emailed
+    sign-in/confirmation/password-reset **links** (no deep link on
+    Android yet — web only, via `Uri.base.origin`; see the
+    `authRedirectUrl()` TODO), Google (web OAuth redirect; Android native
+    `google_sign_in` v7 → ID token), My account (name, driver's license
+    fields → `profiles`), sign out, delete account (`delete_my_account()`
+    RPC).
   - Sync (`lib/core/sync/`): SQLite triggers fill `sync_outbox` on every
     change → push in batches; pull by `(server_updated_at, id)` cursor with a
     30 s overlap; last-write-wins by `updatedAt` (server trigger skips older

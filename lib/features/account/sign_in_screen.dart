@@ -6,9 +6,9 @@ import '../../core/cloud/cloud_config.dart';
 import 'account_widgets.dart';
 import 'auth_service.dart';
 
-enum _Step { credentials, code }
+enum _Step { credentials, linkSent }
 
-/// Sign in with Google, password, or a one-time email code. Pushed from
+/// Sign in with Google, password, or an emailed sign-in link. Pushed from
 /// `AccountScreen`'s "Sign in" button; pops itself on success, and the
 /// account screen — watching `authUserIdProvider` — updates on its own,
 /// the way a React page re-renders when an auth context changes.
@@ -23,7 +23,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
-  final _code = TextEditingController();
 
   _Step _step = _Step.credentials;
   bool _loading = false;
@@ -33,7 +32,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   void dispose() {
     _email.dispose();
     _password.dispose();
-    _code.dispose();
     super.dispose();
   }
 
@@ -71,23 +69,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     );
   }
 
-  Future<void> _sendCode() {
+  Future<void> _sendSignInLink() {
     if (_email.text.trim().isEmpty) {
       setState(() => _error = 'Enter your email first.');
       return Future.value();
     }
     return _run(() async {
-      await ref.read(authServiceProvider).sendEmailCode(_email.text.trim());
-      if (mounted) setState(() => _step = _Step.code);
+      await ref.read(authServiceProvider).sendSignInLink(_email.text.trim());
+      if (mounted) setState(() => _step = _Step.linkSent);
     });
   }
-
-  Future<void> _verifyCode() => _run(
-    () => ref
-        .read(authServiceProvider)
-        .verifyEmailCode(email: _email.text.trim(), code: _code.text.trim()),
-    popOnSuccess: true,
-  );
 
   Future<void> _signInWithGoogle() => _run(
     () => ref.read(authServiceProvider).signInWithGoogle(),
@@ -115,7 +106,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             if (_step == _Step.credentials)
               ..._credentialsStep()
             else
-              ..._codeStep(),
+              ..._linkSentStep(),
           ],
         ),
       ),
@@ -155,8 +146,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     ),
     const SizedBox(height: 8),
     TextButton(
-      onPressed: _loading ? null : _sendCode,
-      child: const Text('Email me a code instead'),
+      onPressed: _loading ? null : _sendSignInLink,
+      child: const Text('Email me a sign-in link'),
     ),
     Align(
       alignment: Alignment.centerLeft,
@@ -176,32 +167,26 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     ),
   ];
 
-  List<Widget> _codeStep() => [
-    Text('Enter the 6-digit code we emailed to ${_email.text}'),
-    const SizedBox(height: 12),
-    TextFormField(
-      controller: _code,
-      keyboardType: TextInputType.number,
-      maxLength: 6,
-      decoration: const InputDecoration(labelText: 'Code'),
+  List<Widget> _linkSentStep() => [
+    const Icon(Icons.mark_email_read_outlined, size: 48, color: Colors.grey),
+    const SizedBox(height: 16),
+    Text(
+      'Check your email — we sent a sign-in link to ${_email.text}. Open '
+      'it on this device.',
+      textAlign: TextAlign.center,
     ),
     AuthErrorText(_error),
-    const SizedBox(height: 8),
-    AuthPrimaryButton(
-      label: 'VERIFY',
-      onPressed: _verifyCode,
-      loading: _loading,
-    ),
-    ResendCodeButton(
+    const SizedBox(height: 12),
+    ResendEmailButton(
       onResend: () =>
-          ref.read(authServiceProvider).sendEmailCode(_email.text.trim()),
+          ref.read(authServiceProvider).sendSignInLink(_email.text.trim()),
     ),
     TextButton(
       onPressed: () => setState(() {
         _step = _Step.credentials;
         _error = null;
       }),
-      child: const Text('Use password instead'),
+      child: const Text('Use a different email'),
     ),
   ];
 }

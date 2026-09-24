@@ -49,32 +49,30 @@ void main() {
     await closeAccountApp(tester, db);
   });
 
-  testWidgets('valid sign-up with no confirmation required pops back', (
-    tester,
-  ) async {
-    final auth = FakeAuthService();
-    final db = await _openSignUp(tester, auth: auth);
+  testWidgets(
+    'sign-up with no confirmation required signs in immediately and pops '
+    'back',
+    (tester) async {
+      final auth = FakeAuthService();
+      final db = await _openSignUp(tester, auth: auth);
 
-    final fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(0), 'new@example.com');
-    await tester.enterText(fields.at(1), 'longenough1');
-    await tester.enterText(fields.at(2), 'longenough1');
-    await tester.tap(find.text('CREATE ACCOUNT'));
-    await tester.pumpAndSettle();
+      final fields = find.byType(TextFormField);
+      await tester.enterText(fields.at(0), 'new@example.com');
+      await tester.enterText(fields.at(1), 'longenough1');
+      await tester.enterText(fields.at(2), 'longenough1');
+      await tester.tap(find.text('CREATE ACCOUNT'));
+      await tester.pumpAndSettle();
 
-    expect(auth.signedIn, isTrue);
-    expect(auth.lastSignedInEmail, 'new@example.com');
-    expect(find.text('My account'), findsOneWidget);
-    await closeAccountApp(tester, db);
-  });
+      expect(auth.signedIn, isTrue);
+      expect(auth.lastSignedInEmail, 'new@example.com');
+      expect(find.text('My account'), findsOneWidget);
+      await closeAccountApp(tester, db);
+    },
+  );
 
-  testWidgets('sign-up requiring confirmation shows a code step', (
-    tester,
-  ) async {
-    final auth = FakeAuthService(
-      requireSignUpConfirmation: true,
-      code: '111222',
-    );
+  testWidgets('sign-up requiring confirmation shows "confirm your email", with '
+      'resend', (tester) async {
+    final auth = FakeAuthService(requireSignUpConfirmation: true);
     final db = await _openSignUp(tester, auth: auth);
 
     final fields = find.byType(TextFormField);
@@ -85,14 +83,21 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(auth.signedIn, isFalse);
-    expect(find.textContaining('confirm your account'), findsOneWidget);
+    expect(find.textContaining('Confirm your email'), findsOneWidget);
+    expect(
+      find.textContaining("After confirming you'll be signed in"),
+      findsOneWidget,
+    );
 
-    await tester.enterText(find.byType(TextFormField).first, '111222');
-    await tester.tap(find.text('CONFIRM'));
+    // Resend starts on a 60s cooldown — fast-forward the fake test clock
+    // past it before tapping.
+    await tester.pump(const Duration(seconds: 61));
+    await tester.tap(find.text('Resend email'));
     await tester.pumpAndSettle();
-
-    expect(auth.signedIn, isTrue);
-    expect(auth.lastSignedInEmail, 'confirm@example.com');
+    expect(auth.lastResendConfirmationEmail, 'confirm@example.com');
+    // Still not signed in — nothing short of opening the emailed link
+    // completes this flow.
+    expect(auth.signedIn, isFalse);
     await closeAccountApp(tester, db);
   });
 }

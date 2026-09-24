@@ -5,69 +5,59 @@ import 'package:motolog/features/account/fake_auth_service.dart';
 import 'account_test_utils.dart';
 
 void main() {
-  testWidgets('email → code → new password resets the password', (
+  testWidgets(
+    'sending a reset link shows the "check your email" state, with resend',
+    (tester) async {
+      final auth = FakeAuthService(
+        passwordsByEmail: {'ada@example.com': 'old-password'},
+      );
+      final db = await openAccountScreen(tester, auth: auth);
+      await tester.tap(find.text('SIGN IN'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Forgot password?'));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byType(TextFormField).first,
+        'ada@example.com',
+      );
+      await tester.tap(find.text('SEND RESET LINK'));
+      await tester.pumpAndSettle();
+
+      expect(auth.lastPasswordResetEmail, 'ada@example.com');
+      expect(
+        find.textContaining('Check your email for a reset link'),
+        findsOneWidget,
+      );
+      // The password is untouched until the link is opened and the "Set
+      // new password" screen submits (see new_password_screen_test.dart).
+      expect(
+        await _signInWorks(auth, 'ada@example.com', 'old-password'),
+        isTrue,
+      );
+
+      // Resend cooldown starts disabled; only the countdown label shows.
+      expect(find.textContaining('Resend email ('), findsOneWidget);
+      await closeAccountApp(tester, db);
+    },
+  );
+
+  testWidgets('invalid email shows a validation error and does not send', (
     tester,
   ) async {
-    final auth = FakeAuthService(
-      passwordsByEmail: {'ada@example.com': 'old-password'},
-      code: '999888',
-    );
+    final auth = FakeAuthService();
     final db = await openAccountScreen(tester, auth: auth);
     await tester.tap(find.text('SIGN IN'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Forgot password?'));
     await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).first, 'ada@example.com');
-    await tester.tap(find.text('SEND CODE'));
+    await tester.enterText(find.byType(TextFormField).first, 'not-an-email');
+    await tester.tap(find.text('SEND RESET LINK'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('choose a new password'), findsOneWidget);
-
-    final fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(0), '999888');
-    await tester.enterText(fields.at(1), 'new-password1');
-    await tester.tap(find.text('RESET PASSWORD'));
-    await tester.pumpAndSettle();
-
-    // Old password no longer works; the new one does.
-    expect(
-      await _signInWorks(auth, 'ada@example.com', 'old-password'),
-      isFalse,
-    );
-    expect(
-      await _signInWorks(auth, 'ada@example.com', 'new-password1'),
-      isTrue,
-    );
-    await closeAccountApp(tester, db);
-  });
-
-  testWidgets('an invalid code shows an inline error', (tester) async {
-    final auth = FakeAuthService(
-      passwordsByEmail: {'ada@example.com': 'old-password'},
-      code: '999888',
-    );
-    final db = await openAccountScreen(tester, auth: auth);
-    await tester.tap(find.text('SIGN IN'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Forgot password?'));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextFormField).first, 'ada@example.com');
-    await tester.tap(find.text('SEND CODE'));
-    await tester.pumpAndSettle();
-
-    final fields = find.byType(TextFormField);
-    await tester.enterText(fields.at(0), '000000');
-    await tester.enterText(fields.at(1), 'new-password1');
-    await tester.tap(find.text('RESET PASSWORD'));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.text('This code has expired or is invalid. Request a new one.'),
-      findsOneWidget,
-    );
-    expect(await _signInWorks(auth, 'ada@example.com', 'old-password'), isTrue);
+    expect(find.text('Enter a valid email'), findsOneWidget);
+    expect(auth.lastPasswordResetEmail, isNull);
     await closeAccountApp(tester, db);
   });
 }

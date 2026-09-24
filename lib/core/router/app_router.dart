@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/account/account_screen.dart';
+import '../../features/account/new_password_screen.dart';
 import '../../features/account/reset_password_screen.dart';
 import '../../features/account/sign_in_screen.dart';
 import '../../features/account/sign_up_screen.dart';
@@ -40,7 +41,8 @@ import '../widgets/main_shell.dart';
 ///   /record/<module>/<id>    record detail view
 ///   /vehicles, /vehicles/new, /vehicles/<id>
 ///   /settings, /catalog/<CatalogKind.name>, /sync
-///   /account, /account/sign-in, /account/sign-up, /account/reset-password
+///   /account, /account/sign-in, /account/sign-up, /account/reset-password,
+///   /account/new-password (only reached from a password-recovery link)
 ///   /flex                     Flex calculator (More → Flex calculator)
 ///   /achievements             Achievements (More → Achievements)
 /// ```
@@ -127,6 +129,10 @@ GoRouter _buildRouter() => GoRouter(
     GoRoute(
       path: '/account/reset-password',
       builder: (_, _) => const ResetPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/account/new-password',
+      builder: (_, _) => const NewPasswordScreen(),
     ),
     GoRoute(path: '/sync', builder: (_, _) => const SyncScreen()),
     GoRoute(path: '/flex', builder: (_, _) => const FlexCalculatorScreen()),
