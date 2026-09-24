@@ -56,3 +56,6 @@ android/key.properties
 
 # Local Claude Code preview config
 .claude/
+
+# Cloud config with real keys (see env/README.md)
+env/cloud.json
