@@ -32,14 +32,17 @@ alter table public.profiles enable row level security;
 -- A user may only ever see or touch their own row — no policy allows
 -- reading or writing anyone else's profile, and there is no "select all"
 -- policy for admins.
+drop policy if exists "profiles: select own" on public.profiles;
 create policy "profiles: select own" on public.profiles
   for select
   using (id = auth.uid());
 
+drop policy if exists "profiles: insert own" on public.profiles;
 create policy "profiles: insert own" on public.profiles
   for insert
   with check (id = auth.uid());
 
+drop policy if exists "profiles: update own" on public.profiles;
 create policy "profiles: update own" on public.profiles
   for update
   using (id = auth.uid())
@@ -56,18 +59,23 @@ create policy "profiles: update own" on public.profiles
 -- same-named object planted earlier in another schema on the search path
 -- (the classic security-definer trap); every reference here is written
 -- fully qualified (`auth.users`) so it still resolves correctly.
-create function public.delete_my_account()
+create or replace function public.delete_my_account()
 returns void
 language plpgsql
 security definer
 set search_path = ''
 as $$
 begin
+  if auth.uid() is null then
+    raise exception 'not signed in';
+  end if;
   delete from auth.users where id = auth.uid();
 end;
 $$;
 
 -- No one gets to call this except a signed-in ("authenticated") user, and
 -- only to delete themselves (enforced above, not here).
-revoke all on function public.delete_my_account() from public;
+-- Supabase grants execute on new public functions to anon by default, so
+-- revoke it explicitly as well as from public.
+revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
