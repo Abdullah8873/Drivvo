@@ -66,8 +66,11 @@ flutter_local_notifications (reminders).
   `FieldRow` (grey leading icon + field, optional right-aligned helper),
   `PickerField` for read-only fields that open a picker, and
   `SelectListScreen` for full-screen searchable pick lists with a "+" button.
-  Optional fields go behind a "+ More options" expander.
-  `features/forms/refueling_form_screen.dart` is the reference form.
+  Only the Refueling (and Vehicle) forms hide optional fields behind
+  "+ More options" — Expense/Service/Income/Route forms are flat, exactly
+  like Drivvo (verified). Service/Expense prices are typed inline in the type
+  picker ("Value" field per ticked row). See docs/SPEC.md "Details verified
+  hands-on". `features/forms/refueling_form_screen.dart` is the reference form.
 - Put calculations in `core/calc/` as pure functions with tests
   (e.g. `FuelMath`), never inline in widgets.
 
@@ -84,6 +87,8 @@ flutter_local_notifications (reminders).
 
 The full feature/UI spec — every Drivvo screen, form field, report card and
 setting, gathered from a live walkthrough — is in `docs/SPEC.md`. Read the
-relevant section before building a screen. When unsure how something should look or behave,
+relevant section before building a screen. **Start every session by reading
+`docs/STATUS.md`** (what is done, what is in flight, what needs the owner).
+When unsure how something should look or behave,
 mirror Drivvo (installed in BlueStacks on this PC — view only, never change
 data there).
