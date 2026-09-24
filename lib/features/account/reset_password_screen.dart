@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'account_widgets.dart';
 import 'auth_service.dart';
 
-enum _Step { email, reset }
+enum _Step { email, sent }
 
-/// Forgot password: email → a 6-digit code → new password. Codes (not a
-/// deep link) so nothing extra needs configuring on Android — see
-/// CLAUDE.md's "Decisions already made".
+/// Forgot password: email → a reset link. Opening the link on this device
+/// signs Supabase into a short-lived recovery session and fires
+/// `AuthChangeEvent.passwordRecovery`, which `app.dart` listens for (via
+/// `passwordRecoveryEventProvider`) to route straight to the "Set new
+/// password" screen — so this screen's job ends once the link is sent.
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key});
 
@@ -18,11 +20,8 @@ class ResetPasswordScreen extends ConsumerStatefulWidget {
 }
 
 class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
-  final _emailFormKey = GlobalKey<FormState>();
-  final _resetFormKey = GlobalKey<FormState>();
+  final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
-  final _code = TextEditingController();
-  final _newPassword = TextEditingController();
 
   _Step _step = _Step.email;
   bool _loading = false;
@@ -31,13 +30,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   @override
   void dispose() {
     _email.dispose();
-    _code.dispose();
-    _newPassword.dispose();
     super.dispose();
   }
 
-  Future<void> _sendCode() async {
-    if (!(_emailFormKey.currentState?.validate() ?? false)) return;
+  Future<void> _sendResetLink() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
     setState(() {
       _loading = true;
       _error = null;
@@ -45,30 +42,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     try {
       await ref
           .read(authServiceProvider)
-          .sendPasswordResetCode(_email.text.trim());
-      if (mounted) setState(() => _step = _Step.reset);
-    } on AuthServiceException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _resetPassword() async {
-    if (!(_resetFormKey.currentState?.validate() ?? false)) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      await ref
-          .read(authServiceProvider)
-          .resetPasswordWithCode(
-            email: _email.text.trim(),
-            code: _code.text.trim(),
-            newPassword: _newPassword.text,
-          );
-      if (mounted) Navigator.of(context).pop();
+          .sendPasswordResetLink(_email.text.trim());
+      if (mounted) setState(() => _step = _Step.sent);
     } on AuthServiceException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -83,7 +58,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
-          children: _step == _Step.email ? _emailStep() : _resetStep(),
+          children: _step == _Step.email ? _emailStep() : _sentStep(),
         ),
       ),
     );
@@ -91,7 +66,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
   List<Widget> _emailStep() => [
     Form(
-      key: _emailFormKey,
+      key: _formKey,
       child: TextFormField(
         controller: _email,
         keyboardType: TextInputType.emailAddress,
@@ -106,51 +81,26 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     AuthErrorText(_error),
     const SizedBox(height: 20),
     AuthPrimaryButton(
-      label: 'SEND CODE',
-      onPressed: _sendCode,
+      label: 'SEND RESET LINK',
+      onPressed: _sendResetLink,
       loading: _loading,
     ),
   ];
 
-  List<Widget> _resetStep() => [
+  List<Widget> _sentStep() => [
+    const Icon(Icons.mark_email_read_outlined, size: 48, color: Colors.grey),
+    const SizedBox(height: 16),
     Text(
-      'Enter the code we emailed to ${_email.text} and choose a new '
-      'password.',
-    ),
-    const SizedBox(height: 12),
-    Form(
-      key: _resetFormKey,
-      child: Column(
-        children: [
-          TextFormField(
-            controller: _code,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            decoration: const InputDecoration(labelText: 'Code'),
-            validator: (v) =>
-                (v == null || v.isEmpty) ? 'Enter the code' : null,
-          ),
-          const SizedBox(height: 12),
-          PasswordField(
-            controller: _newPassword,
-            label: 'New password',
-            validator: (v) =>
-                (v == null || v.length < 8) ? 'At least 8 characters' : null,
-          ),
-        ],
-      ),
+      'Check your email for a reset link. Open it on this device to '
+      'choose a new password.',
+      textAlign: TextAlign.center,
     ),
     AuthErrorText(_error),
-    const SizedBox(height: 8),
-    AuthPrimaryButton(
-      label: 'RESET PASSWORD',
-      onPressed: _resetPassword,
-      loading: _loading,
-    ),
-    ResendCodeButton(
+    const SizedBox(height: 12),
+    ResendEmailButton(
       onResend: () => ref
           .read(authServiceProvider)
-          .sendPasswordResetCode(_email.text.trim()),
+          .sendPasswordResetLink(_email.text.trim()),
     ),
   ];
 }

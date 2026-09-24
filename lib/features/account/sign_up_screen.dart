@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'account_widgets.dart';
 import 'auth_service.dart';
 
-enum _Step { form, code }
+enum _Step { form, confirmEmail }
 
 /// Create an account with email + password. When the Supabase project
-/// requires confirming the email (the usual default), this shows a 6-digit
-/// code step (`verifyOTP(type: OtpType.signup)`) instead of relying on a
-/// deep link, so there's nothing extra to configure on Android.
+/// requires confirming the email (the usual default), this shows a "confirm
+/// your email" state instead of navigating away — the user finishes by
+/// opening the link Supabase just emailed, which (with `detectSessionInUri`
+/// on web) signs the app in on its own once the link is opened on this
+/// device.
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
 
@@ -22,7 +24,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _confirm = TextEditingController();
-  final _code = TextEditingController();
 
   _Step _step = _Step.form;
   bool _loading = false;
@@ -33,7 +34,6 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
-    _code.dispose();
     super.dispose();
   }
 
@@ -51,29 +51,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       if (signedInImmediately) {
         Navigator.of(context).pop();
       } else {
-        setState(() => _step = _Step.code);
+        setState(() => _step = _Step.confirmEmail);
       }
-    } on AuthServiceException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _verifyCode() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      await ref
-          .read(authServiceProvider)
-          .verifyEmailCode(
-            email: _email.text.trim(),
-            code: _code.text.trim(),
-            signUpConfirmation: true,
-          );
-      if (mounted) Navigator.of(context).pop();
     } on AuthServiceException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -88,7 +67,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
-          children: _step == _Step.form ? _formStep() : _codeStep(),
+          children: _step == _Step.form ? _formStep() : _confirmEmailStep(),
         ),
       ),
     );
@@ -134,33 +113,20 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     ),
   ];
 
-  List<Widget> _codeStep() => [
+  List<Widget> _confirmEmailStep() => [
+    const Icon(Icons.mark_email_read_outlined, size: 48, color: Colors.grey),
+    const SizedBox(height: 16),
     Text(
-      'Enter the 6-digit code we emailed to ${_email.text} to confirm your '
-      'account.',
-    ),
-    const SizedBox(height: 12),
-    TextFormField(
-      controller: _code,
-      keyboardType: TextInputType.number,
-      maxLength: 6,
-      decoration: const InputDecoration(labelText: 'Code'),
+      'Confirm your email — we sent a link to ${_email.text}. After '
+      "confirming you'll be signed in.",
+      textAlign: TextAlign.center,
     ),
     AuthErrorText(_error),
-    const SizedBox(height: 8),
-    AuthPrimaryButton(
-      label: 'CONFIRM',
-      onPressed: _verifyCode,
-      loading: _loading,
-    ),
-    ResendCodeButton(
-      onResend: () async {
-        // Supabase resends the confirmation email when signUp is called
-        // again for the same unconfirmed address.
-        await ref
-            .read(authServiceProvider)
-            .signUp(email: _email.text.trim(), password: _password.text);
-      },
+    const SizedBox(height: 12),
+    ResendEmailButton(
+      onResend: () => ref
+          .read(authServiceProvider)
+          .resendSignUpConfirmation(_email.text.trim()),
     ),
   ];
 }
