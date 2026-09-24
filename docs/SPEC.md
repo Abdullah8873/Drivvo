@@ -96,3 +96,24 @@ Checklist and Form builder, custom profile permissions screen, user invite flow,
 - **Back on a half-filled form discards silently in Drivvo.** MotoLog improves on this with a
   "Discard changes?" confirmation (users complain about lost entries in reviews).
 - History contains ad cards between records (Drivvo free tier) — MotoLog has no ads.
+
+### Verified hands-on in Drivvo (2026-09-24, afternoon)
+- **Flex calculator** (More → Flex calculator, teal app bar): row 1 = gauge icon, "Autonomy
+  difference" slider with a numeric field on the right, default **70 %**; row 2 = money icon,
+  "Gas price" and "Ethanol price" side by side; full-width teal **CALCULATE** button. Result:
+  a full-width banner — orange **"We recommend using ethanol"** when ethanol price / gas price
+  < autonomy % (e.g. 190 / 280 = 67.9 % < 70 %), otherwise recommend gasoline — then a bar
+  chart with two bars, **Gasoline 100.0 %** (cyan) and **Ethanol 67.9 %** (orange), y axis
+  0–100 % on both sides, value labels above the bars.
+- **Achievements** (More → Achievements, per vehicle): a 4-column grid of round scalloped
+  badges; earned = colored, locked = grey. Tapping one opens a small dialog: badge, text, and
+  the date earned or "Not achieved". The 20 badges, row by row:
+  1. First record ("Started monitoring your vehicle expenses", teal ✓) · Refueled at 10
+     different gas stations · Refueled 15 times at the same station · Refueled 50 times at
+     the same station
+  2. Completed 1 / 2 / 3 / 4 years of tracking this vehicle (orange cake)
+  3. First refueling ("1", pink drop) · 25 · 50 · 75 refuelings
+  4. 100 · 250 · 500 · 1000 refuelings
+  5. Completed 15 / 45 / 90 / 150 full tanks (hexagon gauge)
+- **Export** (⬇ on History) is behind Drivvo's paywall ("To export data, upgrade your plan";
+  PRO lists "Data export (CSV/Excel)") — MotoLog designs its own export screen.
