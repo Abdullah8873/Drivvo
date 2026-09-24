@@ -192,16 +192,64 @@ void main() {
     await finish(tester);
   });
 
-  testWidgets('the + Fuel button is visible without opening more options', (
+  testWidgets('the + Fuel button appears after opening more options', (
     tester,
   ) async {
     await real(tester, () => addTestVehicle(db));
     await open(tester, '/add/refueling');
 
-    // "+ Fuel" sits right after the full-tank toggle, not behind
-    // "+ More options".
+    // Matches Drivvo: a second fuel is tucked behind "+ More options".
+    expect(find.widgetWithText(TextButton, 'Fuel'), findsNothing);
+    await tester.tap(find.widgetWithText(TextButton, 'More options'));
+    await settle(tester);
     expect(find.widgetWithText(TextButton, 'Fuel'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'More options'), findsOneWidget);
+    await finish(tester);
+  });
+
+  testWidgets('a second fuel line shows a SECOND FUEL header with remove', (
+    tester,
+  ) async {
+    await real(tester, () => addTestVehicle(db));
+    await open(tester, '/add/refueling');
+
+    await tester.tap(find.widgetWithText(TextButton, 'More options'));
+    await settle(tester);
+    expect(find.text('SECOND FUEL'), findsNothing);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Fuel'));
+    await settle(tester);
+    expect(find.text('SECOND FUEL'), findsOneWidget);
+    // Two "Fuel" pickers now: the first (unlabelled) line and the second.
+    expect(find.widgetWithText(PickerField, 'Fuel'), findsNWidgets(2));
+
+    // A third line is labelled "THIRD FUEL".
+    await tester.tap(find.widgetWithText(TextButton, 'Fuel'));
+    await settle(tester);
+    expect(find.text('THIRD FUEL'), findsOneWidget);
+
+    // Removing the second line drops its header; the third line is now
+    // "SECOND FUEL" (labels reflect position, not creation order).
+    await tester.tap(find.byIcon(Icons.close).first);
+    await settle(tester);
+    expect(find.text('SECOND FUEL'), findsOneWidget);
+    expect(find.text('THIRD FUEL'), findsNothing);
+    await finish(tester);
+  });
+
+  testWidgets('switches vehicle via the full-screen picker', (tester) async {
+    await real(tester, () => addTestVehicle(db, name: 'Honda CG125'));
+    await real(tester, () => addTestVehicle(db, name: 'Yamaha'));
+    await open(tester, '/add/refueling');
+
+    await tester.tap(find.widgetWithText(PickerField, 'Honda CG125'));
+    await settle(tester);
+    // The full-screen "Select" list (with a search field), not a dialog.
+    expect(find.text('Vehicles'), findsOneWidget);
+    expect(find.text('Yamaha'), findsOneWidget);
+
+    await tester.tap(find.text('Yamaha'));
+    await settle(tester);
+    expect(find.widgetWithText(PickerField, 'Yamaha'), findsOneWidget);
     await finish(tester);
   });
 

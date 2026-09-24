@@ -9,6 +9,7 @@ import '../../core/providers.dart';
 import '../../core/settings/app_settings.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
+import '../../core/widgets/select_list_screen.dart';
 import '../refueling/catalog_picker.dart';
 import '../refueling/refueling_queries.dart';
 import '../routes/record_form_parts.dart' show parseNumber;
@@ -213,25 +214,20 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
   // ---- Pickers ----------------------------------------------------------------
 
   Future<void> _pickVehicle(List<Vehicle> vehicles) async {
-    final picked = await showDialog<Vehicle>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Vehicle'),
-        children: [
-          for (final v in vehicles)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, v),
-              child: ListTile(
-                leading: Icon(_vehicleIcon(v)),
-                title: Text(v.name),
-                subtitle: v.model == null ? null : Text(v.model!),
-              ),
-            ),
-        ],
+    final picked = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => SelectListScreen(
+          title: 'Vehicles',
+          items: [for (final v in vehicles) v.name],
+        ),
       ),
     );
-    if (picked == null) return;
-    await _useVehicle(picked, userChange: true);
+    final name = picked?.firstOrNull;
+    if (name == null) return;
+    await _useVehicle(
+      vehicles.firstWhere((v) => v.name == name),
+      userChange: true,
+    );
   }
 
   Future<void> _addVehicle() async {
@@ -449,6 +445,27 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
   static IconData _vehicleIcon(Vehicle? v) =>
       v?.type.icon ?? Icons.directions_car;
 
+  static const _ordinals = [
+    'SECOND',
+    'THIRD',
+    'FOURTH',
+    'FIFTH',
+    'SIXTH',
+    'SEVENTH',
+    'EIGHTH',
+    'NINTH',
+    'TENTH',
+  ];
+
+  /// "SECOND FUEL", "THIRD FUEL"… for the fuel line at [index] (1-based
+  /// among the extra lines, i.e. `_lines` index 1 is the second fuel).
+  static String _fuelOrdinal(int index) {
+    final word = index - 1 < _ordinals.length
+        ? _ordinals[index - 1]
+        : '${index + 1}TH';
+    return '$word FUEL';
+  }
+
   String _volumeWord() {
     final kind = _lines.first.fuel?.fuelKind ?? FuelKind.liquid;
     return _volumeLabel(ref.read(settingsProvider), kind).toLowerCase();
@@ -553,6 +570,8 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
           _FuelLineFields(
             key: ObjectKey(line),
             line: line,
+            // "SECOND FUEL", "THIRD FUEL"… above every line after the first.
+            ordinalLabel: i == 0 ? null : _fuelOrdinal(i),
             unitLabel: fmt.volumeUnitLabel(
               line.fuel?.fuelKind ?? FuelKind.liquid,
             ),
@@ -583,15 +602,16 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
             },
           ),
         ),
-        // Always visible right after the full-tank toggle (not just behind
-        // "+ More options"): a second fuel is a common, non-optional need.
-        _AddButton(
-          label: 'Fuel',
-          onPressed: () {
-            _touch();
-            setState(() => _lines.add(_FuelLine()));
-          },
-        ),
+        // Right after the full-tank toggle, but only once "+ More options"
+        // is open (matches Drivvo: a second fuel is an optional extra).
+        if (_moreOptions)
+          _AddButton(
+            label: 'Fuel',
+            onPressed: () {
+              _touch();
+              setState(() => _lines.add(_FuelLine()));
+            },
+          ),
         FieldRow(
           icon: Icons.place,
           child: PickerField(
@@ -761,6 +781,7 @@ class _FuelLineFields extends StatelessWidget {
   const _FuelLineFields({
     super.key,
     required this.line,
+    this.ordinalLabel,
     required this.unitLabel,
     required this.volumeLabel,
     required this.currencyCode,
@@ -770,6 +791,10 @@ class _FuelLineFields extends StatelessWidget {
   });
 
   final _FuelLine line;
+
+  /// "SECOND FUEL", "THIRD FUEL"… shown as a header above every line after
+  /// the first; null for the first (unlabelled) line.
+  final String? ordinalLabel;
 
   /// Unit for the price label ("L" → "Price / L").
   final String unitLabel;
@@ -823,22 +848,41 @@ class _FuelLineFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final ordinal = ordinalLabel;
     return Column(
       children: [
+        if (ordinal != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(48, 12, 8, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    ordinal,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                      color: RecordModule.refueling.color,
+                    ),
+                  ),
+                ),
+                if (onRemove != null)
+                  IconButton(
+                    tooltip: 'Remove',
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close),
+                    onPressed: onRemove,
+                  ),
+              ],
+            ),
+          ),
         FieldRow(
           icon: Icons.local_gas_station,
-          child: Row(
-            children: [
-              Expanded(
-                child: PickerField(
-                  label: 'Fuel',
-                  value: line.fuel?.name,
-                  onTap: onPickFuel,
-                ),
-              ),
-              if (onRemove != null)
-                IconButton(icon: const Icon(Icons.close), onPressed: onRemove),
-            ],
+          child: PickerField(
+            label: 'Fuel',
+            value: line.fuel?.name,
+            onTap: onPickFuel,
           ),
         ),
         FieldRow(

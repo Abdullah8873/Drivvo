@@ -120,6 +120,12 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       ? (_parse(_value.text) ?? 0)
       : _linesTotal - (_parse(_discount.text) ?? 0);
 
+  /// The item amounts as saved: one value for income, one per type line for
+  /// expense/service — matches `EntryDraft.items` in `_save`.
+  List<double> get _itemAmounts => _isIncome
+      ? [_parse(_value.text) ?? 0]
+      : [for (final l in _lines) _parse(l.amount.text) ?? 0];
+
   @override
   void initState() {
     super.initState();
@@ -689,10 +695,23 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   );
 
   /// Interval choice + "3 × PKR500" preview, only shown for N > 1.
+  ///
+  /// The preview reads the first installment's total from the same
+  /// `planInstallments` used when saving (not a naive split of `_total`):
+  /// each installment's total is derived from its own item/discount shares,
+  /// which can round a cent or two differently than splitting the total on
+  /// its own (see `planInstallments`'s doc comment).
   List<Widget> _intervalRow(Formatters fmt) {
     final n = _installmentCount;
     if (n <= 1) return const [];
-    final first = splitAmount(_total, n).first;
+    final first = planInstallments(
+      firstDate: _date,
+      count: n,
+      interval: _interval,
+      total: _total,
+      discount: _isIncome ? 0 : (_parse(_discount.text) ?? 0),
+      itemAmounts: _itemAmounts,
+    ).first.totalCost;
     return [
       FieldRow(
         icon: Icons.date_range,
