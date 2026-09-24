@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../achievements/achievements_providers.dart';
 import '../reminders/upcoming_reminders_strip.dart';
 import '../../core/db/app_database.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/main_tab_app_bar.dart';
+import 'achievement_timeline.dart';
 import 'history_calc.dart';
 import 'history_providers.dart';
 import 'history_search_screen.dart';
@@ -86,6 +88,10 @@ class _TimelineState extends ConsumerState<_Timeline> {
   Widget build(BuildContext context) {
     final vehicle = widget.vehicle;
     final timeline = ref.watch(timelineProvider(vehicle.id));
+    // Earned achievements are merged into the display list below, purely as
+    // presentation — they never enter `MonthSummary` (totals/reports), see
+    // `achievement_timeline.dart`.
+    final achievements = ref.watch(earnedAchievementsProvider(vehicle.id));
 
     return timeline.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -122,16 +128,25 @@ class _TimelineState extends ConsumerState<_Timeline> {
                 ),
               ),
             ),
-            for (final r in month.records)
-              () => TimelineRow(
-                key: ValueKey(r.id),
-                record: r,
-                distanceUnit: vehicle.distanceUnit,
-                expanded: _expandedId == r.id,
-                onTap: () => setState(
-                  () => _expandedId = _expandedId == r.id ? null : r.id,
+            for (final item in mergeAchievements(month, achievements))
+              switch (item) {
+                RecordItem(:final record) => () => TimelineRow(
+                  key: ValueKey(record.id),
+                  record: record,
+                  distanceUnit: vehicle.distanceUnit,
+                  expanded: _expandedId == record.id,
+                  onTap: () => setState(
+                    () => _expandedId = _expandedId == record.id
+                        ? null
+                        : record.id,
+                  ),
                 ),
-              ),
+                AchievementItem(:final achievement) =>
+                  () => AchievementTimelineRow(
+                    key: Key('achievement-row-${achievement.id}'),
+                    achievement: achievement,
+                  ),
+              },
           ],
         ];
         return ListView.builder(

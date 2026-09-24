@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/calc/achievements.dart';
 import '../../../core/db/app_database.dart';
 import '../../../core/format/formatters.dart';
 import '../../../core/providers.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/theme/record_module.dart';
 import '../../refueling/efficiency_text.dart' as shared;
 import '../history_calc.dart';
@@ -130,6 +132,72 @@ class ModuleDot extends StatelessWidget {
         ),
       ),
       child: Icon(module.icon, color: Colors.white, size: size * 0.5),
+    );
+  }
+}
+
+/// An earned achievement shown on the timeline on its earned date — Drivvo's
+/// "Completed 1 year of tracking this vehicle" style event. Purely
+/// presentational: it carries no amount and isn't a [TimelineRecord], so it
+/// can never affect month totals or reports (see
+/// `achievement_timeline.dart`).
+class AchievementTimelineRow extends ConsumerWidget {
+  const AchievementTimelineRow({super.key, required this.achievement});
+
+  final Achievement achievement;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final fmt = ref.watch(formattersProvider);
+    final theme = Theme.of(context);
+    final grey = theme.textTheme.bodySmall?.copyWith(
+      color: Colors.grey.shade600,
+    );
+    return Stack(
+      children: [
+        const TimelineTrack(),
+        Positioned(
+          left: kTrackX - 14,
+          top: 10,
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppTheme.primary,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: theme.scaffoldBackgroundColor,
+                width: 2,
+              ),
+            ),
+            child: const Icon(
+              Icons.emoji_events,
+              color: Colors.white,
+              size: 15,
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(kContentLeft, 12, 16, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  achievement.text,
+                  key: Key('achievement-${achievement.id}'),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.grey.shade700,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(fmt.shortDate(achievement.earnedDate!), style: grey),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

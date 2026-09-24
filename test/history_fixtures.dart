@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:motolog/core/db/app_database.dart';
+import 'package:motolog/features/catalog/catalog_queries.dart';
 
 /// Test data builders for the History tests (records are inserted directly
 /// with drift companions, since the forms belong to other features).
@@ -30,9 +31,20 @@ Future<String> addRefuel(
   bool fullTank = true,
   bool missedPrevious = false,
   String? notes,
+
+  /// Gas station name — created in the catalog on first use (gas stations
+  /// aren't seeded, unlike fuel/expense types). Needed for the achievement
+  /// badges that count distinct/same-station refuels.
+  String? station,
 }) async {
   final all = lines ?? [(fuel: fuel, volume: volume, tank: tank)];
   final total = all.fold(0.0, (s, l) => s + l.volume * price);
+  final gasStationId = station == null
+      ? null
+      : (await db.addCatalogItem(
+          kind: CatalogKind.gasStation,
+          name: station,
+        )).id;
   final r = await db
       .into(db.refuelings)
       .insertReturning(
@@ -44,6 +56,7 @@ Future<String> addRefuel(
           fullTank: Value(fullTank),
           missedPrevious: Value(missedPrevious),
           notes: Value(notes),
+          gasStationId: Value(gasStationId),
         ),
       );
   for (final l in all) {

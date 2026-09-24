@@ -5,7 +5,9 @@ import '../../features/account/account_screen.dart';
 import '../../features/account/reset_password_screen.dart';
 import '../../features/account/sign_in_screen.dart';
 import '../../features/account/sign_up_screen.dart';
+import '../../features/achievements/achievements_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
+import '../../features/flex/flex_screen.dart';
 import '../../features/forms/entry_form_screen.dart';
 import '../../features/forms/placeholder_form_screen.dart';
 import '../../features/forms/reading_form_screen.dart';
@@ -38,6 +40,8 @@ import '../widgets/main_shell.dart';
 ///   /vehicles, /vehicles/new, /vehicles/<id>
 ///   /settings, /catalog/<CatalogKind.name>, /sync
 ///   /account, /account/sign-in, /account/sign-up, /account/reset-password
+///   /flex                     Flex calculator (More → Flex calculator)
+///   /achievements             Achievements (More → Achievements)
 /// ```
 GoRouter createRouter() => GoRouter(
   initialLocation: '/history',
@@ -107,6 +111,11 @@ GoRouter createRouter() => GoRouter(
       builder: (_, _) => const ResetPasswordScreen(),
     ),
     GoRoute(path: '/sync', builder: (_, _) => const SyncScreen()),
+    GoRoute(path: '/flex', builder: (_, _) => const FlexCalculatorScreen()),
+    GoRoute(
+      path: '/achievements',
+      builder: (_, _) => const AchievementsScreen(),
+    ),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(
