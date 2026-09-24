@@ -54,9 +54,23 @@ void main() {
     expect(t.distance, 150);
     expect(t.minutes, 150);
     expect(t.value, 750);
-    expect(t.valuePerDistance, 5);
+    // Only the finished routes' value (500) over their distance (150).
+    expect(t.valuePerDistance, closeTo(500 / 150, 1e-9));
     expect(t.averageDistance, 75);
   });
+
+  test(
+    'value per distance only uses finished routes (same set as distance)',
+    () {
+      final t = RouteMath.totals([
+        span(endOdo: 1100, value: 500), // finished: 100 km, 500
+        span(startOdo: 1100, value: 1000), // open: its value has no distance
+      ]);
+      expect(t.value, 1500); // the Value card still shows every route
+      expect(t.finishedValue, 500);
+      expect(t.valuePerDistance, 5); // 500 / 100, not 1500 / 100
+    },
+  );
 
   test('empty totals', () {
     final t = RouteMath.totals(const []);

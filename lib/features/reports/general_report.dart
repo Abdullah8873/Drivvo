@@ -36,14 +36,14 @@ double periodDistance(List<TimelineRecord> timeline, ReportRange range) {
 }
 
 /// Which bar a record's money goes into on the "Expenses and income"
-/// chart. Route values count as income (they're money coming in, like
-/// `TimelineRecord.isIncome`); readings carry no money.
+/// chart. Only income entries are income here — route values stay on the
+/// Route tab, so General's income matches the Income tab's total. Routes
+/// and readings get no bar.
 RecordModule? chartModuleOf(TimelineRecord r) => switch (r.module) {
   RecordModule.refueling ||
   RecordModule.expense ||
   RecordModule.service ||
   RecordModule.income => r.module,
-  RecordModule.route => RecordModule.income,
   _ => null,
 };
 
@@ -86,7 +86,8 @@ class GeneralReport {
   /// Refuels + expenses + services.
   final double cost;
 
-  /// Incomes + route values.
+  /// Income entries only (same total as the Income tab; route values are
+  /// reported on the Route tab).
   final double income;
 
   /// Cost split for the donut (refueling / expense / service), zeros left out.
@@ -101,8 +102,10 @@ class GeneralReport {
   /// Odometer readings in the period, oldest first.
   final List<OdometerPoint> odometerPoints;
 
-  /// Income − cost (negative when the vehicle cost more than it earned).
-  double get balance => income - cost;
+  /// Cost − income, like Drivvo: positive when the vehicle cost more than
+  /// it earned (cost 2,700 with no income → 2,700), negative when it made
+  /// a profit.
+  double get balance => cost - income;
 
   double? perDay(double value) => days > 0 ? value / days : null;
   double? perDistance(double value) => distance > 0 ? value / distance : null;
@@ -140,7 +143,7 @@ GeneralReport buildGeneralReport({
     if (r.isCost) {
       cost += r.amount;
       costByModule[r.module] = (costByModule[r.module] ?? 0) + r.amount;
-    } else if (r.isIncome) {
+    } else if (r.module == RecordModule.income) {
       income += r.amount;
     }
     final chartModule = chartModuleOf(r);

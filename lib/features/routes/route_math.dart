@@ -24,6 +24,7 @@ class RouteTotals {
     this.distance = 0,
     this.minutes = 0,
     this.value = 0,
+    this.finishedValue = 0,
   });
 
   /// All routes, and how many of them are finished (have a final odometer).
@@ -36,11 +37,18 @@ class RouteTotals {
   /// Sum of route durations (finished routes with an end date).
   final int minutes;
 
-  /// Sum of trip totals + freight values.
+  /// Sum of trip totals + freight values (every route, open ones too).
   final double value;
 
-  /// Average value per distance unit, or null when nothing was driven.
-  double? get valuePerDistance => distance > 0 ? value / distance : null;
+  /// Sum of the values of finished routes only — the routes [distance] is
+  /// measured over, so "by km" divides like by like.
+  final double finishedValue;
+
+  /// Average value per distance unit over finished routes, or null when
+  /// nothing was driven. An open route's value is left out: it has no
+  /// distance yet, so counting it would inflate the rate.
+  double? get valuePerDistance =>
+      distance > 0 ? finishedValue / distance : null;
 
   /// Average distance per finished route.
   double? get averageDistance =>
@@ -73,7 +81,7 @@ class RouteMath {
   /// Sums a list of routes (already filtered to the wanted period).
   static RouteTotals totals(Iterable<RouteSpan> routes) {
     var count = 0, finished = 0, minutes = 0;
-    double distanceSum = 0, valueSum = 0;
+    double distanceSum = 0, valueSum = 0, finishedValueSum = 0;
     for (final r in routes) {
       count++;
       valueSum += r.value ?? 0;
@@ -81,6 +89,7 @@ class RouteMath {
       if (d == null) continue; // open route
       finished++;
       distanceSum += d;
+      finishedValueSum += r.value ?? 0;
       minutes += durationMinutes(r.start, r.end) ?? 0;
     }
     return RouteTotals(
@@ -89,6 +98,7 @@ class RouteMath {
       distance: distanceSum,
       minutes: minutes,
       value: valueSum,
+      finishedValue: finishedValueSum,
     );
   }
 
