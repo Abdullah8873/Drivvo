@@ -24,6 +24,10 @@ class _MotoLogAppState extends ConsumerState<MotoLogApp>
     with WidgetsBindingObserver {
   late final GoRouter _router = createRouter();
 
+  /// App-wide SnackBar host, for messages raised outside any screen (like
+  /// a failed email link) — similar to a top-level toast container.
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +67,19 @@ class _MotoLogAppState extends ConsumerState<MotoLogApp>
     ref.listen(passwordRecoveryEventProvider, (_, next) {
       next.whenData((_) => _router.push('/account/new-password'));
     });
+    // An emailed link that couldn't sign the user in (expired, reused, or
+    // opened in another browser) — say so instead of failing silently.
+    ref.listen(authLinkErrorProvider, (_, next) {
+      next.whenData(
+        (message) => _messengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 12),
+            action: SnackBarAction(label: 'OK', onPressed: () {}),
+          ),
+        ),
+      );
+    });
     final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
     return MaterialApp.router(
       title: 'MotoLog',
@@ -71,6 +88,7 @@ class _MotoLogAppState extends ConsumerState<MotoLogApp>
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
       routerConfig: _router,
+      scaffoldMessengerKey: _messengerKey,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
