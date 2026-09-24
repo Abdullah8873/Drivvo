@@ -239,7 +239,7 @@ class TimelineRow extends ConsumerWidget {
                           Text(
                             _subtitle(fmt, tanks),
                             style: grey,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
@@ -463,82 +463,88 @@ class MonthSummaryCard extends ConsumerWidget {
         const TimelineTrack(),
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          child: Material(
-            color: isDark ? Colors.white10 : Colors.grey.shade100,
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              key: Key('month-${summary.month.year}-${summary.month.month}'),
+          // Material sizes to its child (the Wrap of stats) unless told
+          // otherwise, so without this the card hugs its content instead of
+          // stretching across the row like Drivvo's month header.
+          child: SizedBox(
+            width: double.infinity,
+            child: Material(
+              color: isDark ? Colors.white10 : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(12),
-              onTap: onTap,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      DateFormat('MMMM yyyy')
-                          .format(summary.month)
-                          .toUpperCase(),
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        color: Colors.grey.shade700,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 20,
-                      runSpacing: 8,
-                      children: [
-                        _Stat(
-                          icon: Icons.payments_outlined,
-                          label: 'Spent',
-                          value: fmt.money(summary.spent),
+              child: InkWell(
+                key: Key('month-${summary.month.year}-${summary.month.month}'),
+                borderRadius: BorderRadius.circular(12),
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormat('MMMM yyyy')
+                            .format(summary.month)
+                            .toUpperCase(),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: Colors.grey.shade700,
+                          letterSpacing: 0.8,
                         ),
-                        if (distance != null)
-                          _Stat(
-                            icon: Icons.route_outlined,
-                            label: 'Distance',
-                            value: fmt.distance(distance, distanceUnit),
-                          ),
-                        for (final (value, kind, label) in efficiencies)
-                          if (value != null)
-                            _Stat(
-                              icon: Icons.local_gas_station_outlined,
-                              label: label,
-                              value: efficiencyText(
-                                fmt,
-                                value,
-                                distanceUnit,
-                                kind,
-                              ),
-                            ),
-                      ],
-                    ),
-                    if (change != null) ...[
+                      ),
                       const SizedBox(height: 8),
-                      Row(
+                      Wrap(
+                        spacing: 20,
+                        runSpacing: 8,
                         children: [
-                          Icon(
-                            change <= 0
-                                ? Icons.arrow_downward
-                                : Icons.arrow_upward,
-                            size: 16,
-                            color: change <= 0
-                                ? _incomeGreen
-                                : RecordModule.expense.color,
+                          _Stat(
+                            icon: Icons.payments_outlined,
+                            label: 'Spent',
+                            value: fmt.money(summary.spent),
                           ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              'Expenses ${(change.abs() * 100).round()}% '
-                              '${change <= 0 ? 'below' : 'above'} $prevMonthName',
-                              style: theme.textTheme.bodySmall,
+                          if (distance != null)
+                            _Stat(
+                              icon: Icons.route_outlined,
+                              label: 'Distance',
+                              value: fmt.distance(distance, distanceUnit),
                             ),
-                          ),
+                          for (final (value, kind, label) in efficiencies)
+                            if (value != null)
+                              _Stat(
+                                icon: Icons.local_gas_station_outlined,
+                                label: label,
+                                value: efficiencyText(
+                                  fmt,
+                                  value,
+                                  distanceUnit,
+                                  kind,
+                                ),
+                              ),
                         ],
                       ),
+                      if (change != null) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(
+                              change <= 0
+                                  ? Icons.arrow_downward
+                                  : Icons.arrow_upward,
+                              size: 16,
+                              color: change <= 0
+                                  ? _incomeGreen
+                                  : RecordModule.expense.color,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Expenses ${(change.abs() * 100).round()}% '
+                                '${change <= 0 ? 'below' : 'above'} $prevMonthName',
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

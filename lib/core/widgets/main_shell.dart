@@ -50,11 +50,18 @@ class _MainShellState extends State<MainShell> {
                 child: ColoredBox(color: Colors.black.withValues(alpha: 0.3)),
               ),
             ),
+            // Bounded to the space between the status bar and the FAB, so on
+            // short screens the menu scrolls instead of pushing its top
+            // items off-screen and unreachable.
             Positioned(
               left: 0,
               right: 0,
+              top: MediaQuery.paddingOf(context).top + 8,
               bottom: 12,
-              child: Center(child: SpeedDialMenu(onSelected: _openForm)),
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: SpeedDialMenu(onSelected: _openForm),
+              ),
             ),
           ],
         ],
@@ -162,12 +169,19 @@ class _NavItem extends StatelessWidget {
               child: Icon(icon, color: color, size: 22),
             ),
             const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: color,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            // FittedBox shrinks the label instead of wrapping it to a second
+            // line ("Reminders" -> "Reminder / s") on narrow phones.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: color,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                ),
               ),
             ),
           ],

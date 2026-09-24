@@ -223,14 +223,38 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
     }
   }
 
+  /// Same radio-list pattern as [showChoiceDialog], but with narrower
+  /// `insetPadding` (more width for the dialog) and ellipsized labels so
+  /// "Motorcycle" doesn't wrap to "Motorcycl / e" on narrow phones.
   Future<void> _pickType() async {
-    final t = await showChoiceDialog<VehicleType>(
-      context,
-      title: 'Type of vehicle',
-      options: VehicleType.values,
-      selected: _type,
-      label: (t) => t.label,
-      icon: (t) => t.icon,
+    final t = await showDialog<VehicleType>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Type of vehicle'),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        content: SingleChildScrollView(
+          child: RadioGroup<VehicleType>(
+            groupValue: _type,
+            onChanged: (v) => Navigator.pop(context, v),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final option in VehicleType.values)
+                  RadioListTile<VehicleType>(
+                    value: option,
+                    secondary: Icon(option.icon),
+                    title: Text(
+                      option.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
     if (t != null) {
       _touch();
