@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/cloud/auth_state.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/providers.dart';
 import 'core/router/app_router.dart';
@@ -55,6 +56,13 @@ class _MotoLogAppState extends ConsumerState<MotoLogApp>
     // Keeps the background sync alive for the app's lifetime (it is inert
     // without a cloud config or while signed out).
     ref.listen(syncControllerProvider, (_, _) {});
+    // Opening a password-reset email link puts Supabase in a recovery
+    // session and fires this event — route straight to "Set new password"
+    // wherever the user currently is, the same way a service worker's
+    // notification tap navigates outside the normal widget tree.
+    ref.listen(passwordRecoveryEventProvider, (_, next) {
+      next.whenData((_) => _router.push('/account/new-password'));
+    });
     final themeMode = ref.watch(settingsProvider.select((s) => s.themeMode));
     return MaterialApp.router(
       title: 'MotoLog',

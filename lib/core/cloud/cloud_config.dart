@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -72,3 +73,20 @@ Future<void> initCloud(CloudConfig config) async {
     publishableKey: config.supabasePublishableKey,
   );
 }
+
+/// Where Supabase should send the browser back after a sign-in link,
+/// sign-up confirmation link, or password-reset link is clicked — the
+/// `emailRedirectTo`/`redirectTo` argument every link-sending call needs.
+///
+/// On web this is the app's own origin (`Uri.base.origin`), so it resolves
+/// to whichever allow-listed preview port (8085 or 8086) the link was
+/// requested from — the Flutter equivalent of `window.location.origin`.
+/// supabase_flutter then picks the session up from the URL automatically
+/// when the app reloads there (`detectSessionInUri`, on by default).
+///
+/// On other platforms there's no app link registered yet, so this returns
+/// null and Supabase falls back to the project's Site URL.
+// TODO(android): deep link — register an app link (e.g.
+// `https://motolog.app/auth-callback` or a custom scheme) and return it
+// here so a link opened on Android returns straight to the app.
+String? authRedirectUrl() => kIsWeb ? Uri.base.origin : null;

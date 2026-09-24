@@ -1,16 +1,21 @@
+import 'dart:async';
+
 import 'auth_service.dart';
 
 /// In-memory [AuthService] for widget tests — no network, no Supabase
 /// project needed. Override `authServiceProvider` with an instance of this
 /// (like swapping in a mock `fetch` for an API client on the web).
 ///
-/// The fixed 6-digit [code] stands in for whatever a real email would
-/// contain; tests type it directly instead of reading an inbox.
+/// Every real flow now sends an email *link* rather than a code, so there is
+/// nothing for a test to "type back in". Instead this fake just records the
+/// email each `send*`/`resend*` call was given (`lastSignInLinkEmail` etc.)
+/// so a test can assert the right call happened, and exposes
+/// [firePasswordRecovery] to simulate the app being opened from a
+/// password-reset link.
 class FakeAuthService implements AuthService {
   FakeAuthService({
     Map<String, String>? passwordsByEmail,
     this.profile = const AccountProfile(),
-    this.code = '123456',
     this.requireSignUpConfirmation = false,
     this.failNextGoogleSignIn = false,
   }) : _passwords = {...?passwordsByEmail};
@@ -20,23 +25,43 @@ class FakeAuthService implements AuthService {
   /// The signed-in user's profile, as [loadProfile]/[saveProfile] see it.
   AccountProfile profile;
 
-  /// The code every `send*Code` call "sends" — [verifyEmailCode] and
-  /// [resetPasswordWithCode] only succeed when given this value.
-  final String code;
-
-  /// When true, [signUp] never signs in immediately — tests must go through
-  /// the code-confirmation step, like a project with "confirm email" on.
+  /// When true, [signUp] never signs in immediately — tests must simulate
+  /// the confirmation link separately, like a project with "confirm email"
+  /// on and no way to fake clicking the link.
   final bool requireSignUpConfirmation;
 
   /// Consumed by the next [signInWithGoogle] call: throws once, then clears
   /// itself so later calls succeed.
   bool failNextGoogleSignIn;
 
-  String? _pendingCodeEmail;
   bool signedIn = false;
   String? lastSignedInEmail;
   bool signOutCalled = false;
   bool deleteAccountCalled = false;
+
+  /// The email each of these calls was most recently given — what a test
+  /// checks instead of reading a real inbox.
+  String? lastSignInLinkEmail;
+  String? lastResendConfirmationEmail;
+  String? lastPasswordResetEmail;
+  String? lastUpdatedPassword;
+
+  final StreamController<DateTime> _passwordRecoveryController =
+      StreamController<DateTime>.broadcast();
+
+  /// Feeds `passwordRecoveryEventProvider` in tests (see
+  /// `account_test_utils.dart`'s `accountTestApp`).
+  Stream<DateTime> get passwordRecoveryEvents =>
+      _passwordRecoveryController.stream;
+
+  /// Simulates the app being reopened from a password-reset email link.
+  void firePasswordRecovery() =>
+      _passwordRecoveryController.add(DateTime.now());
+
+  /// Releases the stream controller — call from a test's `tearDown` if it
+  /// created a [FakeAuthService] directly (not required, since a leaked
+  /// broadcast controller leaves no pending timer).
+  void dispose() => _passwordRecoveryController.close();
 
   @override
   Future<bool> signUp({required String email, required String password}) async {
@@ -47,10 +72,7 @@ class FakeAuthService implements AuthService {
     }
     _passwords[email] = password;
     profile = AccountProfile(email: email);
-    if (requireSignUpConfirmation) {
-      _pendingCodeEmail = email;
-      return false;
-    }
+    if (requireSignUpConfirmation) return false;
     signedIn = true;
     lastSignedInEmail = email;
     return true;
@@ -70,44 +92,25 @@ class FakeAuthService implements AuthService {
   }
 
   @override
-  Future<void> sendEmailCode(String email) async {
-    _pendingCodeEmail = email;
+  Future<void> sendSignInLink(String email) async {
+    lastSignInLinkEmail = email;
   }
 
   @override
-  Future<void> verifyEmailCode({
-    required String email,
-    required String code,
-    bool signUpConfirmation = false,
-  }) async {
-    if (_pendingCodeEmail != email || code != this.code) {
-      throw const AuthServiceException(
-        'This code has expired or is invalid. Request a new one.',
-      );
-    }
-    _pendingCodeEmail = null;
-    signedIn = true;
-    lastSignedInEmail = email;
+  Future<void> resendSignUpConfirmation(String email) async {
+    lastResendConfirmationEmail = email;
   }
 
   @override
-  Future<void> sendPasswordResetCode(String email) async {
-    _pendingCodeEmail = email;
+  Future<void> sendPasswordResetLink(String email) async {
+    lastPasswordResetEmail = email;
   }
 
   @override
-  Future<void> resetPasswordWithCode({
-    required String email,
-    required String code,
-    required String newPassword,
-  }) async {
-    if (_pendingCodeEmail != email || code != this.code) {
-      throw const AuthServiceException(
-        'This code has expired or is invalid. Request a new one.',
-      );
-    }
-    _pendingCodeEmail = null;
-    _passwords[email] = newPassword;
+  Future<void> updatePassword(String newPassword) async {
+    lastUpdatedPassword = newPassword;
+    final email = lastSignedInEmail;
+    if (email != null) _passwords[email] = newPassword;
   }
 
   @override
