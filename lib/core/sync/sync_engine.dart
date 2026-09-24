@@ -225,6 +225,14 @@ class SyncEngine {
   }) async {
     if (keepLocalData) {
       await db.transaction(() async {
+        // Files uploaded under another account's folder can't be read by
+        // this one: re-upload the ones this device still has.
+        await db.customStatement(
+          'UPDATE attachments SET storage_path = NULL '
+          'WHERE storage_path IS NOT NULL AND substr(storage_path, 1, ?) != ? '
+          'AND id IN (SELECT attachment_id FROM attachment_files)',
+          [userId.length + 1, '$userId/'],
+        );
         await db.customStatement('DELETE FROM sync_outbox');
         for (final name in AppDatabase.syncedTableNames) {
           await db.customStatement(

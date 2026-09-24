@@ -6,6 +6,8 @@ import '../../core/db/app_database.dart';
 import '../../core/format/formatters.dart';
 import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
+import '../attachments/attachment_queries.dart';
+import '../attachments/attachments_field.dart';
 import 'history_calc.dart';
 import 'history_providers.dart';
 import 'history_queries.dart';
@@ -161,7 +163,11 @@ class _DetailBody extends StatelessWidget {
         rows: [
           if (r.odometer != null) ('Odometer', _dist(r.odometer!)),
           if (sincePrev != null) ('Distance since last', _dist(sincePrev)),
-          if (r.module != RecordModule.reading) ('Total', fmt.money(r.amount)),
+          if (r.module != RecordModule.reading &&
+              r.module != RecordModule.checklist)
+            ('Total', fmt.money(r.amount)),
+          if (r.module == RecordModule.checklist)
+            ('Result', r.checklistCounts.summary),
         ],
       ),
       ...switch (r.module) {
@@ -170,6 +176,7 @@ class _DetailBody extends StatelessWidget {
         RecordModule.service ||
         RecordModule.income => _entryCards(),
         RecordModule.route => _routeCards(),
+        RecordModule.checklist => _checklistCards(),
         _ => const <Widget>[],
       },
       _InfoCard(
@@ -187,8 +194,65 @@ class _DetailBody extends StatelessWidget {
       ),
       if (r.notes != null && r.notes!.trim().isNotEmpty)
         _InfoCard(title: 'Notes', child: Text(r.notes!)),
+      if (r.hasAttachments)
+        if (attachmentParentTable(r.module) case final table?)
+          _InfoCard(
+            title: 'Attachments',
+            child: RecordAttachmentsList(
+              parentTable: table,
+              parentId: r.entry?.parentId ?? r.id,
+            ),
+          ),
     ];
     return ListView(padding: const EdgeInsets.all(12), children: cards);
+  }
+
+  List<Widget> _checklistCards() {
+    String statusText(ChecklistStatus? s) => switch (s) {
+      ChecklistStatus.ok => 'OK',
+      ChecklistStatus.problem => 'Problem',
+      ChecklistStatus.na => 'N/A',
+      null => '—',
+    };
+    return [
+      _InfoCard(
+        title: record.title,
+        rows: [for (final a in record.answers) (a.label, statusText(a.status))],
+      ),
+      if (record.answers.any(
+        (a) =>
+            a.status == ChecklistStatus.problem &&
+            (a.note?.trim().isNotEmpty ?? false),
+      ))
+        _InfoCard(
+          title: 'Problems',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final a in record.answers)
+                if (a.status == ChecklistStatus.problem &&
+                    (a.note?.trim().isNotEmpty ?? false))
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text.rich(
+                      TextSpan(
+                        text: '${a.label}: ',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                        children: [
+                          TextSpan(
+                            text: a.note,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+            ],
+          ),
+        ),
+    ];
   }
 
   List<Widget> _refuelCards() {

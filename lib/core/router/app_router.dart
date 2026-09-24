@@ -11,7 +11,9 @@ import '../../features/catalog/catalog_screen.dart';
 import '../../features/flex/flex_screen.dart';
 import '../../features/export/export_screen.dart';
 import '../../features/forms/entry_form_screen.dart';
-import '../../features/forms/placeholder_form_screen.dart';
+import '../../features/attachments/storage_screen.dart';
+import '../../features/checklists/checklist_forms_screen.dart';
+import '../../features/forms/checklist_form_screen.dart';
 import '../../features/forms/reading_form_screen.dart';
 import '../../features/forms/refueling_form_screen.dart';
 import '../../features/forms/route_form_screen.dart';
@@ -45,6 +47,8 @@ import '../widgets/main_shell.dart';
 ///   /account/new-password (only reached from a password-recovery link)
 ///   /flex                     Flex calculator (More → Flex calculator)
 ///   /achievements             Achievements (More → Achievements)
+///   /storage                  Attachment usage (More → Storage)
+///   /forms                    Checklist templates (More → Forms)
 /// ```
 ///
 /// [activeRouter] tracks the most recently created router. A tapped OS
@@ -141,6 +145,8 @@ GoRouter _buildRouter() => GoRouter(
       builder: (_, _) => const AchievementsScreen(),
     ),
     GoRoute(path: '/export', builder: (_, _) => const ExportScreen()),
+    GoRoute(path: '/storage', builder: (_, _) => const StorageScreen()),
+    GoRoute(path: '/forms', builder: (_, _) => const ChecklistFormsScreen()),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(
@@ -160,5 +166,5 @@ Widget _form(RecordModule module, String? id) => switch (module) {
   RecordModule.route => RouteFormScreen(id: id),
   RecordModule.reading => ReadingFormScreen(id: id),
   RecordModule.reminder => ReminderFormScreen(id: id),
-  RecordModule.checklist => PlaceholderFormScreen(module: module),
+  RecordModule.checklist => ChecklistFormScreen(id: id),
 };

@@ -2,6 +2,9 @@ import 'package:drift/drift.dart';
 
 import '../../core/db/app_database.dart';
 import '../../core/theme/record_module.dart';
+import '../../core/calc/checklist_math.dart';
+import '../attachments/attachment_queries.dart';
+import '../checklists/checklist_queries.dart';
 import '../entries/entry_queries.dart';
 
 /// One fuel inside a refueling, with its catalog name resolved.
@@ -52,6 +55,9 @@ class TimelineRecord {
     this.entry,
     this.route,
     this.reading,
+    this.checklist,
+    this.answers = const [],
+    this.hasAttachments = false,
   });
 
   final RecordModule module;
@@ -78,10 +84,30 @@ class TimelineRecord {
   final Route? route;
   final Reading? reading;
 
+  /// Checklist runs: the record and its live answers, in order. Never a
+  /// cost ([amount] is 0; see [isCost]).
+  final Checklist? checklist;
+  final List<ChecklistAnswer> answers;
+
+  /// Whether the record has at least one live attachment (paperclip icon).
+  final bool hasAttachments;
+
   String? get notes =>
-      refueling?.notes ?? entry?.notes ?? route?.notes ?? reading?.notes;
+      refueling?.notes ??
+      entry?.notes ??
+      route?.notes ??
+      reading?.notes ??
+      checklist?.notes;
   String? get driver =>
-      refueling?.driver ?? entry?.driver ?? route?.driver ?? reading?.driver;
+      refueling?.driver ??
+      entry?.driver ??
+      route?.driver ??
+      reading?.driver ??
+      checklist?.driver;
+
+  /// OK / problem / N/A counts of a checklist run.
+  ChecklistCounts get checklistCounts =>
+      ChecklistCounts.of(answers.map((a) => a.status));
 
   /// Money going out (counts toward "total spent").
   bool get isCost =>
@@ -116,7 +142,9 @@ class TimelineRecord {
             '${to == null || to.isEmpty ? '?' : to}';
       case RecordModule.reading:
         return 'Reading';
-      case RecordModule.checklist || RecordModule.reminder:
+      case RecordModule.checklist:
+        return checklist?.title ?? module.label;
+      case RecordModule.reminder:
         return module.label;
     }
   }
@@ -139,6 +167,9 @@ extension HistoryQueries on AppDatabase {
         routes,
         readings,
         catalogItems,
+        checklists,
+        checklistAnswers,
+        attachments,
       },
     ).watch().asyncMap((_) => loadTimeline(vehicleId));
   }
@@ -185,6 +216,22 @@ extension HistoryQueries on AppDatabase {
               (r) => r.vehicleId.equals(vehicleId) & r.deletedAt.isNull(),
             ))
             .get();
+    final checklistRows =
+        await (select(checklists)..where(
+              (c) => c.vehicleId.equals(vehicleId) & c.deletedAt.isNull(),
+            ))
+            .get();
+    final answerRows =
+        await (select(checklistAnswers)
+              ..where(
+                (a) =>
+                    a.checklistId.isIn(checklistRows.map((c) => c.id)) &
+                    a.deletedAt.isNull(),
+              )
+              ..orderBy([(a) => OrderingTerm.asc(a.position)]))
+            .get();
+    final withFiles = await parentsWithAttachments();
+    bool files(String table, String id) => withFiles.contains('$table|$id');
 
     final records = <TimelineRecord>[
       for (final r in refuelRows)
@@ -210,6 +257,7 @@ extension HistoryQueries on AppDatabase {
           paymentMethod: nameOf(r.paymentMethodId),
           reason: nameOf(r.reasonId),
           refueling: r,
+          hasAttachments: files('refuelings', r.id),
         ),
       for (final e in entryRows)
         TimelineRecord(
@@ -231,6 +279,8 @@ extension HistoryQueries on AppDatabase {
           paymentMethod: nameOf(e.paymentMethodId),
           reason: nameOf(e.reasonId),
           entry: e,
+          // Attachments live on the installment group's parent.
+          hasAttachments: files('entries', e.parentId ?? e.id),
         ),
       for (final r in routeRows)
         TimelineRecord(
@@ -244,6 +294,7 @@ extension HistoryQueries on AppDatabase {
           odometer: r.endOdometer ?? r.startOdometer,
           reason: nameOf(r.reasonId),
           route: r,
+          hasAttachments: files('routes', r.id),
         ),
       for (final r in readingRows)
         TimelineRecord(
@@ -254,6 +305,22 @@ extension HistoryQueries on AppDatabase {
           amount: 0,
           odometer: r.odometer,
           reading: r,
+          hasAttachments: files('readings', r.id),
+        ),
+      for (final c in checklistRows)
+        TimelineRecord(
+          module: RecordModule.checklist,
+          id: c.id,
+          vehicleId: c.vehicleId,
+          date: c.date,
+          amount: 0,
+          odometer: c.odometer,
+          checklist: c,
+          answers: [
+            for (final a in answerRows)
+              if (a.checklistId == c.id) a,
+          ],
+          hasAttachments: files('checklists', c.id),
         ),
     ];
 
@@ -285,7 +352,11 @@ extension HistoryQueries on AppDatabase {
         return (await (select(
           readings,
         )..where((r) => r.id.equals(id))).getSingleOrNull())?.vehicleId;
-      case RecordModule.checklist || RecordModule.reminder:
+      case RecordModule.checklist:
+        return (await (select(
+          checklists,
+        )..where((r) => r.id.equals(id))).getSingleOrNull())?.vehicleId;
+      case RecordModule.reminder:
         return null;
     }
   }
@@ -302,6 +373,7 @@ extension HistoryQueries on AppDatabase {
             RecordModule.income) {
       return deleteEntry(id);
     }
+    if (module == RecordModule.checklist) return deleteChecklist(id);
     final now = Value(DateTime.now());
     return transaction(() async {
       switch (module) {

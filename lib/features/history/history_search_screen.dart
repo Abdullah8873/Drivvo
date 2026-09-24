@@ -9,8 +9,8 @@ import 'history_queries.dart';
 import 'widgets/timeline_widgets.dart';
 
 /// True when [query] appears in any searchable text of [r]: title, fuel /
-/// type names, station/place, notes, driver, route fields or the amount
-/// (raw "1470.13" or formatted "PKR1,470.13").
+/// type names, station/place, notes, driver, route fields, checklist item
+/// labels/notes or the amount (raw "1470.13" or formatted "PKR1,470.13").
 bool recordMatches(TimelineRecord r, String query, Formatters fmt) {
   final q = query.trim().toLowerCase();
   if (q.isEmpty) return true;
@@ -30,6 +30,7 @@ bool recordMatches(TimelineRecord r, String query, Formatters fmt) {
     route?.destination,
     route?.contractor,
     route?.cargoType,
+    for (final a in r.answers) ...[a.label, a.note],
     if (r.amount != 0) ...[
       r.amount.toStringAsFixed(2),
       r.amount.toString(),

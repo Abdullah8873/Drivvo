@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/cloud/auth_state.dart';
 import '../../core/cloud/cloud_config.dart';
+import '../../core/sync/sync_controller.dart';
 import 'account_widgets.dart';
 import 'auth_service.dart';
 
@@ -253,6 +254,24 @@ class _SignedInViewState extends ConsumerState<_SignedInView> {
       ),
     );
     if (ok != true) return;
+    // Attachment files first: Supabase won't let the account deletion
+    // (SQL) remove Storage objects, so they'd be orphaned in the bucket.
+    final userId = ref.read(authUserIdProvider).value;
+    final files = ref.read(remoteFileStoreProvider);
+    if (userId != null && files != null) {
+      try {
+        await files.removeAllForUser(userId);
+      } catch (_) {
+        if (mounted) {
+          setState(
+            () => _error =
+                "Couldn't delete your attached files. Check your internet "
+                'connection and try again.',
+          );
+        }
+        return;
+      }
+    }
     try {
       final auth = ref.read(authServiceProvider);
       await auth.deleteAccount();

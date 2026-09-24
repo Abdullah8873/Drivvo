@@ -42,11 +42,14 @@ class MonthSummary {
   }
 
   /// Every odometer value recorded this month (routes add their start).
+  /// Checklist odometers are optional notes on an inspection and are left
+  /// out of distance math.
   List<double> get odometers => [
-    for (final r in records) ...[
-      ?r.odometer,
-      if (r.route != null) r.route!.startOdometer,
-    ],
+    for (final r in records)
+      if (r.module != RecordModule.checklist) ...[
+        ?r.odometer,
+        if (r.route != null) r.route!.startOdometer,
+      ],
   ];
 
   /// Distance driven in the month: this month's highest odometer minus the
