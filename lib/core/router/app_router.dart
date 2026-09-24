@@ -1,6 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/account/account_screen.dart';
+import '../../features/account/reset_password_screen.dart';
+import '../../features/account/sign_in_screen.dart';
+import '../../features/account/sign_up_screen.dart';
 import '../../features/catalog/catalog_screen.dart';
 import '../../features/forms/entry_form_screen.dart';
 import '../../features/forms/placeholder_form_screen.dart';
@@ -32,6 +36,7 @@ import '../widgets/main_shell.dart';
 ///   /record/<module>/<id>    record detail view
 ///   /vehicles, /vehicles/new, /vehicles/<id>
 ///   /settings, /catalog/<CatalogKind.name>
+///   /account, /account/sign-in, /account/sign-up, /account/reset-password
 /// ```
 GoRouter createRouter() => GoRouter(
   initialLocation: '/history',
@@ -93,6 +98,13 @@ GoRouter createRouter() => GoRouter(
       builder: (_, state) => VehicleFormScreen(id: state.pathParameters['id']),
     ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
+    GoRoute(path: '/account', builder: (_, _) => const AccountScreen()),
+    GoRoute(path: '/account/sign-in', builder: (_, _) => const SignInScreen()),
+    GoRoute(path: '/account/sign-up', builder: (_, _) => const SignUpScreen()),
+    GoRoute(
+      path: '/account/reset-password',
+      builder: (_, _) => const ResetPasswordScreen(),
+    ),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(
