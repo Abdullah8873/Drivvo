@@ -115,16 +115,40 @@ void main() {
     testWidgets('Share as image calls the file sharer with a .png name', (
       tester,
     ) async {
+      // Build the app and open the sheet under the normal fake-time test
+      // zone (like every other widget test here) — only the tap that
+      // triggers the real `toImage()` capture needs `runAsync`. Wrapping
+      // `openReports` itself in `runAsync` would let any real `Timer`s the
+      // app schedules while building (e.g. the reports day-change ticker)
+      // leak outside the fake-time zone and hang the test for real minutes.
+      await openReports(tester);
+
+      // Shrink the viewport before capturing: `toImage()` + PNG encoding
+      // are real (software-rendered) work, and a full-size 1000×3000
+      // capture is slow enough on this CI-less local run to blow past a
+      // short poll budget. The tab still renders fine at this size.
+      tester.view.physicalSize = const Size(400, 700);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('Share'));
+      await tester.pumpAndSettle();
+
       await tester.runAsync(() async {
-        await openReports(tester);
-        await tester.tap(find.byTooltip('Share'));
-        await tester.pumpAndSettle();
         await tester.tap(find.text('Share as image'));
-        await tester.pumpAndSettle();
+        await tester.pump();
+        // The Share button shows an indeterminate spinner while the real
+        // capture runs, which never settles on its own — poll instead of
+        // `pumpAndSettle`, generously (real PNG encoding, not fake time).
+        for (var i = 0; i < 150 && sharer.callCount == 0; i++) {
+          await tester.pump(const Duration(milliseconds: 200));
+        }
       });
 
       expect(sharer.callCount, 1);
-      expect(sharer.filename, matches(RegExp(r'^motolog-report-general-\d{4}-\d{2}-\d{2}\.png$')));
+      expect(
+        sharer.filename,
+        matches(RegExp(r'^motolog-report-general-\d{4}-\d{2}-\d{2}\.png$')),
+      );
       expect(sharer.mimeType, 'image/png');
       expect(sharer.bytes, isNotNull);
       expect(sharer.bytes!.isNotEmpty, isTrue);

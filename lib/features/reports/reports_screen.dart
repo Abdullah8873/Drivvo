@@ -159,18 +159,23 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
   /// assume a bounded size, …) for a "nice to have"; documenting the
   /// limitation here was judged the better trade for now.
   Future<void> _share(_ShareAs action) async {
+    debugPrint('DBG _share start');
     final index = _tabController.index;
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final boundary =
         _boundaryKeys[index].currentContext?.findRenderObject();
+    debugPrint('DBG boundary=$boundary');
     if (boundary is! RenderRepaintBoundary) return;
 
     setState(() => _sharing = true);
     try {
+      debugPrint('DBG calling toImage');
       final image = await boundary.toImage(pixelRatio: devicePixelRatio);
+      debugPrint('DBG got image ${image.width}x${image.height}');
       final byteData = await image.toByteData(
         format: ui.ImageByteFormat.png,
       );
+      debugPrint('DBG got byteData ${byteData?.lengthInBytes}');
       if (byteData == null) return;
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
