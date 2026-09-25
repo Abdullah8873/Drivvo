@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
+import 'persist_writes_interceptor.dart';
 import 'seed_data.dart';
 import 'tables.dart';
 
@@ -39,16 +41,22 @@ class AppDatabase extends _$AppDatabase {
   /// Tests pass an in-memory executor: `AppDatabase(NativeDatabase.memory())`.
   AppDatabase(super.e);
 
-  AppDatabase.defaults()
-    : super(
-        driftDatabase(
-          name: 'motolog',
-          web: DriftWebOptions(
-            sqlite3Wasm: Uri.parse('sqlite3.wasm'),
-            driftWorker: Uri.parse('drift_worker.js'),
-          ),
-        ),
-      );
+  /// On the web, [PersistWritesInterceptor] makes every write reach
+  /// IndexedDB (drift alone misses commits and `… RETURNING` writes).
+  AppDatabase.defaults() : super(_openDefault());
+
+  static QueryExecutor _openDefault() {
+    final executor = driftDatabase(
+      name: 'motolog',
+      web: DriftWebOptions(
+        sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+        driftWorker: Uri.parse('drift_worker.js'),
+      ),
+    );
+    return kIsWeb
+        ? executor.interceptWith(PersistWritesInterceptor())
+        : executor;
+  }
 
   /// v1: initial schema (catalogs seeded with random ids).
   /// v2: deterministic seed ids + de-duplication of double-seeded catalogs.
