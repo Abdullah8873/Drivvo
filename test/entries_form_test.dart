@@ -264,6 +264,13 @@ void main() {
         'Oil Change': '100',
         'Air Filter': '50',
       });
+      // Two type lines, each with its own part number field, push
+      // Installments below the fold.
+      await tester.dragUntilVisible(
+        field('Installments'),
+        find.byType(ListView),
+        const Offset(0, -200),
+      );
       await tester.enterText(field('Installments'), '3');
       await tester.pump();
 
