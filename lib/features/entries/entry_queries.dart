@@ -12,6 +12,7 @@ class EntryLine {
 
   String get typeId => item.typeId;
   double get amount => item.amount;
+  String? get partNumber => item.partNumber;
 }
 
 /// An expense/service/income row plus everything a list or detail view
@@ -53,6 +54,7 @@ class EntryItemDraft {
     required this.typeId,
     required this.amount,
     this.typeName,
+    this.partNumber,
   });
 
   final String typeId;
@@ -62,6 +64,10 @@ class EntryItemDraft {
 
   /// Display only (filled when loading for edit); not saved.
   final String? typeName;
+
+  /// Service items only: the replaced part's number or brand. Not split
+  /// across installments — every installment carries the same value.
+  final String? partNumber;
 }
 
 /// What the form submits: the *whole* entry, before it is split into
@@ -209,6 +215,7 @@ extension EntryQueries on AppDatabase {
             entryId: entryId,
             typeId: item.typeId,
             amount: s.itemAmounts[i],
+            partNumber: Value(item.partNumber),
           ),
         );
       }
@@ -324,11 +331,16 @@ extension EntryQueries on AppDatabase {
     }
     final lineTypes = <String>[];
     final lineCents = <int>[];
+    // Not split across installments (unlike the amount), so this is
+    // whichever installment's row is read first for that line — they all
+    // carry the same value (see `insertItems`).
+    final linePartNumbers = <String?>[];
     for (final row in rows) {
       for (final (k, item) in (itemsByEntry[row.id] ?? const []).indexed) {
         if (k == lineTypes.length) {
           lineTypes.add(item.typeId);
           lineCents.add(0);
+          linePartNumbers.add(item.partNumber);
         }
         lineCents[k] += (item.amount * 100).round();
       }
@@ -375,6 +387,7 @@ extension EntryQueries on AppDatabase {
               typeId: typeId,
               amount: lineCents[k] / 100,
               typeName: names[typeId],
+              partNumber: linePartNumbers[k],
             ),
         ],
       ),

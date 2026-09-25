@@ -121,8 +121,40 @@ void main() {
     expect(expense.recordCount, 1);
     expect(expense.rows, hasLength(2));
     expect(expense.rows.map((r) => r[5]), containsAll(['Fine', 'Tolls']));
-    expect(expense.rows.first[11], '200'); // discount repeated per row
+    expect(expense.rows.first[12], '200'); // discount repeated per row
     expect(expense.moneyTotal, 2300);
+  });
+
+  test('service item exports its part number', () async {
+    final oilChange = await catalogId(
+      db,
+      CatalogKind.serviceType,
+      'Oil Change',
+    );
+    final entry = await db
+        .into(db.entries)
+        .insertReturning(
+          EntriesCompanion.insert(
+            vehicleId: vid,
+            kind: EntryKind.service,
+            date: DateTime(2026, 2, 1, 9),
+            totalCost: 1200,
+          ),
+        );
+    await db
+        .into(db.entryItems)
+        .insert(
+          EntryItemsCompanion.insert(
+            entryId: entry.id,
+            typeId: oilChange,
+            amount: 1200,
+            partNumber: const Value('Bosch WS10130'),
+          ),
+        );
+
+    final service = section(await sectionsFor(), RecordModule.service);
+    expect(service.headers[7], 'Part Number');
+    expect(service.rows.single[7], 'Bosch WS10130');
   });
 
   test('route: trip and freight modes', () async {

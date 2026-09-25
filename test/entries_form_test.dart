@@ -220,6 +220,35 @@ void main() {
     await unmount(tester);
   });
 
+  testWidgets('a service item can have a part number / brand', (tester) async {
+    final db = testDatabase();
+    addTearDown(db.close);
+    await tester.runAsync(() => addTestVehicle(db));
+    await openForm(tester, db, 'Service');
+
+    await pickTypes(tester, 'Type of service', {'Oil Change': '1200'});
+    final partNumberField = find.byKey(const Key('part-number-Oil Change'));
+    expect(partNumberField, findsOneWidget);
+    await tester.enterText(partNumberField, 'Bosch WS10130');
+    await tester.pump();
+
+    await save(tester, 'Service saved');
+    final items = await liveItems(tester, db);
+    expect(items.single.partNumber, 'Bosch WS10130');
+    await unmount(tester);
+  });
+
+  testWidgets('an expense item has no part number field', (tester) async {
+    final db = testDatabase();
+    addTearDown(db.close);
+    await tester.runAsync(() => addTestVehicle(db));
+    await openForm(tester, db, 'Expense');
+
+    await pickTypes(tester, 'Type of expense', {'Tax': '1000'});
+    expect(find.widgetWithText(TextField, 'Part number / brand'), findsNothing);
+    await unmount(tester);
+  });
+
   testWidgets(
     'installment preview matches the actual first installment total',
     (tester) async {

@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show BooleanExpressionOperators;
+import 'package:drift/drift.dart' show BooleanExpressionOperators, Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:motolog/core/calc/consumption.dart';
 import 'package:motolog/core/db/app_database.dart';
@@ -242,6 +242,37 @@ void main() {
       db.entryItems,
     )..where((i) => i.entryId.equals(serviceId))).get();
     expect(items.every((i) => i.deletedAt != null), isTrue);
+  });
+
+  test('timeline items expose the service part number', () async {
+    final type = await catalogId(db, CatalogKind.serviceType, 'Oil Change');
+    final id =
+        (await db
+                .into(db.entries)
+                .insertReturning(
+                  EntriesCompanion.insert(
+                    vehicleId: vid,
+                    kind: EntryKind.service,
+                    date: DateTime(2026, 9, 25),
+                    totalCost: 1200,
+                  ),
+                ))
+            .id;
+    await db
+        .into(db.entryItems)
+        .insert(
+          EntryItemsCompanion.insert(
+            entryId: id,
+            typeId: type,
+            amount: 1200,
+            partNumber: const Value('Bosch WS10130'),
+          ),
+        );
+    final t = await db.loadTimeline(vid);
+    expect(
+      t.firstWhere((r) => r.id == id).items.single.partNumber,
+      'Bosch WS10130',
+    );
   });
 
   test('search matches names, amounts and notes', () async {

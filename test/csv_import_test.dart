@@ -523,6 +523,65 @@ void main() {
       await _service.run(target, batch, currentVehicleId: targetHonda);
       expect(await _snapshot(target), await _snapshot(source));
     });
+
+    test('a service item\'s part number round-trips through CSV', () async {
+      final oilChange = await catalogId(
+        source,
+        CatalogKind.serviceType,
+        'Oil Change',
+      );
+      final entry = await source
+          .into(source.entries)
+          .insertReturning(
+            EntriesCompanion.insert(
+              vehicleId: honda,
+              kind: EntryKind.service,
+              date: DateTime(2024, 6, 1, 9),
+              totalCost: 1200,
+            ),
+          );
+      await source
+          .into(source.entryItems)
+          .insert(
+            EntryItemsCompanion.insert(
+              entryId: entry.id,
+              typeId: oilChange,
+              amount: 1200,
+              partNumber: const Value('Bosch WS10130'),
+            ),
+          );
+
+      final bytes = await _export(
+        source,
+        [honda],
+        modules: {RecordModule.service},
+      );
+      final batch = parseImportFile(bytes, fileName: 'service.csv');
+      expect(batch.issues, isEmpty);
+      await _service.run(target, batch, currentVehicleId: targetHonda);
+
+      final items = await target.select(target.entryItems).get();
+      expect(items.single.partNumber, 'Bosch WS10130');
+    });
+
+    test('a CSV exported before Part Number existed still imports', () async {
+      final bytes = _bytes(
+        _csv([
+          'Vehicle,Date,Time,Odometer,Title,Type,Item Amount,Place,'
+              'Payment Method,Reason,Driver,Discount,Installment No,'
+              'Installment Count,Total Cost,Currency,Notes',
+          'Honda,2024-06-01,09:00,,,Oil Change,1200,,,,,,1,1,1200,PKR,',
+        ]),
+      );
+      final batch = parseImportFile(bytes, fileName: 'old-service-export.csv');
+      expect(batch.issues, isEmpty);
+      expect(batch.needsEntryKind, isFalse);
+      expect(batch.entries.single.items.single.partNumber, isNull);
+
+      await _service.run(target, batch, currentVehicleId: targetHonda);
+      final items = await target.select(target.entryItems).get();
+      expect(items.single.partNumber, isNull);
+    });
   });
 
   group('preview dialog', () {

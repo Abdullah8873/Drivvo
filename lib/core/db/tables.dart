@@ -190,6 +190,11 @@ class EntryItems extends Table with SyncColumns {
   TextColumn get entryId => text().references(Entries, #id)();
   TextColumn get typeId => text().references(CatalogItems, #id)();
   RealColumn get amount => real()();
+
+  /// Service items only (v7): the replaced part's number or brand, e.g.
+  /// "Bosch WS10130" — free text, shown next to the type in the picker,
+  /// record detail and exports.
+  TextColumn get partNumber => text().nullable()();
 }
 
 enum RouteMode { trip, freight }

@@ -37,6 +37,7 @@ const entryExportHeaders = [
   'Title',
   'Type',
   'Item Amount',
+  'Part Number',
   'Place',
   'Payment Method',
   'Reason',
