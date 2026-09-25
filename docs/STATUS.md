@@ -76,8 +76,11 @@ Format clean, analyze 0 issues, **513 tests pass**. No processes running.
   `--wasm` build served + opened. **Check:** in History the km/L figure
   shows on the *first* refueling row (1000 km), not the second (1200 km) —
   confirm against Drivvo before changing anything.
-- Old worktrees under `.claude/worktrees/` (≈28, all merged branches) can be
-  removed with `git worktree remove` + branch delete — ask the owner first.
+- Old worktrees under `.claude/worktrees/` (27): every branch is merged
+  into `develop` **and pushed to GitHub** (2026-09-26), so nothing is lost
+  if a worktree folder disappears. Their only uncommitted changes are
+  auto-regenerated `windows/flutter/generated_plugin*` files. **Keep them —
+  owner wants them kept; don't remove worktrees or branches without asking.**
 - **Then:** sharing batch — design is decided in `docs/SHARING.md`, Drivvo
   screens verified in `docs/SPEC.md`, permission model already on develop
   (`lib/core/calc/access_profile.dart`). Plan: Opus = SQL/RLS/sync/account
