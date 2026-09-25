@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/motion.dart';
+
 /// App-wide theme. Think of this as the global stylesheet / design tokens.
 class AppTheme {
   AppTheme._();
@@ -19,6 +21,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      pageTransitionsTheme: appPageTransitionsTheme,
       colorScheme: scheme,
       scaffoldBackgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
       appBarTheme: const AppBarTheme(
