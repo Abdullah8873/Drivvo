@@ -176,7 +176,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     const SizedBox(height: 16),
     Text(
       'Check your email — we sent a sign-in link to ${_email.text}. Open '
-      'it on this device.',
+      'it in this browser.',
       textAlign: TextAlign.center,
     ),
     AuthErrorText(_error),

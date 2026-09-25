@@ -46,7 +46,9 @@ class DeviceAttachmentPicker implements AttachmentPicker {
     );
     if (file == null) return null;
     final bytes = await file.readAsBytes();
-    final name = file.name.isEmpty ? 'photo.jpg' : file.name;
+    // image_picker on web renames resized images to `scaled_<name>`.
+    final picked = file.name.replaceFirst(RegExp(r'^scaled_'), '');
+    final name = picked.isEmpty ? 'photo.jpg' : picked;
     return PendingAttachment(
       fileName: name,
       mimeType: file.mimeType ?? mimeTypeForName(name),
