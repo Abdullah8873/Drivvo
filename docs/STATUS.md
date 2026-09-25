@@ -53,6 +53,38 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   360×640 in light + dark (brand picker, checklist save/expand, Storage,
   Reports, map tiles + attribution).
 
+## FINISH LINE — owner wants the app COMPLETE in the next PC session
+Scope (owner decisions): Android + web, English only, no web hosting yet,
+no iOS (needs a Mac). Work through this list top to bottom; tick items here
+as they land. Code items may use helper agents (worktrees, rules in memory)
+if the cloud session "Extras, Import & Animations" hasn't done them.
+1. [ ] Sharing SQL: review then apply
+   `supabase/migrations/20260926000001_sharing.sql` in the Supabase SQL
+   editor via Claude in Chrome; run the checks in "Sharing batch" below.
+   (Sharing is merged on develop `2839e13`, 551 tests; never run on real
+   Postgres — fix errors on a branch if the editor reports any.)
+2. [ ] Cloud session merges `feature/extras-ui`, `feature/import-links`,
+   `feature/animations` — check `git log develop` / STATUS; finish any it
+   didn't.
+3. [ ] Supabase → Auth → Redirect URLs: add
+   `com.abdullah8873.motolog://login-callback`.
+4. [ ] Part number / brand field on service items (schema v6: nullable
+   column on `entry_items` + Supabase migration + sync + service type
+   picker/detail/export). Only after sharing SQL is applied (avoid two
+   schema changes in flight).
+5. [ ] New release APK with sync: `flutter build apk --release
+   --split-per-abi --dart-define-from-file=env/cloud.json`; send
+   `app-arm64-v8a-release.apk` to the owner (SendUserFile); emulator
+   `motolog_api36` smoke test (close other heavy apps first).
+6. [ ] Hands-on QA: Sharing checklist (needs owner's 2nd test account),
+   dark theme, one live sync, email link on Android, animations vs Drivvo
+   (BlueStacks, view only) — fix what's found.
+7. [ ] Release: re-enable CI (`.github/workflows-disabled/` →
+   `.github/workflows/`, make it green), bump version to 1.0.0, merge
+   `develop` → `main`, tag `v1.0.0`, push.
+8. [ ] Final STATUS.md: done / owner-only leftovers (Google sign-in setup,
+   Play Store signing key, iOS later, web hosting later).
+
 ## HANDOFF 2026-09-26 evening (PC session hit 88% of the 5-hour limit)
 Owner wants the app complete today (Android + web features; English only;
 no web deploy; iOS impossible without a Mac). Two unmerged branches are
