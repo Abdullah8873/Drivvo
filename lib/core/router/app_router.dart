@@ -19,7 +19,9 @@ import '../../features/forms/refueling_form_screen.dart';
 import '../../features/forms/route_form_screen.dart';
 import '../../features/history/history_screen.dart';
 import '../../features/history/record_detail_screen.dart';
+import '../../features/more/about_screen.dart';
 import '../../features/more/more_screen.dart';
+import '../../features/more/translation_screen.dart';
 import '../../features/places/places_screen.dart';
 import '../../features/reminders/reminder_form_screen.dart';
 import '../../features/reminders/reminders_screen.dart';
@@ -57,6 +59,8 @@ import '../widgets/main_shell.dart';
 ///   /storage                  Attachment usage (More → Storage)
 ///   /forms                    Checklist templates (More → Forms)
 ///   /places                   My places list/map (More → My places)
+///   /about                    App info + licenses (More → About)
+///   /translation              Language (More → Translation)
 ///   /users, /users/new, /users/<id>          More → Users (sharing)
 ///   /profiles, /profiles/new, /profiles/<id> More → Profiles
 ///   /transfer                 More → Transfer
@@ -162,6 +166,8 @@ GoRouter _buildRouter() => GoRouter(
     GoRoute(path: '/export', builder: (_, _) => const ExportScreen()),
     GoRoute(path: '/storage', builder: (_, _) => const StorageScreen()),
     GoRoute(path: '/forms', builder: (_, _) => const ChecklistFormsScreen()),
+    GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
+    GoRoute(path: '/translation', builder: (_, _) => const TranslationScreen()),
     GoRoute(path: '/users', builder: (_, _) => const UsersScreen()),
     GoRoute(path: '/users/new', builder: (_, _) => const MemberFormScreen()),
     GoRoute(
