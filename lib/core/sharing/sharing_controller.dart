@@ -49,9 +49,17 @@ class SharingState {
 class SharingController extends Notifier<SharingState> {
   @override
   SharingState build() {
-    final api = ref.watch(sharingApiProvider);
     final userId = ref.watch(authUserIdProvider).value;
-    if (api == null || userId == null) return const SharingState();
+    if (userId == null) return const SharingState();
+    final SharingApi? api;
+    try {
+      api = ref.watch(sharingApiProvider);
+    } catch (_) {
+      // No usable Supabase client (a widget test that fakes a configured
+      // build): sharing simply isn't available.
+      return const SharingState();
+    }
+    if (api == null) return const SharingState();
     // A finished sync of a shared account is a good moment to pick up
     // access changes.
     ref.listen(syncControllerProvider, (previous, next) {

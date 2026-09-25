@@ -14,13 +14,17 @@ import 'package:motolog/core/providers.dart';
 /// timer when a watched query loses its last listener — otherwise every
 /// widget test that watches the database fails with "A Timer is still
 /// pending even after the widget tree was disposed".
-AppDatabase testDatabase() {
+///
+/// [seedDefaults] = false builds a shared account's local copy (no default
+/// catalogs), like `AppDatabase.named(..., seedDefaults: false)`.
+AppDatabase testDatabase({bool seedDefaults = true}) {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
   return AppDatabase(
     DatabaseConnection(
       NativeDatabase.memory(),
       closeStreamsSynchronously: true,
     ),
+    seedDefaults: seedDefaults,
   );
 }
 

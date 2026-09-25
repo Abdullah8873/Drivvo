@@ -181,34 +181,10 @@ class TransferScreen extends ConsumerWidget {
   }
 
   static Future<void> _redeem(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController();
     final code = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Redeem transfer code'),
-        content: TextField(
-          key: const Key('redeem-code'),
-          controller: controller,
-          autofocus: true,
-          textCapitalization: TextCapitalization.characters,
-          decoration: const InputDecoration(
-            labelText: 'Code from the seller',
-            hintText: 'K7QM-3XPD',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('CANCEL'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('REDEEM'),
-          ),
-        ],
-      ),
+      builder: (ctx) => const _RedeemDialog(),
     );
-    controller.dispose();
     if (code == null || !context.mounted) return;
     final normalized = TransferCode.normalize(code);
     if (!TransferCode.isValid(normalized)) {
@@ -234,6 +210,52 @@ class TransferScreen extends ConsumerWidget {
   static void _snack(BuildContext context, String message) =>
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(message)));
+}
+
+/// Asks for the seller's code. Owns its text controller, so it is only
+/// disposed once the dialog has finished animating out.
+class _RedeemDialog extends StatefulWidget {
+  const _RedeemDialog();
+
+  @override
+  State<_RedeemDialog> createState() => _RedeemDialogState();
+}
+
+class _RedeemDialogState extends State<_RedeemDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Redeem transfer code'),
+      content: TextField(
+        key: const Key('redeem-code'),
+        controller: _controller,
+        autofocus: true,
+        textCapitalization: TextCapitalization.characters,
+        decoration: const InputDecoration(
+          labelText: 'Code from the seller',
+          hintText: 'K7QM-3XPD',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('CANCEL'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, _controller.text),
+          child: const Text('REDEEM'),
+        ),
+      ],
+    );
+  }
 }
 
 class _TransferList extends ConsumerWidget {

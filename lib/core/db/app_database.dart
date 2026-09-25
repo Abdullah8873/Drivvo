@@ -206,6 +206,13 @@ class AppDatabase extends _$AppDatabase {
       if (from < 6) {
         await transaction(() async {
           for (final table in createdByTables) {
+            // Idempotent (an interrupted upgrade, or tests that build an
+            // "old" database from today's schema).
+            final columns = await customSelect('PRAGMA table_info($table)')
+                .get();
+            if (columns.any((c) => c.read<String>('name') == 'created_by')) {
+              continue;
+            }
             await customStatement(
               'ALTER TABLE $table ADD COLUMN created_by TEXT NULL',
             );
