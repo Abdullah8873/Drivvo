@@ -194,7 +194,7 @@ void main() {
     final form = await old.getChecklistForm(preTrip);
     expect(form!.items, hasLength(9));
     final version = await old.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 4);
+    expect(version.read<int>('user_version'), old.schemaVersion);
 
     // Triggers fire on the upgraded database.
     await old.customStatement('DELETE FROM sync_outbox');

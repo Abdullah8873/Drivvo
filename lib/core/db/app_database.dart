@@ -57,8 +57,11 @@ class AppDatabase extends _$AppDatabase {
   /// v4: attachments (+ local `attachment_files` bytes), checklist
   ///     templates ("Forms") and checklist records; the default
   ///     "Pre-trip inspection" template is seeded.
+  /// v5: indexes (`@TableIndex` in tables.dart) on `(vehicle_id, date)` of
+  ///     every record table, child → parent ids, attachments' parent key
+  ///     and the outbox push order. Data is unchanged.
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   /// `settings_entries` key written once the default catalogs are seeded.
   static const seedMarkerKey = 'catalog_seed_version';
@@ -101,7 +104,13 @@ class AppDatabase extends _$AppDatabase {
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
-      await m.createAll();
+      // Not `m.createAll()`: its `CREATE INDEX` has no `IF NOT EXISTS`, and
+      // onCreate runs again after a first launch that was interrupted
+      // before the schema version was recorded (tables already there).
+      for (final table in allTables) {
+        await m.createTable(table);
+      }
+      await createIndexes();
       await createSyncTriggers();
       await createAttachmentTriggers();
       await seedCatalogs();
@@ -136,6 +145,9 @@ class AppDatabase extends _$AppDatabase {
           // template has to be added here.
           await _seedChecklistForms();
         });
+      }
+      if (from < 5) {
+        await transaction(createIndexes);
       }
     },
     beforeOpen: (details) async {
@@ -259,6 +271,20 @@ class AppDatabase extends _$AppDatabase {
           END
         ''');
       }
+    }
+  }
+
+  /// Creates every `@TableIndex` of the schema that doesn't exist yet
+  /// (idempotent: `IF NOT EXISTS`). New databases get them from
+  /// `createAll`; this is the v4 -> v5 upgrade path.
+  Future<void> createIndexes() async {
+    for (final index in allSchemaEntities.whereType<Index>()) {
+      await customStatement(
+        index.createStatementsByDialect[SqlDialect.sqlite]!.replaceFirst(
+          'CREATE INDEX ',
+          'CREATE INDEX IF NOT EXISTS ',
+        ),
+      );
     }
   }
 

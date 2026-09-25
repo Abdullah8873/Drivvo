@@ -11410,6 +11410,58 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AttachmentFilesTable attachmentFiles = $AttachmentFilesTable(
     this,
   );
+  late final Index idxRefuelingsVehicleDate = Index(
+    'idx_refuelings_vehicle_date',
+    'CREATE INDEX idx_refuelings_vehicle_date ON refuelings (vehicle_id, date)',
+  );
+  late final Index idxRefuelingFuelsRefueling = Index(
+    'idx_refueling_fuels_refueling',
+    'CREATE INDEX idx_refueling_fuels_refueling ON refueling_fuels (refueling_id)',
+  );
+  late final Index idxEntriesVehicleDate = Index(
+    'idx_entries_vehicle_date',
+    'CREATE INDEX idx_entries_vehicle_date ON entries (vehicle_id, date)',
+  );
+  late final Index idxEntriesParent = Index(
+    'idx_entries_parent',
+    'CREATE INDEX idx_entries_parent ON entries (parent_id)',
+  );
+  late final Index idxEntryItemsEntry = Index(
+    'idx_entry_items_entry',
+    'CREATE INDEX idx_entry_items_entry ON entry_items (entry_id)',
+  );
+  late final Index idxRoutesVehicleStart = Index(
+    'idx_routes_vehicle_start',
+    'CREATE INDEX idx_routes_vehicle_start ON routes (vehicle_id, start_date)',
+  );
+  late final Index idxReadingsVehicleDate = Index(
+    'idx_readings_vehicle_date',
+    'CREATE INDEX idx_readings_vehicle_date ON readings (vehicle_id, date)',
+  );
+  late final Index idxRemindersVehicle = Index(
+    'idx_reminders_vehicle',
+    'CREATE INDEX idx_reminders_vehicle ON reminders (vehicle_id)',
+  );
+  late final Index idxSyncOutboxTableSeq = Index(
+    'idx_sync_outbox_table_seq',
+    'CREATE INDEX idx_sync_outbox_table_seq ON sync_outbox (target_table, seq)',
+  );
+  late final Index idxChecklistFormItemsForm = Index(
+    'idx_checklist_form_items_form',
+    'CREATE INDEX idx_checklist_form_items_form ON checklist_form_items (form_id)',
+  );
+  late final Index idxChecklistsVehicleDate = Index(
+    'idx_checklists_vehicle_date',
+    'CREATE INDEX idx_checklists_vehicle_date ON checklists (vehicle_id, date)',
+  );
+  late final Index idxChecklistAnswersChecklist = Index(
+    'idx_checklist_answers_checklist',
+    'CREATE INDEX idx_checklist_answers_checklist ON checklist_answers (checklist_id)',
+  );
+  late final Index idxAttachmentsParent = Index(
+    'idx_attachments_parent',
+    'CREATE INDEX idx_attachments_parent ON attachments (parent_table, parent_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -11432,6 +11484,19 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     checklistAnswers,
     attachments,
     attachmentFiles,
+    idxRefuelingsVehicleDate,
+    idxRefuelingFuelsRefueling,
+    idxEntriesVehicleDate,
+    idxEntriesParent,
+    idxEntryItemsEntry,
+    idxRoutesVehicleStart,
+    idxReadingsVehicleDate,
+    idxRemindersVehicle,
+    idxSyncOutboxTableSeq,
+    idxChecklistFormItemsForm,
+    idxChecklistsVehicleDate,
+    idxChecklistAnswersChecklist,
+    idxAttachmentsParent,
   ];
   @override
   DriftDatabaseOptions get options =>

@@ -103,7 +103,16 @@ class CatalogItems extends Table with SyncColumns {
 // ---------------------------------------------------------------------------
 // Records
 // ---------------------------------------------------------------------------
+//
+// Indexes (schema v5, `@TableIndex`, named `idx_<table>_…`): every record
+// table is read "one vehicle, by date" (History, Reports, reminders), so
+// each gets `(vehicle_id, date)`; child tables get their parent id (the
+// joins and cascades); `attachments` gets its polymorphic parent key and
+// `sync_outbox` its push order. Without them every such query was a full
+// table scan — like a Postgres table with no index on its foreign keys.
+// Existing installs get them in `AppDatabase.migration` (v4 -> v5).
 
+@TableIndex(name: 'idx_refuelings_vehicle_date', columns: {#vehicleId, #date})
 class Refuelings extends Table with SyncColumns {
   TextColumn get vehicleId => text().references(Vehicles, #id)();
   DateTimeColumn get date => dateTime()();
@@ -125,6 +134,7 @@ class Refuelings extends Table with SyncColumns {
 }
 
 /// One fuel inside a refueling (a refueling can hold several, e.g. + AdBlue).
+@TableIndex(name: 'idx_refueling_fuels_refueling', columns: {#refuelingId})
 class RefuelingFuels extends Table with SyncColumns {
   TextColumn get refuelingId => text().references(Refuelings, #id)();
   TextColumn get fuelId => text().references(CatalogItems, #id)();
@@ -140,6 +150,8 @@ class RefuelingFuels extends Table with SyncColumns {
 /// nearly identical), discriminated by kind.
 enum EntryKind { expense, service, income }
 
+@TableIndex(name: 'idx_entries_vehicle_date', columns: {#vehicleId, #date})
+@TableIndex(name: 'idx_entries_parent', columns: {#parentId})
 class Entries extends Table with SyncColumns {
   TextColumn get vehicleId => text().references(Vehicles, #id)();
   TextColumn get kind => textEnum<EntryKind>()();
@@ -164,6 +176,7 @@ class Entries extends Table with SyncColumns {
 }
 
 /// A typed line inside an entry (e.g. "Oil Change — 1200").
+@TableIndex(name: 'idx_entry_items_entry', columns: {#entryId})
 class EntryItems extends Table with SyncColumns {
   TextColumn get entryId => text().references(Entries, #id)();
   TextColumn get typeId => text().references(CatalogItems, #id)();
@@ -172,6 +185,7 @@ class EntryItems extends Table with SyncColumns {
 
 enum RouteMode { trip, freight }
 
+@TableIndex(name: 'idx_routes_vehicle_start', columns: {#vehicleId, #startDate})
 class Routes extends Table with SyncColumns {
   TextColumn get vehicleId => text().references(Vehicles, #id)();
   TextColumn get mode =>
@@ -205,6 +219,7 @@ class Routes extends Table with SyncColumns {
 }
 
 /// Quick odometer update.
+@TableIndex(name: 'idx_readings_vehicle_date', columns: {#vehicleId, #date})
 class Readings extends Table with SyncColumns {
   TextColumn get vehicleId => text().references(Vehicles, #id)();
   DateTimeColumn get date => dateTime()();
@@ -217,6 +232,7 @@ enum ReminderTarget { expense, service }
 
 enum PeriodUnit { day, month, year }
 
+@TableIndex(name: 'idx_reminders_vehicle', columns: {#vehicleId})
 class Reminders extends Table with SyncColumns {
   TextColumn get vehicleId => text().references(Vehicles, #id)();
   TextColumn get target => textEnum<ReminderTarget>()();
@@ -256,6 +272,7 @@ class ChecklistForms extends Table with SyncColumns {
 }
 
 /// One line of a template, in [position] order.
+@TableIndex(name: 'idx_checklist_form_items_form', columns: {#formId})
 class ChecklistFormItems extends Table with SyncColumns {
   TextColumn get formId => text().references(ChecklistForms, #id)();
   IntColumn get position => integer()();
@@ -267,6 +284,7 @@ class ChecklistFormItems extends Table with SyncColumns {
 /// [formId] is only a hint (the template may be deleted later) and [title]
 /// is a copy of the template's name at the time, so the record still reads
 /// the same after the template is renamed or removed.
+@TableIndex(name: 'idx_checklists_vehicle_date', columns: {#vehicleId, #date})
 class Checklists extends Table with SyncColumns {
   TextColumn get vehicleId => text().references(Vehicles, #id)();
   DateTimeColumn get date => dateTime()();
@@ -285,6 +303,7 @@ enum ChecklistStatus { ok, problem, na }
 
 /// One answered line of a [Checklists] run. [label] is copied from the
 /// template item so later template edits never change past records.
+@TableIndex(name: 'idx_checklist_answers_checklist', columns: {#checklistId})
 class ChecklistAnswers extends Table with SyncColumns {
   TextColumn get checklistId => text().references(Checklists, #id)();
   IntColumn get position => integer()();
@@ -305,6 +324,7 @@ class ChecklistAnswers extends Table with SyncColumns {
 /// [AttachmentFiles] on this device and, once uploaded, in the Supabase
 /// Storage bucket `attachments` at [storagePath]
 /// (`<userId>/<attachmentId>/<fileName>`).
+@TableIndex(name: 'idx_attachments_parent', columns: {#parentTable, #parentId})
 class Attachments extends Table with SyncColumns {
   TextColumn get vehicleId => text().nullable().references(Vehicles, #id)();
 
@@ -361,6 +381,7 @@ class SettingsEntries extends Table {
 /// deletes exactly the queue entries it read (by [seq]); an edit made while
 /// the upload was in flight re-queues the row with a newer [seq], so it is
 /// never lost.
+@TableIndex(name: 'idx_sync_outbox_table_seq', columns: {#targetTable, #seq})
 class SyncOutbox extends Table {
   /// Monotonic queue position (SQLite `AUTOINCREMENT` never reuses values).
   IntColumn get seq => integer().autoIncrement()();
