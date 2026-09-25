@@ -1,6 +1,7 @@
 # MotoLog — current status / session handoff
 
-_Last updated: 2026-09-26. Read this first when starting a new
+_Last updated: 2026-09-26. **Cloud session? Read docs/CLOUD-SESSION.md
+first.** Read this first when starting a new
 session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
 
 ## Done (merged into `develop`, pushed, 513 tests passing in ~1.5 min, web release build OK)
