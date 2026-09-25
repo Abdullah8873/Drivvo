@@ -34,14 +34,21 @@ flutter run -d web-server --release --web-port 8085 --web-hostname localhost --d
 ## 2. What to work on
 
 Read `docs/STATUS.md` → **PAUSED** section first. Cloud-session work
-(code only), in order:
-1. `navigator.storage.persist()` on web start-up (small).
-2. The **sharing batch**: design decided in `docs/SHARING.md`, Drivvo
-   screens in `docs/SPEC.md`, permission model in
-   `lib/core/calc/access_profile.dart`. New SQL goes in
-   `supabase/migrations/` marked "to apply" in STATUS.md.
-3. Android email deep link (custom scheme + intent filter, fill the
-   `authRedirectUrl()` TODO); note the Supabase redirect URL to add.
+(code only) — **the sharing batch only** (owner wants the app complete
+today; the PC session's helper agents are doing everything else in
+parallel, so don't touch those items):
+- Sharing: users, access profiles, profile editor, invite banner,
+  Transfer. Design decided in `docs/SHARING.md`, Drivvo screens in
+  `docs/SPEC.md`, permission model in `lib/core/calc/access_profile.dart`.
+  New SQL goes in `supabase/migrations/` marked "to apply" in STATUS.md
+  (the PC session applies it via Chrome).
+- Branch `feature/sharing`; merge into `develop` when format/analyze/test
+  pass (pull `develop` first — the PC session merges other work there
+  today). Scope decisions: English only, no web deploy.
+
+Being done on the PC today (not cloud): `navigator.storage.persist()`,
+Android email deep link, About/Contact/Share app, Reports share as
+image/PDF, part number on service items, CSV import, APK + emulators.
 
 Browser QA, BlueStacks/Drivvo checks, Supabase dashboard and Android
 builds stay with the owner's PC session, which can run at the same time:
