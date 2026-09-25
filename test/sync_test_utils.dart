@@ -21,6 +21,10 @@ class RecordingRemoteStore implements RemoteStore {
   /// Most calls that were in flight at the same time.
   int maxInFlight = 0;
 
+  /// Time spent inside [inner] (the fake server's own work, without the
+  /// simulated [latency]), summed over every call.
+  final innerTime = Stopwatch();
+
   Future<T> _record<T>(
     String op,
     String table,
@@ -31,7 +35,12 @@ class RecordingRemoteStore implements RemoteStore {
     if (_inFlight > maxInFlight) maxInFlight = _inFlight;
     try {
       if (latency > Duration.zero) await Future<void>.delayed(latency);
-      return await call();
+      // The in-memory fake completes synchronously inside `call()`, so the
+      // stopwatch only covers its own work even with calls in parallel.
+      innerTime.start();
+      final future = call();
+      innerTime.stop();
+      return await future;
     } finally {
       _inFlight--;
       events.add((op: op, table: table, start: false));

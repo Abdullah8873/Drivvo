@@ -313,8 +313,13 @@ void main() {
         final sw = Stopwatch()..start();
         final r = await SyncEngine(db, remote).sync('u1');
         pushTimes.add(sw.elapsedMicroseconds);
-        if (i == 0)
-          print('  push [$tag]: $r, ${remote.events.length ~/ 2} calls');
+        if (i == 0) {
+          print(
+            '  push [$tag]: $r, ${remote.events.length ~/ 2} calls, '
+            'max ${remote.maxInFlight} in flight, fake server '
+            '${remote.innerTime.elapsedMilliseconds} ms',
+          );
+        }
       }
       report('sync[$tag]: push whole outbox (first sync)', pushTimes);
 
@@ -325,8 +330,13 @@ void main() {
         final sw = Stopwatch()..start();
         final r = await SyncEngine(empty, remote).sync('u1');
         pullTimes.add(sw.elapsedMicroseconds);
-        if (i == 0)
-          print('  pull [$tag]: $r, ${remote.events.length ~/ 2} calls');
+        if (i == 0) {
+          print(
+            '  pull [$tag]: $r, ${remote.events.length ~/ 2} calls, '
+            'max ${remote.maxInFlight} in flight, fake server '
+            '${remote.innerTime.elapsedMilliseconds} ms',
+          );
+        }
         await empty.close();
       }
       report('sync[$tag]: full pull into empty DB', pullTimes);

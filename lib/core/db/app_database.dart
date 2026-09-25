@@ -72,25 +72,36 @@ class AppDatabase extends _$AppDatabase {
   /// another device. A fixed old timestamp makes any real edit win.
   static final seedTimestamp = DateTime.utc(2000);
 
-  /// SQL names of the tables the cloud sync mirrors, parents before
-  /// children (the order rows are uploaded and downloaded in).
-  static const syncedTableNames = [
-    'vehicles',
-    'catalog_items',
+  /// The tables the cloud sync mirrors, grouped in dependency "tiers":
+  /// every table only references tables of EARLIER tiers (SQL foreign keys,
+  /// plus the loose `attachments.parent_table`), never one in its own tier.
+  /// The sync handles a tier's tables in parallel and a whole tier before
+  /// the next, so parents always go (up or down) before their children —
+  /// like `Promise.all` per tier. `sync_tiers_test.dart` checks the rule
+  /// against the real schema.
+  static const syncedTableTiers = [_syncTier1, _syncTier2, _syncTier3];
+
+  static const _syncTier1 = ['vehicles', 'catalog_items', 'checklist_forms'];
+  static const _syncTier2 = [
     'refuelings',
     'entries',
     'routes',
     'readings',
     'reminders',
-    'refueling_fuels',
-    'entry_items',
-    'checklist_forms',
     'checklists',
     'checklist_form_items',
+  ];
+  static const _syncTier3 = [
+    'refueling_fuels',
+    'entry_items',
     'checklist_answers',
-    // Last: an attachment may belong to any record above.
+    // An attachment may belong to any record of tier 2.
     'attachments',
   ];
+
+  /// SQL names of the tables the cloud sync mirrors, parents before
+  /// children ([syncedTableTiers] flattened).
+  static const syncedTableNames = [..._syncTier1, ..._syncTier2, ..._syncTier3];
 
   /// Tables whose records can carry attachments (`attachments.parent_table`).
   static const attachmentParentTables = [
