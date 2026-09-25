@@ -7,13 +7,15 @@ import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/max_width_body.dart';
+import '../import/csv_import_flow.dart';
 import 'export_models.dart';
 import 'export_service.dart';
 
 /// History app bar's ⬇ action → this screen: pick what to export (vehicle
 /// scope, period, record types, format) and share the resulting file —
 /// like a settings form whose submit produces a downloadable file instead
-/// of saving to the database.
+/// of saving to the database. Its "Import CSV" button reads such a CSV
+/// back in (`features/import/`).
 class ExportScreen extends ConsumerStatefulWidget {
   const ExportScreen({super.key});
 
@@ -145,6 +147,32 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
                       ),
                     )
                   : const Text('EXPORT', style: TextStyle(letterSpacing: 1)),
+            ),
+            const Divider(height: 40),
+            const _SectionLabel('Import'),
+            Text(
+              'Add records from a MotoLog CSV export (a .csv, or the .zip '
+              'of several). Rows go to the vehicle with the same name, '
+              'otherwise to ${currentVehicle?.name ?? 'the current vehicle'}.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.primary,
+                minimumSize: const Size.fromHeight(48),
+                shape: const StadiumBorder(),
+              ),
+              onPressed: vehicles.isEmpty
+                  ? null
+                  : () => runCsvImport(context, ref),
+              icon: const Icon(Icons.upload_file),
+              label: const Text(
+                'IMPORT CSV',
+                style: TextStyle(letterSpacing: 1),
+              ),
             ),
           ],
         ),
