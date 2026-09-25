@@ -69,14 +69,32 @@ Format clean, analyze 0 issues, **513 tests pass**. No processes running.
   lists, web title/theme color; `--wasm` build compiled OK (not yet run in a
   browser). No COOP/COEP on purpose (breaks OSM tiles + Google OAuth — see
   `web/index.html` comment).
-- **Left to do:** finish hands-on QA in the browser pane on `motolog-cloud`
-  (8085). Done so far at 320×640 light: fresh v5 DB opens with no console
-  errors, add vehicle, 2 refuelings, History month card + rows render.
-  Still: Reports, text scale 2×, tablet width (768+ → centred max-width
-  body), dark theme, one sync to Supabase (parallel tier pull live), and a
-  `--wasm` build served + opened. **Check:** in History the km/L figure
-  shows on the *first* refueling row (1000 km), not the second (1200 km) —
-  confirm against Drivvo before changing anything.
+- **Web data-loss bug found and FIXED (2026-09-26, `536682d`, 517 tests):**
+  drift 2.35's WASM/IndexedDB backend only writes to IndexedDB after a
+  plain statement outside a transaction; transaction COMMITs and
+  `insertReturning` (vehicle saves) never triggered it, so a reload lost
+  recent saves. `lib/core/db/persist_writes_interceptor.dart` (web only)
+  fixes it; verified in real Chrome (refueling saved 1 s before a reload
+  survives). Native (Android/iOS) was never affected.
+- **Hands-on QA done (local session):** v5 DB opens clean; add vehicle +
+  refuelings; History month card/rows; Reports at 320 px; tablet 1024 px
+  (centred max-width body). km/L on the first row of a cycle is correct —
+  it's the "Average position: at the start of the cycle" setting (Drivvo
+  default), not a bug.
+- **QA still to do (local session only — needs the browser):** dark theme
+  pass, one live sync to Supabase (parallel tier pull), open a `--wasm`
+  build. Text scale 2× is covered by `test/layout_matrix_test.dart`.
+  Tip: the browser pane / Chrome tab only renders while its window is in
+  front — screenshots time out and clicks do nothing otherwise.
+- **Web durability (cloud session can do this, code only):** call
+  `navigator.storage.persist()` once on web start-up (e.g. in `main.dart`
+  via `package:web`) so the browser doesn't evict IndexedDB under disk
+  pressure; currently `persisted() == false`.
+- **Android (local session):** SDK installed via Android Studio, SDK
+  license accepted. `cmdline-tools` still missing (owner: Android Studio →
+  Settings → Android SDK → SDK Tools → "Android SDK Command-line Tools") —
+  needed for creating an emulator. First release APK build started
+  2026-09-26 (`flutter build apk --release --split-per-abi`).
 - Old worktrees under `.claude/worktrees/` (27): every branch is merged
   into `develop` **and pushed to GitHub** (2026-09-26), so nothing is lost
   if a worktree folder disappears. Their only uncommitted changes are
@@ -87,10 +105,14 @@ Format clean, analyze 0 issues, **513 tests pass**. No processes running.
   (`lib/core/calc/access_profile.dart`). Plan: Opus = SQL/RLS/sync/account
   switching/Transfer RPCs; Sonnet = Users/Profiles/Profile editor/invite
   banner/Transfer screens. Needs a 2nd test account from the owner.
-- **APK:** owner asked (2026-09-25) how soon they can use it on a phone.
-  Blocked on the Android Studio first-run wizard (Android SDK); after that
-  ~15 min for the first build. Offer to pull the Android email deep link
-  forward into that first APK.
+- **Android email deep link (cloud session can write it):** custom scheme
+  + intent filter + `authRedirectUrl()` TODO; the redirect URL must also be
+  added in Supabase (local session, via Chrome).
+- **Split of work (owner has Claude cloud credits):** the cloud session does
+  code + tests + merges (sharing batch, persist(), deep link). The local PC
+  session does only what needs the PC: browser QA, BlueStacks/Drivvo
+  checks, Supabase dashboard via Chrome, Android builds/emulator/phone.
+  Both can run at once: cloud pushes a branch, local pulls it and QAs.
 
 ## Next — pick up here
 1. **Cloud is live and v4 is applied (2026-09-25).** Supabase project

@@ -33,11 +33,19 @@ flutter run -d web-server --release --web-port 8085 --web-hostname localhost --d
 
 ## 2. What to work on
 
-Read `docs/STATUS.md` → **PAUSED** section first. Summary on 2026-09-26:
-the optimization/compat pass is merged and pushed; what is left is hands-on
-QA, then the **sharing batch** (design decided in `docs/SHARING.md`, Drivvo
-screens in `docs/SPEC.md`, permission model in
-`lib/core/calc/access_profile.dart`).
+Read `docs/STATUS.md` → **PAUSED** section first. Cloud-session work
+(code only), in order:
+1. `navigator.storage.persist()` on web start-up (small).
+2. The **sharing batch**: design decided in `docs/SHARING.md`, Drivvo
+   screens in `docs/SPEC.md`, permission model in
+   `lib/core/calc/access_profile.dart`. New SQL goes in
+   `supabase/migrations/` marked "to apply" in STATUS.md.
+3. Android email deep link (custom scheme + intent filter, fill the
+   `authRedirectUrl()` TODO); note the Supabase redirect URL to add.
+
+Browser QA, BlueStacks/Drivvo checks, Supabase dashboard and Android
+builds stay with the owner's PC session, which can run at the same time:
+push a branch per chunk and list in STATUS.md what needs hands-on QA.
 
 What a cloud session **can** do: write code + tests, merge, push, build web
 (`flutter build web --release`, `--wasm`), run the benchmark
