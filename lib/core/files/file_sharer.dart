@@ -20,6 +20,10 @@ abstract class FileSharer {
     required String mimeType,
     String? subject,
   });
+
+  /// Shares plain [text] (e.g. "Share app", feedback without an email
+  /// client) through the platform share sheet — no file involved.
+  Future<void> shareText(String text, {String? subject});
 }
 
 /// Real implementation, backed by `share_plus`.
@@ -41,6 +45,13 @@ class SharePlusFileSharer implements FileSharer {
         fileNameOverrides: [filename],
         subject: subject,
       ),
+    );
+  }
+
+  @override
+  Future<void> shareText(String text, {String? subject}) async {
+    await SharePlus.instance.share(
+      ShareParams(text: text, subject: subject),
     );
   }
 }

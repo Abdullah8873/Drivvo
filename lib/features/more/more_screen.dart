@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/db/tables.dart';
+import 'contact_sheet.dart';
+import 'share_app.dart';
 
 /// "More options" tab: settings, catalogs (fuel, types, places…) and tools.
 /// Same grouping as Drivvo, minus the paid "plans" banner.
@@ -43,10 +46,11 @@ class MoreScreen extends StatelessWidget {
     [
       (Icons.emoji_events, 'Achievements', '/achievements'),
       (Icons.settings, 'Settings', '/settings'),
-      (Icons.translate, 'Translation', null),
+      (Icons.translate, 'Translation', '/translation'),
+      // Contact and Share app don't navigate — see the onTap switch below.
       (Icons.contact_support, 'Contact', null),
     ],
-    [(Icons.info_outline, 'About', null), (Icons.share, 'Share app', null)],
+    [(Icons.info_outline, 'About', '/about'), (Icons.share, 'Share app', null)],
   ];
 
   static String _catalog(CatalogKind kind) => '/catalog/${kind.name}';
@@ -66,15 +70,32 @@ class MoreScreen extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 title: Text(label),
-                onTap: () => route != null
-                    ? context.push(route)
-                    : ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('$label — coming soon')),
-                      ),
+                onTap: () => _onTap(context, label, route),
               ),
           ],
         ],
       ),
     );
+  }
+
+  /// Most rows just push a route; Contact opens an action sheet and Share
+  /// app fires the share sheet directly, so both are special-cased by label
+  /// here instead of growing the `(icon, label, route)` tuple.
+  void _onTap(BuildContext context, String label, String? route) {
+    switch (label) {
+      case 'Contact':
+        showContactSheet(
+          context,
+          ProviderScope.containerOf(context, listen: false),
+        );
+      case 'Share app':
+        shareApp(ProviderScope.containerOf(context, listen: false));
+      case _ when route != null:
+        context.push(route);
+      default:
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$label — coming soon')));
+    }
   }
 }

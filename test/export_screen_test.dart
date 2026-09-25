@@ -1,45 +1,8 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:motolog/app.dart';
 import 'package:motolog/core/db/app_database.dart';
-import 'package:motolog/core/files/file_sharer.dart';
-import 'package:motolog/core/providers.dart';
 
 import 'helpers.dart';
-
-/// Records every share instead of touching a real share sheet/file system —
-/// the interface `FileSharer` exists specifically so tests can swap this in.
-class FakeFileSharer implements FileSharer {
-  int callCount = 0;
-  String? filename;
-  Uint8List? bytes;
-  String? mimeType;
-
-  @override
-  Future<void> shareBytes({
-    required String filename,
-    required Uint8List bytes,
-    required String mimeType,
-    String? subject,
-  }) async {
-    callCount++;
-    this.filename = filename;
-    this.bytes = bytes;
-    this.mimeType = mimeType;
-  }
-}
-
-Widget appWithFakeSharer(AppDatabase db, FakeFileSharer sharer) =>
-    ProviderScope(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-        fileSharerProvider.overrideWithValue(sharer),
-      ],
-      child: const MotoLogApp(),
-    );
 
 void main() {
   late AppDatabase db;
