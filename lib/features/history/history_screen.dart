@@ -7,6 +7,7 @@ import '../reminders/upcoming_reminders_strip.dart';
 import '../../core/db/app_database.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/main_tab_app_bar.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'achievement_timeline.dart';
 import 'history_calc.dart';
 import 'history_providers.dart';
@@ -146,10 +147,13 @@ class _TimelineState extends ConsumerState<_Timeline> {
               },
           ],
         ];
-        return ListView.builder(
-          padding: const EdgeInsets.only(bottom: 88),
-          itemCount: items.length,
-          itemBuilder: (context, i) => items[i](),
+        return MaxWidthBody(
+          maxWidth: 840,
+          child: ListView.builder(
+            padding: const EdgeInsets.only(bottom: 88),
+            itemCount: items.length,
+            itemBuilder: (context, i) => items[i](),
+          ),
         );
       },
     );

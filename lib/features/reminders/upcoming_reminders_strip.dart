@@ -48,6 +48,14 @@ class UpcomingRemindersStrip extends ConsumerWidget {
     final items = ref.watch(upcomingRemindersProvider(vehicleId)).value;
     if (items == null || items.isEmpty) return const SizedBox.shrink();
 
+    // The card packs 3 text lines into a fixed-height strip; at larger
+    // system font sizes those lines need more room than the 84 base height
+    // gives them (RenderFlex overflow), so scale the strip's height with
+    // the text — same idea as `_menuWidth` in speed_dial_menu.dart sizing
+    // itself off the actual scaled label width instead of a fixed guess.
+    final textScale = MediaQuery.textScalerOf(context).scale(100) / 100;
+    final stripHeight = 84 * textScale.clamp(1.0, 1.6);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -65,7 +73,7 @@ class UpcomingRemindersStrip extends ConsumerWidget {
           ),
         ),
         SizedBox(
-          height: 84,
+          height: stripHeight,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 12),

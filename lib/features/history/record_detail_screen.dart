@@ -6,6 +6,7 @@ import '../../core/db/app_database.dart';
 import '../../core/format/formatters.dart';
 import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
+import '../../core/widgets/max_width_body.dart';
 import '../attachments/attachment_queries.dart';
 import '../attachments/attachments_field.dart';
 import 'history_calc.dart';
@@ -99,9 +100,20 @@ class _RecordDetailScreenState extends ConsumerState<RecordDetailScreen> {
                           ? null
                           : () => setState(() => _id = older.id),
                     ),
-                    Text(
-                      '${fmt.date(record.date)} - ${fmt.time(record.date)}',
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                    // Flexible + ellipsis: at large text scale on a narrow
+                    // phone the full "date - time" string can outgrow the
+                    // space left by the two arrow buttons.
+                    Flexible(
+                      child: Text(
+                        '${fmt.date(record.date)} - ${fmt.time(record.date)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                        ),
+                      ),
                     ),
                     IconButton(
                       key: const Key('detail-newer'),
@@ -204,7 +216,9 @@ class _DetailBody extends StatelessWidget {
             ),
           ),
     ];
-    return ListView(padding: const EdgeInsets.all(12), children: cards);
+    return MaxWidthBody(
+      child: ListView(padding: const EdgeInsets.all(12), children: cards),
+    );
   }
 
   List<Widget> _checklistCards() {
@@ -422,6 +436,7 @@ class _InfoCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Text(
@@ -431,7 +446,18 @@ class _InfoCard extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Text(value, style: theme.textTheme.bodyLarge),
+                    const SizedBox(width: 8),
+                    // Flexible (not a bare Text): a long value — a station
+                    // name, a checklist summary — can otherwise outgrow the
+                    // space the label's Expanded left it, at large text
+                    // scale on a narrow phone.
+                    Flexible(
+                      child: Text(
+                        value,
+                        textAlign: TextAlign.end,
+                        style: theme.textTheme.bodyLarge,
+                      ),
+                    ),
                   ],
                 ),
               ),

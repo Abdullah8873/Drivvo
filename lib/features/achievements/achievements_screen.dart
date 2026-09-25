@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/calc/achievements.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'achievement_badge.dart';
 import 'achievements_providers.dart';
 
@@ -39,19 +40,21 @@ class _Grid extends ConsumerWidget {
     return achievementsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('$e')),
-      data: (achievements) => GridView.count(
-        padding: const EdgeInsets.all(16),
-        crossAxisCount: 4,
-        mainAxisSpacing: 16,
-        crossAxisSpacing: 8,
-        childAspectRatio: 0.8,
-        children: [
-          for (final a in achievements)
-            _GridItem(
-              achievement: a,
-              onTap: () => _showDialog(context, ref, a),
-            ),
-        ],
+      data: (achievements) => MaxWidthBody(
+        child: GridView.count(
+          padding: const EdgeInsets.all(16),
+          crossAxisCount: 4,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 8,
+          childAspectRatio: 0.8,
+          children: [
+            for (final a in achievements)
+              _GridItem(
+                achievement: a,
+                onTap: () => _showDialog(context, ref, a),
+              ),
+          ],
+        ),
       ),
     );
   }

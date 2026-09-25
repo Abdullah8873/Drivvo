@@ -106,9 +106,16 @@ class AchievementBadge extends StatelessWidget {
     );
   }
 
+  /// The badge is a fixed `size × size` shape in a rigid grid — it can't
+  /// grow with the system font, so its own text is clamped to 1.0×
+  /// (`MediaQuery.withClampedTextScaling`) instead of overflowing the badge
+  /// at large text-scale settings. The number is still shown at a
+  /// `size`-proportional (so still per-badge-size-responsive) but
+  /// scale-independent font size.
   Widget _content(BadgeSpec spec, Color fg) {
+    final Widget content;
     if (spec.icon != null && spec.number != null) {
-      return Column(
+      content = Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(spec.icon, color: fg, size: size * 0.34),
@@ -122,17 +129,21 @@ class AchievementBadge extends StatelessWidget {
           ),
         ],
       );
+    } else if (spec.icon != null) {
+      content = Icon(spec.icon, color: fg, size: size * 0.4);
+    } else {
+      content = Text(
+        spec.number ?? '',
+        style: TextStyle(
+          color: fg,
+          fontSize: size * 0.26,
+          fontWeight: FontWeight.bold,
+        ),
+      );
     }
-    if (spec.icon != null) {
-      return Icon(spec.icon, color: fg, size: size * 0.4);
-    }
-    return Text(
-      spec.number ?? '',
-      style: TextStyle(
-        color: fg,
-        fontSize: size * 0.26,
-        fontWeight: FontWeight.bold,
-      ),
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.0,
+      child: content,
     );
   }
 }

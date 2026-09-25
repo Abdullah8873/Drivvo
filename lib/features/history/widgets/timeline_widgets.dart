@@ -712,20 +712,29 @@ class _Stat extends StatelessWidget {
     final theme = Theme.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 6),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+        // Flexible: a `Wrap` gives each item up to the wrap's own full
+        // width, not a shrink-wrapped size, so without this the Column
+        // below gets unbounded width and its Text children never wrap —
+        // at large text scale that overflows the card instead of the
+        // value wrapping to a second line.
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            Text(value, style: theme.textTheme.bodyMedium),
-          ],
+              Text(value, style: theme.textTheme.bodyMedium),
+            ],
+          ),
         ),
       ],
     );

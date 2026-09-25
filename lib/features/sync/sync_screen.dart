@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers.dart';
 import '../../core/sync/sync_controller.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/max_width_body.dart';
 
 /// More → Synchronize data (`/sync`). Three faces, depending on the build and
 /// the login: cloud not configured, signed out (sync is optional → "Sign in"),
@@ -45,35 +46,37 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Synchronize data')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-        children: switch (status.phase) {
-          SyncPhase.unavailable => const [
-            _Message(
-              icon: Icons.cloud_off,
-              title: 'Cloud sync is not available',
-              text:
-                  'Cloud sync isn\'t configured in this build. MotoLog works '
-                  'fully offline and your data stays on this device.',
-            ),
-          ],
-          SyncPhase.signedOut => [
-            const _Message(
-              icon: Icons.cloud_sync,
-              title: 'Sync is optional',
-              text:
-                  'Sign in to back up your data and use it on your other '
-                  'devices. Without an account everything keeps working '
-                  'offline on this device.',
-            ),
-            const SizedBox(height: 24),
-            _RoundButton(
-              label: 'SIGN IN',
-              onPressed: () => context.push('/account'),
-            ),
-          ],
-          _ => _signedIn(status),
-        },
+      body: MaxWidthBody(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+          children: switch (status.phase) {
+            SyncPhase.unavailable => const [
+              _Message(
+                icon: Icons.cloud_off,
+                title: 'Cloud sync is not available',
+                text:
+                    'Cloud sync isn\'t configured in this build. MotoLog works '
+                    'fully offline and your data stays on this device.',
+              ),
+            ],
+            SyncPhase.signedOut => [
+              const _Message(
+                icon: Icons.cloud_sync,
+                title: 'Sync is optional',
+                text:
+                    'Sign in to back up your data and use it on your other '
+                    'devices. Without an account everything keeps working '
+                    'offline on this device.',
+              ),
+              const SizedBox(height: 24),
+              _RoundButton(
+                label: 'SIGN IN',
+                onPressed: () => context.push('/account'),
+              ),
+            ],
+            _ => _signedIn(status),
+          },
+        ),
       ),
     );
   }

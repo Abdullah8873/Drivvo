@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 import '../theme/app_theme.dart';
+import 'max_width_body.dart';
 
 /// Full-screen picker used everywhere Drivvo shows a "Select" list: search
 /// field in the app bar, tap to pick (or checkboxes + ✓ for multi-select),
@@ -123,34 +124,36 @@ class _SelectListScreenState extends State<SelectListScreen> {
           ),
         ),
       ),
-      body: ListView.separated(
-        // A single-select list with a `selected` value (e.g. every ISO
-        // currency) needs the selected row laid out immediately so it can
-        // be scrolled into view — a huge cache extent forces that without
-        // giving every other (much shorter) picker the same eager build.
-        scrollCacheExtent: widget.selected == null
-            ? null
-            : const ScrollCacheExtent.pixels(100000),
-        itemCount: items.length,
-        separatorBuilder: (_, _) => const Divider(indent: 56),
-        itemBuilder: (context, i) {
-          final item = items[i];
-          final isSelected = !widget.multiSelect && item == widget.selected;
-          return ListTile(
-            key: isSelected ? _selectedItemKey : null,
-            leading: widget.multiSelect
-                ? Checkbox(
-                    value: _selected.contains(item),
-                    onChanged: (_) => _tap(item),
-                  )
-                : widget.leadingBuilder?.call(item),
-            title: Text(item, maxLines: 1, overflow: TextOverflow.ellipsis),
-            trailing: isSelected
-                ? const Icon(Icons.check, color: AppTheme.primary)
-                : null,
-            onTap: () => _tap(item),
-          );
-        },
+      body: MaxWidthBody(
+        child: ListView.separated(
+          // A single-select list with a `selected` value (e.g. every ISO
+          // currency) needs the selected row laid out immediately so it can
+          // be scrolled into view — a huge cache extent forces that without
+          // giving every other (much shorter) picker the same eager build.
+          scrollCacheExtent: widget.selected == null
+              ? null
+              : const ScrollCacheExtent.pixels(100000),
+          itemCount: items.length,
+          separatorBuilder: (_, _) => const Divider(indent: 56),
+          itemBuilder: (context, i) {
+            final item = items[i];
+            final isSelected = !widget.multiSelect && item == widget.selected;
+            return ListTile(
+              key: isSelected ? _selectedItemKey : null,
+              leading: widget.multiSelect
+                  ? Checkbox(
+                      value: _selected.contains(item),
+                      onChanged: (_) => _tap(item),
+                    )
+                  : widget.leadingBuilder?.call(item),
+              title: Text(item, maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: isSelected
+                  ? const Icon(Icons.check, color: AppTheme.primary)
+                  : null,
+              onTap: () => _tap(item),
+            );
+          },
+        ),
       ),
       floatingActionButton: widget.onAddNew == null
           ? null

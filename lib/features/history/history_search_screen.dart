@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/db/tables.dart';
 import '../../core/format/formatters.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'history_providers.dart';
 import 'history_queries.dart';
 import 'widgets/timeline_widgets.dart';
@@ -100,15 +101,19 @@ class _HistorySearchScreenState extends ConsumerState<HistorySearchScreen> {
               ),
             );
           }
-          return ListView.builder(
-            itemCount: hits.length,
-            itemBuilder: (context, i) => TimelineRow(
-              record: hits[i],
-              distanceUnit: widget.distanceUnit,
-              expanded: _expandedId == hits[i].id,
-              onTap: () => setState(
-                () =>
-                    _expandedId = _expandedId == hits[i].id ? null : hits[i].id,
+          return MaxWidthBody(
+            maxWidth: 840,
+            child: ListView.builder(
+              itemCount: hits.length,
+              itemBuilder: (context, i) => TimelineRow(
+                record: hits[i],
+                distanceUnit: widget.distanceUnit,
+                expanded: _expandedId == hits[i].id,
+                onTap: () => setState(
+                  () => _expandedId = _expandedId == hits[i].id
+                      ? null
+                      : hits[i].id,
+                ),
               ),
             ),
           );
