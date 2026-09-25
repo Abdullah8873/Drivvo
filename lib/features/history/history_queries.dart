@@ -186,28 +186,27 @@ extension HistoryQueries on AppDatabase {
     String? nameOf(String? id) => id == null ? null : catalog[id]?.name;
 
     // Child rows are filtered by a subquery on the parent (not a Dart list
-    // of thousands of bound ids) and grouped by parent id in one pass
-    // (not a scan of every child per parent).
+    // of thousands of bound ids), grouped by parent id in one pass (not a
+    // scan of every child per parent), and — for fuel lines and entry
+    // items, the most numerous rows — read as plain columns: a typed drift
+    // row parses its text timestamps, which was most of the load time on a
+    // long history. `ORDER BY rowid` keeps the order they always had.
+    final vehicleVar = [Variable.withString(vehicleId)];
     final refuelRows =
         await (select(refuelings)..where(
               (r) => r.vehicleId.equals(vehicleId) & r.deletedAt.isNull(),
             ))
             .get();
     final fuelsOf = _groupBy(
-      await (select(refuelingFuels)..where(
-            (f) =>
-                f.refuelingId.isInQuery(
-                  selectOnly(refuelings)
-                    ..addColumns([refuelings.id])
-                    ..where(
-                      refuelings.vehicleId.equals(vehicleId) &
-                          refuelings.deletedAt.isNull(),
-                    ),
-                ) &
-                f.deletedAt.isNull(),
-          ))
-          .get(),
-      (f) => f.refuelingId,
+      await customSelect(
+        'SELECT refueling_id, fuel_id, price_per_unit, total, volume, tank '
+        'FROM refueling_fuels WHERE deleted_at IS NULL AND refueling_id IN '
+        '(SELECT id FROM refuelings WHERE vehicle_id = ?1 '
+        'AND deleted_at IS NULL) ORDER BY rowid',
+        variables: vehicleVar,
+        readsFrom: {refuelings, refuelingFuels},
+      ).get(),
+      (f) => f.read<String>('refueling_id'),
     );
 
     final entryRows =
@@ -216,20 +215,15 @@ extension HistoryQueries on AppDatabase {
             ))
             .get();
     final itemsOf = _groupBy(
-      await (select(entryItems)..where(
-            (i) =>
-                i.entryId.isInQuery(
-                  selectOnly(entries)
-                    ..addColumns([entries.id])
-                    ..where(
-                      entries.vehicleId.equals(vehicleId) &
-                          entries.deletedAt.isNull(),
-                    ),
-                ) &
-                i.deletedAt.isNull(),
-          ))
-          .get(),
-      (i) => i.entryId,
+      await customSelect(
+        'SELECT entry_id, type_id, amount FROM entry_items '
+        'WHERE deleted_at IS NULL AND entry_id IN '
+        '(SELECT id FROM entries WHERE vehicle_id = ?1 '
+        'AND deleted_at IS NULL) ORDER BY rowid',
+        variables: vehicleVar,
+        readsFrom: {entries, entryItems},
+      ).get(),
+      (i) => i.read<String>('entry_id'),
     );
 
     final routeRows =
@@ -278,14 +272,16 @@ extension HistoryQueries on AppDatabase {
           amount: r.totalCost,
           odometer: r.odometer,
           fuels: [
-            for (final f in fuelsOf[r.id] ?? const <RefuelingFuel>[])
+            for (final f in fuelsOf[r.id] ?? const <QueryRow>[])
               FuelLine(
-                name: nameOf(f.fuelId) ?? 'Fuel',
-                kind: catalog[f.fuelId]?.fuelKind ?? FuelKind.liquid,
-                pricePerUnit: f.pricePerUnit,
-                total: f.total,
-                volume: f.volume,
-                tank: f.tank,
+                name: nameOf(f.read<String>('fuel_id')) ?? 'Fuel',
+                kind:
+                    catalog[f.read<String>('fuel_id')]?.fuelKind ??
+                    FuelKind.liquid,
+                pricePerUnit: f.read<double>('price_per_unit'),
+                total: f.read<double>('total'),
+                volume: f.read<double>('volume'),
+                tank: f.read<int>('tank'),
               ),
           ],
           place: nameOf(r.gasStationId),
@@ -307,8 +303,11 @@ extension HistoryQueries on AppDatabase {
           amount: e.totalCost,
           odometer: e.odometer,
           items: [
-            for (final i in itemsOf[e.id] ?? const <EntryItem>[])
-              ItemLine(name: nameOf(i.typeId) ?? 'Item', amount: i.amount),
+            for (final i in itemsOf[e.id] ?? const <QueryRow>[])
+              ItemLine(
+                name: nameOf(i.read<String>('type_id')) ?? 'Item',
+                amount: i.read<double>('amount'),
+              ),
           ],
           place: nameOf(e.placeId),
           paymentMethod: nameOf(e.paymentMethodId),

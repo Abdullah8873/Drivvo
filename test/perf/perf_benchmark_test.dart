@@ -292,6 +292,57 @@ void main() {
     );
   });
 
+  test('writes and the v5 index migration', () async {
+    var odo = 900000.0;
+    Future<void> saveOne() => db.saveRefueling(
+      RefuelingDraft(
+        vehicleId: vid,
+        date: DateTime(2026, 9, 19),
+        odometer: odo += 10,
+        lines: [
+          FuelLineDraft(
+            fuelId: 'seed:fuel:petrol',
+            pricePerUnit: 300,
+            total: 3000,
+            volume: 10,
+          ),
+        ],
+      ),
+    );
+    Future<List<String>> indexNames() async => [
+      for (final r
+          in await db
+              .customSelect(
+                "SELECT name FROM sqlite_master WHERE type = 'index' "
+                "AND name LIKE 'idx_%'",
+              )
+              .get())
+        r.read<String>('name'),
+    ];
+
+    await measure(
+      'write: saveRefueling (file DB, v5 indexes)',
+      saveOne,
+      runs: 30,
+    );
+    final names = await indexNames();
+    for (final n in names) {
+      await db.customStatement('DROP INDEX $n');
+    }
+    await measure(
+      'write: saveRefueling (file DB, no indexes = v4)',
+      saveOne,
+      runs: 30,
+    );
+    await measure(
+      'migration v4 -> v5: create ${names.length} indexes (big DB)',
+      db.createIndexes,
+      runs: 1,
+      warmUp: false,
+    );
+    expect(await indexNames(), hasLength(names.length));
+  });
+
   test('sync', () async {
     // Every run starts from "never synced, everything queued".
     Future<void> reset() async {
