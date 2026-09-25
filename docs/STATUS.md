@@ -53,6 +53,38 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   360×640 in light + dark (brand picker, checklist save/expand, Storage,
   Reports, map tiles + attribution).
 
+## HANDOFF 2026-09-26 evening (PC session hit 88% of the 5-hour limit)
+Owner wants the app complete today (Android + web features; English only;
+no web deploy; iOS impossible without a Mac). Two unmerged branches are
+**pushed to GitHub** — finish, check and merge them:
+- `feature/extras-ui` (Sonnet agent, stopped): About / Contact (email left
+  empty on purpose — `lib/core/app_info.dart`) / Translation ("English")
+  / Share app screens + Reports "Share as image / PDF". Last commit is a
+  **WIP test fix, unverified** — run its tests (`test/extras_ui_test.dart`),
+  fix, full suite, merge.
+- `feature/import-links` (Opus agent, stopped): CSV import on the Export
+  screen with preview + tests, `navigator.storage.persist()` on web,
+  Android/iOS deep link for emailed auth links. Was about to add a widget
+  test for the import preview dialog. Check it compiles for web
+  (`flutter build web --release`), full suite, merge. Then list in STATUS
+  the Supabase redirect URL to add (`com.abdullah8873.motolog://login-callback`)
+  — the PC session adds it via Chrome.
+- **Animation polish pass (owner request):** the app has NO custom
+  transitions (pure Flutter defaults, tab switches instant). Add: screen
+  slide-in transitions (`pageTransitionsTheme` / go_router pages), + speed
+  dial expand animation, soft fade between main tabs, cards/charts ease-in;
+  ~200–300 ms, respect `MediaQuery.disableAnimations`. The PC session will
+  compare with Drivvo in BlueStacks afterwards and tune.
+- **Android:** first release APK built and installed on the owner's phone
+  (Android 12+ target — owner doesn't need older phones tested); adding a
+  refueling works. It's an **offline build** (no `env/cloud.json`). Next
+  APK (PC session): `flutter build apk --release --split-per-abi
+  --dart-define-from-file=env/cloud.json` after the deep link merges.
+  Emulator `motolog_api36` exists (Android 16); an ANR seen there was the
+  PC at 100% CPU / 250 MB free RAM, not the app. Release build tip: stop
+  stray Gradle/Kotlin daemons if you see "file used by another process".
+- Sharing batch: owner started a cloud session for it on `feature/sharing`.
+
 ## PAUSED 2026-09-26 (owner switching to a new session) — resume here first
 Optimization & compatibility pass (Next 2) is **merged into `develop` and
 pushed** (`9920c9f`): `feature/perf-sync` then `feature/compat-layout`.
