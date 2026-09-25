@@ -8,6 +8,7 @@ import '../calc/access_profile.dart';
 import '../sharing/active_account.dart';
 import '../theme/app_theme.dart';
 import '../theme/record_module.dart';
+import 'motion.dart';
 import 'speed_dial_menu.dart';
 
 /// Layout wrapping the four main tabs: the active tab's page on top and the
@@ -22,18 +23,54 @@ class MainShell extends ConsumerStatefulWidget {
   ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends ConsumerState<MainShell> {
+class _MainShellState extends ConsumerState<MainShell>
+    with TickerProviderStateMixin {
   bool _menuOpen = false;
 
-  void _toggleMenu() => setState(() => _menuOpen = !_menuOpen);
+  /// Speed dial open (1) / closed (0); the menu stays mounted while it
+  /// animates closed.
+  late final _menu = AnimationController(vsync: this, duration: Motion.short);
+
+  /// Soft fade-in of the page when switching main tabs.
+  late final _tabFade = AnimationController(
+    vsync: this,
+    duration: Motion.short,
+    value: 1,
+  );
+
+  @override
+  void didUpdateWidget(MainShell old) {
+    super.didUpdateWidget(old);
+    if (old.navigationShell.currentIndex !=
+            widget.navigationShell.currentIndex &&
+        !Motion.disabled(context)) {
+      _tabFade.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _menu.dispose();
+    _tabFade.dispose();
+    super.dispose();
+  }
+
+  void _setMenu(bool open) {
+    if (open == _menuOpen) return;
+    setState(() => _menuOpen = open);
+    _menu.duration = Motion.of(context, Motion.short);
+    open ? _menu.forward() : _menu.reverse();
+  }
+
+  void _toggleMenu() => _setMenu(!_menuOpen);
 
   void _openForm(RecordModule module) {
-    setState(() => _menuOpen = false);
+    _setMenu(false);
     context.push('/add/${module.name}');
   }
 
   void _goTab(int index) {
-    setState(() => _menuOpen = false);
+    _setMenu(false);
     widget.navigationShell.goBranch(
       index,
       // Tapping the active tab again pops back to its first page.
@@ -68,29 +105,61 @@ class _MainShellState extends ConsumerState<MainShell> {
   Widget _body(BuildContext context, List<RecordModule> modules) {
     return Stack(
       children: [
-        widget.navigationShell,
-        if (_menuOpen) ...[
-          // Dimmed backdrop; tap to close.
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: _toggleMenu,
-              child: ColoredBox(color: Colors.black.withValues(alpha: 0.3)),
-            ),
-          ),
-          // Bounded to the space between the status bar and the FAB, so on
-          // short screens the menu scrolls instead of pushing its top
-          // items off-screen and unreachable.
-          Positioned(
-            left: 0,
-            right: 0,
-            top: MediaQuery.paddingOf(context).top + 8,
-            bottom: 12,
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: SpeedDialMenu(onSelected: _openForm, modules: modules),
-            ),
-          ),
-        ],
+        FadeTransition(
+          opacity: CurvedAnimation(parent: _tabFade, curve: Curves.easeOut),
+          child: widget.navigationShell,
+        ),
+        AnimatedBuilder(
+          animation: _menu,
+          builder: (context, _) {
+            if (_menu.isDismissed) return const SizedBox.shrink();
+            final t = Motion.curve.transform(_menu.value);
+            // While closing, taps go through to the page.
+            return IgnorePointer(
+              ignoring: !_menuOpen,
+              child: Stack(
+                children: [
+                  // Dimmed backdrop; tap to close.
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: _toggleMenu,
+                      child: ColoredBox(
+                        color: Colors.black.withValues(alpha: 0.3 * t),
+                      ),
+                    ),
+                  ),
+                  // Bounded to the space between the status bar and the FAB,
+                  // so on short screens the menu scrolls instead of pushing
+                  // its top items off-screen and unreachable. Grows out of
+                  // the + button.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: MediaQuery.paddingOf(context).top + 8,
+                    bottom: 12,
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Opacity(
+                        opacity: t,
+                        child: Transform.scale(
+                          scale: 0.85 + 0.15 * t,
+                          alignment: Alignment.bottomCenter,
+                          child: Transform.translate(
+                            offset: Offset(0, 16 * (1 - t)),
+                            child: SpeedDialMenu(
+                              onSelected: _openForm,
+                              modules: modules,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ],
     );
   }
@@ -137,7 +206,26 @@ class _BottomBar extends StatelessWidget {
                     backgroundColor: AppTheme.primary,
                     foregroundColor: Colors.white,
                     onPressed: onFab,
-                    child: Icon(menuOpen ? Icons.close : Icons.add, size: 28),
+                    // + turns into × with a quarter spin.
+                    child: AnimatedSwitcher(
+                      duration: Motion.of(context, Motion.short),
+                      transitionBuilder: (child, animation) =>
+                          RotationTransition(
+                            turns: Tween(
+                              begin: 0.75,
+                              end: 1.0,
+                            ).animate(animation),
+                            child: FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            ),
+                          ),
+                      child: Icon(
+                        menuOpen ? Icons.close : Icons.add,
+                        key: ValueKey(menuOpen),
+                        size: 28,
+                      ),
+                    ),
                   ),
                 ),
               ),

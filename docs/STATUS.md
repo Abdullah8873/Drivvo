@@ -4,7 +4,7 @@ _Last updated: 2026-09-26. **Cloud session? Read docs/CLOUD-SESSION.md
 first.** Read this first when starting a new
 session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
 
-## Done (merged into `develop`, pushed, 513 tests passing in ~1.5 min, web release build OK)
+## Done (merged into `develop`, pushed, **586 tests** passing in ~2 min, web release build OK)
 - M1 app shell · M2 database (drift; schema **v4**: seeded catalogs with
   deterministic ids, v2 dedupe, v3 `sync_outbox` + triggers, v4 attachments +
   checklists) · vehicles (manufacturer = searchable brand picker,
@@ -63,10 +63,10 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
    editor via Claude in Chrome; run the checks in "Sharing batch" below.
    (Sharing is merged on develop `2839e13`, 551 tests; never run on real
    Postgres — fix errors on a branch if the editor reports any.)
-2. [ ] Cloud session merges `feature/extras-ui`, `feature/import-links`,
-   `feature/animations` — check `git log develop` / STATUS; finish any it
-   didn't.
-3. [ ] Supabase → Auth → Redirect URLs: add
+2. [x] Cloud session merged `feature/extras-ui`, `feature/import-links`,
+   `feature/animations` (2026-09-26, see "Extras, Import & Animations"
+   below — hands-on QA list there).
+3. [x] (done 2026-09-26 by the PC session via Chrome; list now has 3 URLs) Supabase → Auth → Redirect URLs: add
    `com.abdullah8873.motolog://login-callback`.
 4. [ ] **Cloud session #3 (Sonnet)** — part number / brand field on service items (schema v6: nullable
    column on `entry_items` + Supabase migration + sync + service type
@@ -116,6 +116,59 @@ no web deploy; iOS impossible without a Mac). Two unmerged branches are
   PC at 100% CPU / 250 MB free RAM, not the app. Release build tip: stop
   stray Gradle/Kotlin daemons if you see "file used by another process".
 - Sharing batch: **merged** by the cloud session — see the next section.
+## Extras, Import & Animations — merged 2026-09-26 by a cloud session
+All three branches are merged into `develop` and pushed (`c5afe76`,
+`a484ebb`, then `feature/animations`); each was merged with the latest
+`develop` first (sharing included). Format clean, analyze 0 issues,
+**586 tests pass**, `flutter build web --release` OK.
+- **`feature/extras-ui`:** About / Contact / Translation / Share app +
+  Reports "Share as image / PDF". The WIP test hung because `toImage()`
+  never completes under the test binding: the capture is now behind
+  `reportImageCaptureProvider` (real `toImage` in the app, stubbed in
+  tests), and a failed capture/share shows "Couldn't share the report"
+  instead of an unhandled error. Merge conflicts with sharing (More
+  screen, router) resolved keeping both.
+- **`feature/import-links`:** CSV import (Export screen → IMPORT CSV,
+  preview dialog), `navigator.storage.persist()` on web start-up, Android
+  + iOS deep link for emailed auth links. Added preview-dialog widget
+  tests (cancel, duplicates-only → IMPORT disabled, not-an-export, damaged
+  zip); the counts/problems/type-choice test was already there.
+- **`feature/animations`** (`lib/core/widgets/motion.dart`):
+  - **Root cause of "no transitions":** go_router 18 detects the app type
+    through `package:material_ui`'s `MaterialApp`, which is not the
+    `package:flutter` class this app uses, so every route was a
+    `NoTransitionPage`. Routes now build Flutter `MaterialPage`s (router
+    `_page` helper — **use `_page(...)`, not `GoRoute(...)`, for new
+    routes**).
+  - Screens slide in from the right + fade (280 ms), the screen below
+    drifts left; iOS/macOS keep Cupertino (swipe back).
+  - Speed dial grows out of the + with a fading backdrop; + spins into ×.
+  - Soft fade (200 ms) when switching main tabs.
+  - Reports: period card, stat cards and charts fade/slide in, staggered
+    40 ms (max 5).
+  - All off when the OS asks for reduced motion (`test/motion_test.dart`).
+- **Supabase redirect URL to add (PC session, via Chrome):** Auth → URL
+  Configuration → Redirect URLs → add
+  `com.abdullah8873.motolog://login-callback` (FINISH LINE item 3). Until
+  then Supabase ignores it and emailed links on Android go to the Site URL.
+- **Needs hands-on QA on the owner's PC:**
+  - Animations in Chrome and on the phone/emulator, compared with Drivvo in
+    BlueStacks: screen push/pop, speed dial, tab switch, Reports cards;
+    tune `Motion` durations/offsets if they feel off. Check Android's
+    predictive back gesture still works, and that turning off animations
+    (Android: Settings → Accessibility → Remove animations) removes them.
+  - Reports → Share → image and PDF on web (download) and Android (share
+    sheet); a long report is captured cropped to the visible part (known,
+    documented in `reports_screen.dart`).
+  - About (version shows), Contact → Send feedback, Share app on Android.
+  - Export → IMPORT CSV with a real export (.csv and .zip) in Chrome and
+    on Android (file picker); importing the same file twice skips all.
+  - Web: DevTools → Application → Storage shows persistent storage granted
+    (Chrome may grant it silently only for installed/engaged sites).
+  - Android email link: after the redirect URL is added and a cloud APK is
+    built, request a sign-in link on the phone and open it from the phone's
+    mail app → app opens signed in.
+
 ## Sharing batch — merged 2026-09-26 by the cloud session (code only)
 Users, access profiles, profile editor, invite banner, account switching,
 Transfer. Design + what differs from the plan: `docs/SHARING.md` (top).

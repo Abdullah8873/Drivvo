@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/record_module.dart';
 import '../../../core/widgets/max_width_body.dart';
+import '../../../core/widgets/motion.dart';
 import '../report_providers.dart';
 import '../report_scope.dart';
 import 'chart_style.dart';
@@ -87,10 +88,15 @@ class ReportTabScaffold extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
               children: [
-                ReportPeriodCard(count: records.length, span: scope.span),
-                for (final child in children) ...[
+                FadeSlideIn(
+                  child: ReportPeriodCard(
+                    count: records.length,
+                    span: scope.span,
+                  ),
+                ),
+                for (final (i, child) in children.indexed) ...[
                   const SizedBox(height: 12),
-                  child,
+                  FadeSlideIn(index: i + 1, child: child),
                 ],
               ],
             ),
