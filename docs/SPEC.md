@@ -117,3 +117,32 @@ Checklist and Form builder, custom profile permissions screen, user invite flow,
   5. Completed 15 / 45 / 90 / 150 full tanks (hexagon gauge)
 - **Export** (⬇ on History) is behind Drivvo's paywall ("To export data, upgrade your plan";
   PRO lists "Data export (CSV/Excel)") — MotoLog designs its own export screen.
+
+### Verified hands-on in Drivvo (2026-09-25): Users, Profiles, Transfer
+- **Users** (More → Users, teal app bar): an "Invite drivers and managers" info card (paywall
+  in Drivvo — we drop the upsell), then one row per member: **name** (bold), **email**, **profile
+  name** (e.g. "Administrator" for the owner); teal "+" FAB to invite. Tapping a row/"+" is
+  paywalled in Drivvo, so the invite/edit-member form is our own design.
+- **Profiles** (More → Profiles): section "Drivvo profiles" (we say "Built-in profiles") with
+  **Administrator · Manager · Driver** (fixed, read-only, lock banner "… profiles are fixed and
+  can't be edited"), section "Custom profiles" with "Add your first profile" + "+" FAB.
+- **Profile screen:** "Profile name" field; segmented toggle **ALL VEHICLES | ASSIGNED VEHICLES**
+  (helper "Can see all vehicles in the fleet." / "Can only see vehicles they have access to.");
+  toggle **ALL RECORDS | OWN RECORDS** ("Can see records from everyone in the account." /
+  "Can only see records they created or are linked to."). Then permission rows, each with a
+  module-colored dot, a row of up to 4 small dots showing how many permissions are on, and
+  an expand chevron; expanded = 4 switches **View · Register · Edit · Delete**:
+  - **Modules:** Refueling, Expense, Income, Service, Route, Checklist, Reminder, Reading;
+    **Report** (View only).
+  - **Types and categories** (teal dots): Fuel, Gas stations, Places, Types of expense, Types of
+    service, Types of income, Reasons, Payment methods.
+  - **Administration · Admin and Manager only** (grey dots): Vehicles, Users, Profiles, Forms.
+  - Defaults: **Administrator** and **Manager** = all vehicles, all records, all 4 everywhere
+    (Manager differs only in not being the account owner: can't delete/transfer the account
+    or remove the owner). **Driver** = assigned vehicles, own records, View+Register+Edit
+    (no Delete) on modules and types, nothing on Report and Administration.
+- **Transfer** (More → Transfer): empty state with a car-with-arrows icon, "Did you sell your
+  vehicle? Send a copy of the history to the buyer!" / "Did you buy a new vehicle? Receive a
+  copy of the vehicle's history from the seller!"; "+" FAB speed dial: **Generate transfer
+  code** · **Redeem transfer code** (both paywalled — flow is our design). Note: it is a
+  **copy**; the seller keeps their history.
