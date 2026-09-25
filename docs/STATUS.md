@@ -52,6 +52,41 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   360×640 in light + dark (brand picker, checklist save/expand, Storage,
   Reports, map tiles + attribution).
 
+## PAUSED 2026-09-25 (owner asked) — in flight, resume here first
+Optimization & compatibility pass (Next 2) is ~80% done in two worktrees,
+**not merged yet**. Both agents were stopped cleanly (no processes left).
+- **Perf/sync (Opus)** — branch `feature/perf-sync`, worktree
+  `.claude/worktrees/agent-a2f8d55c9d631019c`. Commits: big-dataset seeder +
+  benchmark (`test/perf/`, tag `perf`, skipped by default) · schema **v5**
+  indexes · sync pull/push per dependency tier in parallel · lean
+  consumption query + DB opens while cloud initializes. **Uncommitted:**
+  `history_queries.dart` + benchmark edits (was re-running the benchmark —
+  timings were noisy). Left to do: finish History query work, AFTER numbers,
+  maybe `supabase/migrations/20260926000001_perf_indexes.sql`, full suite.
+- **Layout/compat (Sonnet)** — branch `feature/compat-layout`, worktree
+  `.claude/worktrees/agent-ae78d97490d812b60`. Commits: tablet max-width
+  wrapper (`core/widgets/max_width_body.dart`), lazy lists, Android/web
+  config · overflow fixes from the layout smoke matrix. Web release build
+  with `--no-web-resources-cdn` built; a `--wasm` build had just finished
+  (result not checked). Left to do: check the wasm build, full test suite,
+  final report.
+- **Resume:** in the same Claude session, SendMessage each agent "resume";
+  in a fresh session, spawn one agent per branch ("continue the work on
+  branch X in worktree Y — see docs/STATUS.md PAUSED section and `git log
+  develop..HEAD`"), then: review diffs, format/analyze/test, merge both into
+  develop (perf first — it owns schema v5), push, hands-on QA in the browser
+  pane (320 px, text 2×, tablet, dark), apply the perf SQL on Supabase via
+  Claude in Chrome (owner OK'd using it).
+- **Then:** sharing batch — design is decided in `docs/SHARING.md`, Drivvo
+  screens verified in `docs/SPEC.md`, permission model already on develop
+  (`lib/core/calc/access_profile.dart`). Plan: Opus = SQL/RLS/sync/account
+  switching/Transfer RPCs; Sonnet = Users/Profiles/Profile editor/invite
+  banner/Transfer screens. Needs a 2nd test account from the owner.
+- **APK:** owner asked (2026-09-25) how soon they can use it on a phone.
+  Blocked on the Android Studio first-run wizard (Android SDK); after that
+  ~15 min for the first build. Offer to pull the Android email deep link
+  forward into that first APK.
+
 ## Next — pick up here
 1. **Cloud is live and v4 is applied (2026-09-25).** Supabase project
    `motolog`, ref `ibizgqnhurgvhyclfqza` (ap-northeast-2). All three SQL
