@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/cloud/auth_state.dart';
 import '../../core/cloud/cloud_config.dart';
 import '../../core/sync/sync_controller.dart';
+import '../sharing/account_switcher.dart';
 import 'account_widgets.dart';
 import 'auth_service.dart';
 
@@ -293,6 +294,8 @@ class _SignedInViewState extends ConsumerState<_SignedInView> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Own data / shared accounts (only once the user joined one).
+        const AccountSwitcherTile(),
         TextFormField(
           controller: _firstName,
           decoration: const InputDecoration(

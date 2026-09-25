@@ -6,16 +6,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'db/app_database.dart';
 import 'format/formatters.dart';
 import 'settings/app_settings.dart';
+import 'sharing/active_account.dart';
 
 /// Shared Riverpod providers — think "global stores / React contexts".
 /// Read them in widgets with `ref.watch(xxxProvider)` inside a
 /// ConsumerWidget (the equivalent of `useContext` / `useQuery`).
 
-/// The database. `main.dart` overrides it with the opened instance; tests
-/// override it with an in-memory database.
-final databaseProvider = Provider<AppDatabase>(
-  (ref) => throw UnimplementedError('databaseProvider must be overridden'),
-);
+/// The database of the active account: the home database
+/// ([homeDatabaseProvider], opened in `main.dart`) for the user's own data,
+/// or a shared account's local copy (see `active_account.dart`). Every
+/// screen and provider reads data through this one, so switching accounts
+/// rebuilds them all. Tests usually override it with an in-memory database.
+final databaseProvider = Provider<AppDatabase>((ref) {
+  final home = ref.watch(homeDatabaseProvider);
+  if (home == null) {
+    throw UnimplementedError(
+      'databaseProvider (or homeDatabaseProvider) must be overridden',
+    );
+  }
+  final name = ref.watch(
+    activeAccountProvider.select((account) => account?.databaseName),
+  );
+  if (name == null) return home;
+  final db = ref.watch(accountDatabaseOpenerProvider)(name);
+  ref.onDispose(db.close);
+  return db;
+});
+
+/// Where device preferences live: always the home database (settings
+/// aren't per account), or the only database in tests.
+AppDatabase _settingsDb(Ref ref) =>
+    ref.read(homeDatabaseProvider) ?? ref.read(databaseProvider);
 
 /// Settings loaded before `runApp` (overridden in main / tests).
 final initialSettingsProvider = Provider<AppSettings>(
@@ -40,7 +61,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> update(AppSettings Function(AppSettings s) change) async {
     state = change(state);
-    final db = ref.read(databaseProvider);
+    final db = _settingsDb(ref);
     await db
         .into(db.settingsEntries)
         .insert(
@@ -57,7 +78,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   /// after something *else* changed the `settings_entries` row directly
   /// (a backup restore), so the UI picks up rows it didn't write itself.
   Future<void> reload() async {
-    state = await loadSettings(ref.read(databaseProvider));
+    state = await loadSettings(_settingsDb(ref));
   }
 }
 

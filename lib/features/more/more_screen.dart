@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/calc/access_profile.dart';
+import '../../core/calc/member_access.dart';
 import '../../core/db/tables.dart';
+import '../../core/sharing/active_account.dart';
 
 /// "More options" tab: settings, catalogs (fuel, types, places…) and tools.
 /// Same grouping as Drivvo, minus the paid "plans" banner.
-class MoreScreen extends StatelessWidget {
+class MoreScreen extends ConsumerWidget {
   const MoreScreen({super.key});
 
   /// (icon, label, route or null = not built yet)
@@ -14,12 +18,12 @@ class MoreScreen extends StatelessWidget {
       (Icons.person, 'My account', '/account'),
       (Icons.cloud_sync, 'Synchronize data', '/sync'),
       (Icons.storage, 'Storage', '/storage'),
-      (Icons.swap_horiz, 'Transfer', null),
+      (Icons.swap_horiz, 'Transfer', '/transfer'),
     ],
     [
       (Icons.directions_car, 'Vehicles', '/vehicles'),
-      (Icons.group, 'Users', null),
-      (Icons.manage_accounts, 'Profiles', null),
+      (Icons.group, 'Users', '/users'),
+      (Icons.manage_accounts, 'Profiles', '/profiles'),
     ],
     [
       (Icons.local_gas_station, 'Fuel', _catalog(CatalogKind.fuel)),
@@ -51,8 +55,29 @@ class MoreScreen extends StatelessWidget {
 
   static String _catalog(CatalogKind kind) => '/catalog/${kind.name}';
 
+  /// Whether the active profile may open [route] (in a shared account a
+  /// driver doesn't see Vehicles, Users, Profiles, Forms, …; Transfer
+  /// only works on the user's own vehicles). Unrestricted routes: true.
+  static bool _visible(String? route, MemberAccess access) {
+    if (access.isOwner || route == null) return true;
+    if (route == '/transfer') return false;
+    final area = switch (route) {
+      '/vehicles' => AccessArea.vehicles,
+      '/users' => AccessArea.users,
+      '/profiles' => AccessArea.profiles,
+      '/forms' => AccessArea.forms,
+      '/places' => AccessArea.place,
+      _ when route.startsWith('/catalog/') => AccessArea.values.byName(
+        route.substring('/catalog/'.length),
+      ),
+      _ => null,
+    };
+    return area == null || access.can(area, AccessAction.view);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final access = ref.watch(currentAccessProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('More options')),
       body: ListView(
@@ -60,18 +85,19 @@ class MoreScreen extends StatelessWidget {
           for (final (i, section) in _sections.indexed) ...[
             if (i > 0) const Divider(),
             for (final (icon, label, route) in section)
-              ListTile(
-                leading: Icon(
-                  icon,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+              if (_visible(route, access))
+                ListTile(
+                  leading: Icon(
+                    icon,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  title: Text(label),
+                  onTap: () => route != null
+                      ? context.push(route)
+                      : ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('$label — coming soon')),
+                        ),
                 ),
-                title: Text(label),
-                onTap: () => route != null
-                    ? context.push(route)
-                    : ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('$label — coming soon')),
-                      ),
-              ),
           ],
         ],
       ),

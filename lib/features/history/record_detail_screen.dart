@@ -9,6 +9,8 @@ import '../../core/theme/record_module.dart';
 import '../../core/widgets/max_width_body.dart';
 import '../attachments/attachment_queries.dart';
 import '../attachments/attachments_field.dart';
+import '../sharing/sharing_widgets.dart';
+import '../../core/calc/access_profile.dart';
 import 'history_calc.dart';
 import 'history_providers.dart';
 import 'history_queries.dart';
@@ -63,24 +65,26 @@ class _RecordDetailScreenState extends ConsumerState<RecordDetailScreen> {
         title: Text(module.label),
         actions: [
           if (record != null) ...[
-            IconButton(
-              tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () async {
-                final deleted = await confirmAndDeleteRecord(
-                  context,
-                  ref,
-                  record,
-                );
-                if (deleted && context.mounted) context.pop();
-              },
-            ),
-            IconButton(
-              tooltip: 'Edit',
-              icon: const Icon(Icons.edit_outlined),
-              onPressed: () =>
-                  context.push('/edit/${module.name}/${record.id}'),
-            ),
+            if (canActOnRecord(ref, module, record.id, AccessAction.delete))
+              IconButton(
+                tooltip: 'Delete',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () async {
+                  final deleted = await confirmAndDeleteRecord(
+                    context,
+                    ref,
+                    record,
+                  );
+                  if (deleted && context.mounted) context.pop();
+                },
+              ),
+            if (canActOnRecord(ref, module, record.id, AccessAction.edit))
+              IconButton(
+                tooltip: 'Edit',
+                icon: const Icon(Icons.edit_outlined),
+                onPressed: () =>
+                    context.push('/edit/${module.name}/${record.id}'),
+              ),
           ],
         ],
         bottom: record == null

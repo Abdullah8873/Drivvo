@@ -120,7 +120,7 @@ void main() {
 
     expect(await indexes(old), expected);
     final version = await old.customSelect('PRAGMA user_version').getSingle();
-    expect(version.read<int>('user_version'), 5);
+    expect(version.read<int>('user_version'), old.schemaVersion);
 
     // Triggers still fire on the upgraded database.
     await old.saveReading(
