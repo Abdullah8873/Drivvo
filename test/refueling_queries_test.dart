@@ -169,6 +169,82 @@ void main() {
     expect(list.map((r) => r.refueling.odometer), [200, 100]);
   });
 
+  test('watchRefuelSamples matches toSample of watchRefuelings', () async {
+    // Two tanks, several lines per tank, a discount, an edited refueling
+    // (soft-deleted old line), a deleted refueling and a line-less tank 2.
+    final a = await db.saveRefueling(
+      RefuelingDraft(
+        vehicleId: vid,
+        date: DateTime(2026, 9, 1),
+        odometer: 1000,
+        discount: 37.5,
+        lines: [
+          FuelLineDraft(
+            fuelId: fuels['Petrol']!.id,
+            pricePerUnit: 293.03,
+            total: 1470.13,
+            volume: 5.017,
+          ),
+          FuelLineDraft(
+            fuelId: fuels['Ethanol']!.id,
+            pricePerUnit: 250,
+            total: 500,
+            volume: 2,
+          ),
+          FuelLineDraft(
+            fuelId: fuels['CNG']!.id,
+            pricePerUnit: 200,
+            total: 400.7,
+            volume: 2.1,
+            tank: 2,
+          ),
+        ],
+      ),
+    );
+    await db.saveRefueling(draft(DateTime(2026, 9, 3), 1300, 9.3), id: a);
+    await db.saveRefueling(draft(DateTime(2026, 9, 5), 1500, 7.1, full: false));
+    await db.saveRefueling(draft(DateTime(2026, 9, 5), 1500, 3.3));
+    final gone = await db.saveRefueling(draft(DateTime(2026, 9, 6), 1600, 4));
+    await db.deleteRefueling(gone);
+    await db.saveRefueling(
+      RefuelingDraft(
+        vehicleId: vid,
+        date: DateTime(2026, 9, 8),
+        odometer: 1800,
+        discount: 10,
+        lines: [
+          FuelLineDraft(
+            fuelId: fuels['Petrol']!.id,
+            pricePerUnit: 300,
+            total: 1500,
+            volume: 5,
+          ),
+          FuelLineDraft(
+            fuelId: fuels['CNG']!.id,
+            pricePerUnit: 200,
+            total: 300,
+            volume: 1.5,
+            tank: 2,
+          ),
+        ],
+      ),
+    );
+
+    final details = await db.watchRefuelings(vid).first;
+    final samples = await db.watchRefuelSamples(vid).first;
+    String key(RefuelSample s) =>
+        '${s.id}|${s.date.toIso8601String()}|${s.odometer}|${s.volume}|'
+        '${s.cost}|${s.fullTank}|${s.missedPrevious}';
+    for (final tank in [1, 2]) {
+      expect(
+        (samples[tank] ?? const []).map(key).toList(),
+        details.map((d) => d.toSample(tank: tank)).nonNulls.map(key).toList(),
+        reason: 'tank $tank',
+      );
+    }
+    expect(samples[2], hasLength(1));
+  });
+
   group('providers', () {
     late ProviderContainer container;
     setUp(() {
@@ -181,7 +257,7 @@ void main() {
     Future<ConsumptionStats> stats() async {
       final sub = container.listen(refuelingStatsProvider(vid), (_, _) {});
       addTearDown(sub.close);
-      await container.read(refuelingsProvider(vid).future);
+      await container.read(refuelSamplesProvider(vid).future);
       return sub.read().requireValue;
     }
 

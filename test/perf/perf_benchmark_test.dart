@@ -151,11 +151,17 @@ void main() {
       'history: watchRefuelings (consumption input)',
       () => db.watchRefuelings(vid).first,
     );
+    final samples = await measure(
+      'history: watchRefuelSamples (consumption input)',
+      () => db.watchRefuelSamples(vid).first,
+    );
+    expect(
+      samples[1]!.length,
+      refuels.map((d) => d.toSample(tank: 1)).nonNulls.length,
+    );
     final stats = measureSync(
       'history: ConsumptionStats.compute (tank 1)',
-      () => ConsumptionStats.compute(
-        refuels.map((d) => d.toSample(tank: 1)).nonNulls,
-      ),
+      () => ConsumptionStats.compute(samples[1]!),
     );
     final consumption = HistoryConsumption(
       tank1: stats,

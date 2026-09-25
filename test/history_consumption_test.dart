@@ -31,7 +31,7 @@ void main() {
     );
     addTearDown(container.dispose);
     final sub = container.listen(historyConsumptionProvider(vid), (_, _) {});
-    await container.read(refuelingsProvider(vid).future);
+    await container.read(refuelSamplesProvider(vid).future);
     return (sub.read(), await db.loadTimeline(vid));
   }
 
