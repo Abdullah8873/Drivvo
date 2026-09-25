@@ -160,9 +160,9 @@ void main() {
       () => db.watchChecklistForms().first,
     ))!;
     final walk = forms.firstWhere((f) => f.form.name == 'Walkaround');
-    final details = (await tester.runAsync(
+    final details = await tester.runAsync(
       () => db.getChecklistForm(walk.form.id),
-    ))!;
+    );
     expect(details!.items.map((i) => i.label), ['Horn', 'Tires']);
 
     // Delete (soft): gone from the list.
