@@ -151,7 +151,11 @@ class FieldRow extends StatelessWidget {
               padding: const EdgeInsets.only(top: 16),
               child: icon == null
                   ? null
-                  : Icon(icon, size: 22, color: Colors.grey.shade600),
+                  : Icon(
+                      icon,
+                      size: 22,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
             ),
           ),
           Expanded(
@@ -167,7 +171,7 @@ class FieldRow extends StatelessWidget {
                       textAlign: TextAlign.right,
                       style: TextStyle(
                         fontSize: 11,
-                        color: Colors.grey.shade600,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),

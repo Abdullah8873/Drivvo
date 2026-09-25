@@ -1,11 +1,13 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../core/db/app_database.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/module_form_scaffold.dart';
+import '../places/location_picker_screen.dart';
 import 'catalog_labels.dart';
 import 'catalog_queries.dart';
 
@@ -59,6 +61,8 @@ class _CatalogItemFormScreenState extends ConsumerState<CatalogItemFormScreen> {
   late final _name = TextEditingController(text: widget.item?.name);
   late final _address = TextEditingController(text: widget.item?.address);
   late FuelKind _fuelKind = widget.item?.fuelKind ?? FuelKind.liquid;
+  late double? _latitude = widget.item?.latitude;
+  late double? _longitude = widget.item?.longitude;
   String? _nameError;
   bool _saving = false;
 
@@ -114,6 +118,8 @@ class _CatalogItemFormScreenState extends ConsumerState<CatalogItemFormScreen> {
         name: name,
         fuelKind: fuelKind,
         address: kind.hasAddress ? address : null,
+        latitude: kind.hasAddress ? _latitude : null,
+        longitude: kind.hasAddress ? _longitude : null,
       );
     } else {
       await db.updateCatalogItem(
@@ -123,6 +129,8 @@ class _CatalogItemFormScreenState extends ConsumerState<CatalogItemFormScreen> {
             ? Value(fuelKind)
             : const Value.absent(),
         address: kind.hasAddress ? Value(address) : const Value.absent(),
+        latitude: kind.hasAddress ? Value(_latitude) : const Value.absent(),
+        longitude: kind.hasAddress ? Value(_longitude) : const Value.absent(),
       );
     }
     if (mounted) Navigator.pop(context);
@@ -131,6 +139,29 @@ class _CatalogItemFormScreenState extends ConsumerState<CatalogItemFormScreen> {
   Future<void> _delete() async {
     final deleted = await confirmDeleteCatalogItem(context, ref, widget.item!);
     if (deleted && mounted) Navigator.pop(context);
+  }
+
+  Future<void> _pickLocation() async {
+    final picked = await Navigator.of(context).push<LatLng>(
+      MaterialPageRoute(
+        builder: (_) => LocationPickerScreen(
+          initial: _latitude == null ? null : LatLng(_latitude!, _longitude!),
+        ),
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _latitude = picked.latitude;
+        _longitude = picked.longitude;
+      });
+    }
+  }
+
+  void _clearLocation() {
+    setState(() {
+      _latitude = null;
+      _longitude = null;
+    });
   }
 
   @override
@@ -176,6 +207,31 @@ class _CatalogItemFormScreenState extends ConsumerState<CatalogItemFormScreen> {
                   controller: _address,
                   textCapitalization: TextCapitalization.sentences,
                   decoration: const InputDecoration(labelText: 'Address'),
+                ),
+              ),
+            if (kind.hasAddress)
+              FieldRow(
+                icon: Icons.location_on_outlined,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: PickerField(
+                        label: 'Location',
+                        value: _latitude == null
+                            ? 'Not set'
+                            : '${_latitude!.toStringAsFixed(5)}, '
+                                  '${_longitude!.toStringAsFixed(5)}',
+                        onTap: _pickLocation,
+                      ),
+                    ),
+                    if (_latitude != null)
+                      IconButton(
+                        tooltip: 'Clear location',
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: _clearLocation,
+                      ),
+                  ],
                 ),
               ),
             if (kind == CatalogKind.fuel)

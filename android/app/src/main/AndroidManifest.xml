@@ -4,6 +4,11 @@
          reschedule them after a reboot. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- flutter_map: OpenStreetMap tiles. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- geolocator: "my location" on the My places map and location picker. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="motolog"
         android:name="${applicationName}"

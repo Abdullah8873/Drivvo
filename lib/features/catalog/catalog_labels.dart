@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/db/tables.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/record_module.dart';
 
 /// Display names and icons for each catalog, as shown in Drivvo's More menu.
 extension CatalogKindLabels on CatalogKind {
@@ -42,6 +44,13 @@ extension CatalogKindLabels on CatalogKind {
   /// Gas stations and places also store an address.
   bool get hasAddress =>
       this == CatalogKind.gasStation || this == CatalogKind.place;
+
+  /// Marker/pin color on the My places map — gas stations share the
+  /// refueling module's orange (they're where you refuel), other located
+  /// kinds (places) use the general teal.
+  Color get markerColor => this == CatalogKind.gasStation
+      ? RecordModule.refueling.color
+      : AppTheme.primary;
 }
 
 extension FuelKindLabels on FuelKind {

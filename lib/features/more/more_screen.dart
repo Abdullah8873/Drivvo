@@ -37,7 +37,7 @@ class MoreScreen extends StatelessWidget {
       (Icons.description, 'Forms', null),
     ],
     [
-      (Icons.map, 'My places', null),
+      (Icons.map, 'My places', '/places'),
       (Icons.calculate, 'Flex calculator', '/flex'),
     ],
     [
