@@ -426,7 +426,9 @@ class _InfoCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         label,
-                        style: TextStyle(color: Colors.grey.shade600),
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                     Text(value, style: theme.textTheme.bodyLarge),
@@ -453,6 +455,7 @@ class _TankGauge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Row(
@@ -467,12 +470,12 @@ class _TankGauge extends StatelessWidget {
                   value: share.clamp(0.0, 1.0),
                   strokeWidth: 8,
                   color: RecordModule.refueling.color,
-                  backgroundColor: Colors.grey.shade200,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
                 ),
                 Center(
                   child: Text(
                     '${(share * 100).round()}%',
-                    style: Theme.of(context).textTheme.titleSmall,
+                    style: theme.textTheme.titleSmall,
                   ),
                 ),
               ],
@@ -482,7 +485,7 @@ class _TankGauge extends StatelessWidget {
           Expanded(
             child: Text(
               label ?? 'of tank',
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
         ],
@@ -498,17 +501,18 @@ class _TankCapacityHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Row(
         children: [
-          Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
+          Icon(Icons.info_outline, size: 16, color: onSurfaceVariant),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               'Set tank capacity in the vehicle to see % of tank',
               style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: Colors.grey.shade600),
+                  ?.copyWith(color: onSurfaceVariant),
             ),
           ),
         ],

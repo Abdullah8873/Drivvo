@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:motolog/app.dart';
 import 'package:motolog/core/db/app_database.dart';
+import 'package:motolog/core/geo/map_tile_provider.dart';
 import 'package:motolog/core/providers.dart';
 
 /// Fresh in-memory database (seeded with default catalogs) for tests.
@@ -24,8 +25,15 @@ AppDatabase testDatabase() {
 }
 
 /// The full app wired to [db] — pump this in widget tests.
+///
+/// Also swaps in [NoNetworkTileProvider] for any flutter_map `TileLayer`
+/// (My places map, the location picker) so pumping a screen with a map never
+/// makes a real HTTP request — see `map_tile_provider.dart`.
 Widget testApp(AppDatabase db) => ProviderScope(
-  overrides: [databaseProvider.overrideWithValue(db)],
+  overrides: [
+    databaseProvider.overrideWithValue(db),
+    mapTileProviderProvider.overrideWithValue(NoNetworkTileProvider()),
+  ],
   child: const MotoLogApp(),
 );
 

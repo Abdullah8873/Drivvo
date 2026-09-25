@@ -231,7 +231,9 @@ class _ChecklistFormEditorScreenState
                           height: 48,
                           child: Icon(
                             Icons.drag_handle,
-                            color: Colors.grey.shade600,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
                           ),
                         ),
                       ),

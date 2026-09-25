@@ -108,7 +108,9 @@ class _AttachmentViewerScreenState
                     Text(item.fileName, textAlign: TextAlign.center),
                     Text(
                       formatBytes(data.length),
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     FilledButton.icon(
@@ -143,12 +145,18 @@ class _Message extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 64, color: Colors.grey.shade500),
+            Icon(
+              icon,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 12),
             Text(
               text,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade500),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             if (onRetry != null) ...[
               const SizedBox(height: 12),

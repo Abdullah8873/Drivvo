@@ -255,7 +255,9 @@ class _AttachmentThumbnailState extends ConsumerState<AttachmentThumbnail> {
       height: 40,
       child: Icon(
         widget.item.isImage ? Icons.image : Icons.picture_as_pdf,
-        color: widget.item.isImage ? Colors.grey.shade600 : Colors.red.shade400,
+        color: widget.item.isImage
+            ? Theme.of(context).colorScheme.onSurfaceVariant
+            : Colors.red.shade400,
       ),
     );
     if (_bytes == null) return icon;

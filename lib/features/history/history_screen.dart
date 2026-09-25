@@ -179,13 +179,14 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 96, color: Colors.grey.shade400),
+          Icon(icon, size: 96, color: onSurfaceVariant),
           const SizedBox(height: 16),
-          Text(message, style: TextStyle(color: Colors.grey.shade700)),
+          Text(message, style: TextStyle(color: onSurfaceVariant)),
           if (action != null) ...[const SizedBox(height: 16), action!],
         ],
       ),

@@ -802,7 +802,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       child: Text(
         'Installment ${loaded.openedInstallmentNo} of '
         '${loaded.draft.installments} — changes apply to every installment.',
-        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontSize: 13,
+        ),
       ),
     );
   }
@@ -821,7 +824,11 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.directions_car, size: 56, color: Colors.grey.shade500),
+          Icon(
+            Icons.directions_car,
+            size: 56,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(height: 12),
           Text(
             'Add a vehicle first to log a ${_module.label.toLowerCase()}.',

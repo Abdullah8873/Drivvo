@@ -62,7 +62,11 @@ class NoVehicleView extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.two_wheeler, size: 64, color: Colors.grey.shade400),
+              Icon(
+                Icons.two_wheeler,
+                size: 64,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
               const SizedBox(height: 16),
               Text(
                 'Add a vehicle before recording a '

@@ -32,13 +32,13 @@ class AppTheme {
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(vertical: 8),
         floatingLabelBehavior: FloatingLabelBehavior.auto,
-        labelStyle: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+        labelStyle: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14),
         floatingLabelStyle: TextStyle(
-          color: Colors.grey.shade600,
+          color: scheme.onSurfaceVariant,
           fontSize: 12,
         ),
         enabledBorder: UnderlineInputBorder(
-          borderSide: BorderSide(color: Colors.grey.shade400),
+          borderSide: BorderSide(color: scheme.outlineVariant),
         ),
       ),
       dividerTheme: DividerThemeData(

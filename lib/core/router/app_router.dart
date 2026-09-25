@@ -20,6 +20,7 @@ import '../../features/forms/route_form_screen.dart';
 import '../../features/history/history_screen.dart';
 import '../../features/history/record_detail_screen.dart';
 import '../../features/more/more_screen.dart';
+import '../../features/places/places_screen.dart';
 import '../../features/reminders/reminder_form_screen.dart';
 import '../../features/reminders/reminders_screen.dart';
 import '../../features/reports/reports_screen.dart';
@@ -49,6 +50,7 @@ import '../widgets/main_shell.dart';
 ///   /achievements             Achievements (More → Achievements)
 ///   /storage                  Attachment usage (More → Storage)
 ///   /forms                    Checklist templates (More → Forms)
+///   /places                   My places list/map (More → My places)
 /// ```
 ///
 /// [activeRouter] tracks the most recently created router. A tapped OS
@@ -139,6 +141,7 @@ GoRouter _buildRouter() => GoRouter(
       builder: (_, _) => const NewPasswordScreen(),
     ),
     GoRoute(path: '/sync', builder: (_, _) => const SyncScreen()),
+    GoRoute(path: '/places', builder: (_, _) => const MyPlacesScreen()),
     GoRoute(path: '/flex', builder: (_, _) => const FlexCalculatorScreen()),
     GoRoute(
       path: '/achievements',

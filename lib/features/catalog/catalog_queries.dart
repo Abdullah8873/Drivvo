@@ -31,6 +31,8 @@ extension CatalogQueries on AppDatabase {
     required String name,
     FuelKind? fuelKind,
     String? address,
+    double? latitude,
+    double? longitude,
   }) {
     return into(catalogItems).insertReturning(
       CatalogItemsCompanion.insert(
@@ -38,6 +40,8 @@ extension CatalogQueries on AppDatabase {
         name: name.trim(),
         fuelKind: Value(fuelKind),
         address: Value(address),
+        latitude: Value(latitude),
+        longitude: Value(longitude),
       ),
     );
   }
@@ -50,15 +54,34 @@ extension CatalogQueries on AppDatabase {
     required String name,
     Value<FuelKind?> fuelKind = const Value.absent(),
     Value<String?> address = const Value.absent(),
+    Value<double?> latitude = const Value.absent(),
+    Value<double?> longitude = const Value.absent(),
   }) {
     return (update(catalogItems)..where((c) => c.id.equals(id))).write(
       CatalogItemsCompanion(
         name: Value(name.trim()),
         fuelKind: fuelKind,
         address: address,
+        latitude: latitude,
+        longitude: longitude,
         updatedAt: Value(DateTime.now()),
       ),
     );
+  }
+
+  /// Places and gas stations together (My places list/map), alphabetically —
+  /// the two catalog kinds that carry an address and, optionally, a
+  /// latitude/longitude.
+  Stream<List<CatalogItem>> watchPlacesAndStations() {
+    return (select(catalogItems)
+          ..where(
+            (c) =>
+                (c.kind.equalsValue(CatalogKind.place) |
+                    c.kind.equalsValue(CatalogKind.gasStation)) &
+                c.deletedAt.isNull(),
+          )
+          ..orderBy([(c) => OrderingTerm.asc(c.name.collate(Collate.noCase))]))
+        .watch();
   }
 
   Future<void> softDeleteCatalogItem(String id) {

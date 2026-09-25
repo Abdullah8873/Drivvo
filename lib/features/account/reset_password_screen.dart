@@ -88,7 +88,11 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   ];
 
   List<Widget> _sentStep() => [
-    const Icon(Icons.mark_email_read_outlined, size: 48, color: Colors.grey),
+    Icon(
+      Icons.mark_email_read_outlined,
+      size: 48,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
     const SizedBox(height: 16),
     Text(
       'Check your email for a reset link. Open it on this device to '

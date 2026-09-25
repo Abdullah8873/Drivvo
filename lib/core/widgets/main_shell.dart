@@ -149,7 +149,9 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final selected = index == currentIndex;
-    final color = selected ? AppTheme.primary : Colors.grey.shade700;
+    final color = selected
+        ? AppTheme.primary
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     return Expanded(
       child: InkWell(
         onTap: () => onTap(index),

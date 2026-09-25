@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/db/app_database.dart';
 import '../../core/providers.dart';
 import '../../core/widgets/module_form_scaffold.dart';
+import '../../core/widgets/select_list_screen.dart';
 import '../routes/record_form_parts.dart' show parseNumber;
+import 'vehicle_brands.dart';
 import 'vehicle_labels.dart';
 import 'vehicle_queries.dart';
 import 'vehicle_widgets.dart';
@@ -262,6 +264,39 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
     }
   }
 
+  /// Opens the manufacturer picker (brands for the current [_type], plus a
+  /// "+" to type a custom name). The current value is included in the list
+  /// even when it isn't a known brand, so an existing free-text manufacturer
+  /// (from before this picker existed, or a custom one) still shows and
+  /// stays selectable — see `vehicle_brands.dart`.
+  Future<void> _pickManufacturer() async {
+    final current = _manufacturer.text.trim();
+    final brands = brandsFor(_type);
+    final hasCurrent =
+        current.isEmpty ||
+        brands.any((b) => b.toLowerCase() == current.toLowerCase());
+    final items = hasCurrent
+        ? brands
+        : ([...brands, current]
+            ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase())));
+    final picked = await Navigator.of(context).push<List<String>>(
+      MaterialPageRoute(
+        builder: (_) => SelectListScreen(
+          title: 'Manufacturer',
+          items: items,
+          selected: current.isEmpty ? null : current,
+          leadingBuilder: (item) => BrandAvatar(name: item),
+          onAddNew: () => _promptForName(context, title: 'New manufacturer'),
+        ),
+      ),
+    );
+    final name = picked?.firstOrNull;
+    if (name != null) {
+      _touch();
+      setState(() => _manufacturer.text = name);
+    }
+  }
+
   Future<void> _pickDistanceUnit() async {
     final u = await showChoiceDialog<DistanceUnit>(
       context,
@@ -315,7 +350,7 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -400,7 +435,16 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
             validator: (v) =>
                 (v == null || v.trim().isEmpty) ? 'Enter a name' : null,
           ),
-          _textField(_manufacturer, 'Manufacturer', icon: Icons.factory),
+          FieldRow(
+            icon: Icons.factory,
+            child: PickerField(
+              label: 'Manufacturer',
+              value: _manufacturer.text.trim().isEmpty
+                  ? null
+                  : _manufacturer.text.trim(),
+              onTap: _pickManufacturer,
+            ),
+          ),
           _textField(_model, 'Model', icon: Icons.directions_car_outlined),
           FieldRow(
             icon: Icons.pin_outlined,
@@ -536,6 +580,60 @@ class _VehicleFormScreenState extends ConsumerState<VehicleFormScreen> {
           ],
         ],
       ),
+    );
+  }
+}
+
+/// Small "type a name" dialog used by the manufacturer picker's "+" button.
+/// Returns the trimmed name, or null if cancelled / left empty.
+Future<String?> _promptForName(BuildContext context, {required String title}) {
+  return showDialog<String>(
+    context: context,
+    builder: (_) => _NamePromptDialog(title: title),
+  );
+}
+
+class _NamePromptDialog extends StatefulWidget {
+  const _NamePromptDialog({required this.title});
+
+  final String title;
+
+  @override
+  State<_NamePromptDialog> createState() => _NamePromptDialogState();
+}
+
+class _NamePromptDialogState extends State<_NamePromptDialog> {
+  final _name = TextEditingController();
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final name = _name.text.trim();
+    if (name.isNotEmpty) Navigator.of(context).pop(name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _name,
+        autofocus: true,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(labelText: 'Name'),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('CANCEL'),
+        ),
+        TextButton(onPressed: _submit, child: const Text('SAVE')),
+      ],
     );
   }
 }

@@ -147,7 +147,9 @@ class VehicleAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = enabled ? AppTheme.primary : Colors.grey;
+    final color = enabled
+        ? AppTheme.primary
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     return CircleAvatar(
       backgroundColor: color.withValues(alpha: 0.12),
       child: Icon(type.icon, color: color),
@@ -171,7 +173,9 @@ class VehicleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final details = vehicleDetails(vehicle);
-    final grey = vehicle.active ? null : Colors.grey;
+    final grey = vehicle.active
+        ? null
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     return ListTile(
       leading: VehicleAvatar(type: vehicle.type, enabled: vehicle.active),
       title: Text(vehicle.name),
@@ -181,7 +185,12 @@ class VehicleTile extends StatelessWidget {
           trailing ??
           (vehicle.active
               ? null
-              : const Text('Inactive', style: TextStyle(color: Colors.grey))),
+              : Text(
+                  'Inactive',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                )),
       onTap: onTap,
     );
   }

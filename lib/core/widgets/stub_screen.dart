@@ -14,7 +14,9 @@ class StubScreen extends StatelessWidget {
       body: Center(
         child: Text(
           '$title — under construction',
-          style: TextStyle(color: Colors.grey.shade700),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ),
     );

@@ -92,8 +92,9 @@ class _FlexCalculatorScreenState extends State<FlexCalculatorScreen> {
               children: [
                 Text(
                   'Autonomy difference',
-                  style: Theme.of(context).textTheme.bodyMedium
-                      ?.copyWith(color: Colors.grey.shade600),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 Row(
                   children: [

@@ -79,13 +79,14 @@ class GoogleSignInButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return OutlinedButton.icon(
       onPressed: loading ? null : onPressed,
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(48),
         shape: const StadiumBorder(),
-        side: BorderSide(color: Colors.grey.shade400),
-        foregroundColor: Colors.black87,
+        side: BorderSide(color: scheme.outlineVariant),
+        foregroundColor: scheme.onSurface,
       ),
       icon: loading
           ? const SizedBox(
@@ -211,7 +212,12 @@ class OrDivider extends StatelessWidget {
         const Expanded(child: Divider()),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Text('or', style: TextStyle(color: Colors.grey.shade600)),
+          child: Text(
+            'or',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
         ),
         const Expanded(child: Divider()),
       ],
