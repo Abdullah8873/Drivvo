@@ -53,40 +53,66 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   Reports, map tiles + attribution).
 
 ## Next — pick up here
-1. **Cloud is live (2026-09-25).** Supabase project `motolog`, ref
-   `ibizgqnhurgvhyclfqza` (region ap-northeast-2). First two SQL files
-   applied and verified. **`20260925000001_attachments_checklists.sql` is
-   NOT applied yet — the owner must run it in the SQL Editor; until then a
-   v4 build's sync fails on the new tables.** Email provider: confirm email
-   on, min password 8. Site URL `http://localhost:8085`, redirect URLs
-   8085 + 8086. Run: `.claude/launch.json` → `motolog-cloud` (port 8085).
-   Note: `motolog-qa` and `motolog-cloud` share `build/web` — restart the
-   one you test after running the other.
-   - **Verified against the real server:** sign-up + email confirmation,
-     sign-in, auto-sync on sign-in, pull of a server-inserted vehicle,
-     soft-delete propagation, paging `.or()` query.
-   - **Still to test live (needs the owner's inbox / password):** after the
-     v4 SQL: "Email me a sign-in link" (owner pastes the link into chat, Claude
-     opens it in the same pane), attachment upload/download to Storage,
-     conflict test (Claude simulates a 2nd device by writing through
-     PostgREST with the session), password-reset → "Set new password" (owner
-     types the password), delete account on a throwaway `+test` account.
+1. **Cloud is live and v4 is applied (2026-09-25).** Supabase project
+   `motolog`, ref `ibizgqnhurgvhyclfqza` (ap-northeast-2). All three SQL
+   files applied (v4 run by Claude via the owner's Chrome; verified: RLS on
+   all 15 tables, private `attachments` bucket 10 MB, 4 storage + 20 table
+   policies). Site URL `http://localhost:8085`, redirect URLs 8085 + 8086.
+   Run: `.claude/launch.json` → `motolog-cloud` (port 8085). `motolog-qa`
+   and `motolog-cloud` share `build/web` — restart the one you test.
+   - **Verified live 2026-09-25:** v4 sync (seed template + items pushed),
+     pull of a server-inserted row, **conflicts** (older remote write ignored
+     by the server trigger, newer remote write wins and is pulled),
+     **attachment upload** to Storage under `<uid>/…` + download, anon
+     cannot read/list files, **delete cascade** (vehicle → reading →
+     attachment soft-deleted with one timestamp, Storage object removed),
+     **"Email me a sign-in link"** end to end in Chrome (same browser).
+   - Owner's app account: abdullahsadiq427@gmail.com (Gmail `u/1` in their
+     Chrome; `u/0` is a different address).
+   - **Still to test (needs the owner):** password reset → "Set new
+     password" (owner types the password); delete account on a throwaway
+     `+test` account (creating accounts/typing passwords is owner-only).
    - Google sign-in not configured yet (owner: SETUP-CLOUD.md step 4).
-2. **Next build batch:** sharing/users/profiles/Transfer (needs working
-   cloud; Opus, alone — new SQL + RLS for `vehicle_members`), then small
-   items (About/Contact/Share app screens, Reports share-as-image/PDF,
-   optional part number/brand on service items, CSV import), then i18n
-   (touches every string — run last, by itself).
-3. M8 Ship: APK on phone (+ Android deep link for email links), web deploy,
+   - Claude-in-Chrome tips: Flutter web ignores the extension's wheel
+     scroll — use Tab to move focus; the first click after switching tabs
+     can be swallowed; upload files by patching
+     `HTMLInputElement.prototype.click` then `file_upload` on the input.
+2. **Optimization & compatibility pass (owner request 2026-09-25: "works
+   great across new and old devices and different OSes").** One Opus agent
+   (perf/sync) + one Sonnet agent (layout/compat), then hands-on QA:
+   - Measure first: seed a big dataset (e.g. 3 vehicles × 5k records +
+     attachments), profile startup, History scroll, Reports, sync
+     (`flutter run --profile`, DevTools). Fix what the numbers show.
+   - Sync: pulls run table by table sequentially (~12 × 250 ms seen live) —
+     run independent tables in parallel within a parent/child tier; batch
+     pushes already exist. Reports/consumption math on big data → `compute`
+     isolate if it janks. DB indexes on `(vehicle_id, date)` for the record
+     tables if missing (schema v5, same migration rules).
+   - Lists: History/catalog/select lists must be lazy (`ListView.builder` /
+     slivers), no `Column` of all rows.
+   - Old/low-end Android: check the effective `minSdk` (plugins may need
+     ≥ 23/24) and state it; test on API 23/28 + a recent emulator; release
+     APK with `--split-per-abi` (smaller), R8 shrink; Impeller fallback
+     issues on old GPUs. iOS target is 15.0 (fine).
+   - Web: works in Chrome/Edge/Firefox/Safari; drift currently falls back to
+     `sharedIndexedDb` (no SharedArrayBuffer) — serve COOP/COEP headers on
+     the deployed site for OPFS; consider `--wasm` with automatic JS
+     fallback; self-host CanvasKit (`--no-web-resources-cdn`) so it loads
+     offline; PWA install.
+   - Layout: 320 dp phones, tablets/landscape, large system font
+     (textScaler 1.3–2.0), RTL later with i18n; dark theme already done.
+3. **Then:** sharing/users/profiles/Transfer (Opus, alone — new SQL + RLS
+   for `vehicle_members`); small items (About/Contact/Share app, Reports
+   share-as-image/PDF, part number on service items, CSV import); i18n last.
+4. M8 Ship: APK on phone (+ Android deep link for email links), web deploy,
    CI/CD re-enable (parked in `.github/workflows-disabled/`).
 
 ## Needs the owner (batch these)
-- Run `supabase/migrations/20260925000001_attachments_checklists.sql` in the
-  Supabase SQL Editor (SETUP-CLOUD.md step 3).
-- Live link tests above (paste sign-in / reset links into chat).
+- Password-reset and delete-account live tests (see Next 1).
 - Google sign-in: `docs/SETUP-CLOUD.md` step 4 (web) and step 5 (Android).
 - Android Studio first-run wizard (Android SDK) + Windows Developer Mode
-  (plugin symlinks for the Windows build).
+  (plugin symlinks for the Windows build) — also needed for the old/new
+  Android emulator testing in Next 2.
 - On a phone later: notification permission prompt, "Send test
   notification", notifications after reboot, share sheet for export/backup,
   camera attachment.
