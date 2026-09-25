@@ -6,6 +6,7 @@ import '../../core/db/app_database.dart';
 import '../../core/format/formatters.dart';
 import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
+import '../../core/widgets/max_width_body.dart';
 import '../attachments/attachment_queries.dart';
 import '../attachments/attachments_field.dart';
 import 'history_calc.dart';
@@ -204,7 +205,9 @@ class _DetailBody extends StatelessWidget {
             ),
           ),
     ];
-    return ListView(padding: const EdgeInsets.all(12), children: cards);
+    return MaxWidthBody(
+      child: ListView(padding: const EdgeInsets.all(12), children: cards),
+    );
   }
 
   List<Widget> _checklistCards() {

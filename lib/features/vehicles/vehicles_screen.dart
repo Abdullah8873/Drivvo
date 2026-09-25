@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'vehicle_widgets.dart';
 
 /// More → Vehicles: every non-deleted vehicle (active first). Tap to edit,
@@ -29,13 +30,15 @@ class VehiclesScreen extends ConsumerWidget {
                   ),
                 ),
               )
-            : ListView.separated(
-                padding: const EdgeInsets.only(bottom: 88),
-                itemCount: list.length,
-                separatorBuilder: (_, _) => const Divider(indent: 72),
-                itemBuilder: (context, i) => VehicleTile(
-                  vehicle: list[i],
-                  onTap: () => context.push('/vehicles/${list[i].id}'),
+            : MaxWidthBody(
+                child: ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 88),
+                  itemCount: list.length,
+                  separatorBuilder: (_, _) => const Divider(indent: 72),
+                  itemBuilder: (context, i) => VehicleTile(
+                    vehicle: list[i],
+                    onTap: () => context.push('/vehicles/${list[i].id}'),
+                  ),
                 ),
               ),
       ),

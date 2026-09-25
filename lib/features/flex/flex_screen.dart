@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/calc/flex_math.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/record_module.dart';
+import '../../core/widgets/max_width_body.dart';
 import '../../core/widgets/module_form_scaffold.dart' show FieldRow;
 import '../reports/widgets/chart_style.dart';
 
@@ -82,107 +83,109 @@ class _FlexCalculatorScreenState extends State<FlexCalculatorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Flex calculator')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(8, 8, 16, 24),
-        children: [
-          FieldRow(
-            icon: Icons.speed,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Autonomy difference',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+      body: MaxWidthBody(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(8, 8, 16, 24),
+          children: [
+            FieldRow(
+              icon: Icons.speed,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Autonomy difference',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Slider(
-                        key: const Key('flexAutonomySlider'),
-                        value: _autonomy,
-                        min: _minAutonomy,
-                        max: _maxAutonomy,
-                        divisions: (_maxAutonomy - _minAutonomy).round(),
-                        label: '${_autonomy.round()}%',
-                        onChanged: _onSlider,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Slider(
+                          key: const Key('flexAutonomySlider'),
+                          value: _autonomy,
+                          min: _minAutonomy,
+                          max: _maxAutonomy,
+                          divisions: (_maxAutonomy - _minAutonomy).round(),
+                          label: '${_autonomy.round()}%',
+                          onChanged: _onSlider,
+                        ),
                       ),
-                    ),
-                    SizedBox(
-                      width: 64,
-                      child: TextField(
-                        key: const Key('flexAutonomyField'),
-                        controller: _autonomyController,
-                        textAlign: TextAlign.end,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(suffixText: '%'),
-                        onChanged: _onAutonomyField,
+                      SizedBox(
+                        width: 64,
+                        child: TextField(
+                          key: const Key('flexAutonomyField'),
+                          controller: _autonomyController,
+                          textAlign: TextAlign.end,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(suffixText: '%'),
+                          onChanged: _onAutonomyField,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          FieldRow(
-            icon: Icons.attach_money,
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    key: const Key('flexGasPrice'),
-                    controller: _gasController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Gas price',
-                      errorText: _gasError,
-                    ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    key: const Key('flexEthanolPrice'),
-                    controller: _ethanolController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Ethanol price',
-                      errorText: _ethanolError,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: FilledButton(
-              key: const Key('flexCalculateButton'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primary,
-                minimumSize: const Size.fromHeight(48),
-                shape: const StadiumBorder(),
-              ),
-              onPressed: _calculate,
-              child: const Text(
-                'CALCULATE',
-                style: TextStyle(letterSpacing: 1),
+                ],
               ),
             ),
-          ),
-          if (_result != null) ...[
-            const SizedBox(height: 24),
-            _RecommendationBanner(result: _result!),
-            const SizedBox(height: 20),
-            _FlexBarChart(result: _result!),
+            FieldRow(
+              icon: Icons.attach_money,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const Key('flexGasPrice'),
+                      controller: _gasController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Gas price',
+                        errorText: _gasError,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      key: const Key('flexEthanolPrice'),
+                      controller: _ethanolController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: 'Ethanol price',
+                        errorText: _ethanolError,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: FilledButton(
+                key: const Key('flexCalculateButton'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  minimumSize: const Size.fromHeight(48),
+                  shape: const StadiumBorder(),
+                ),
+                onPressed: _calculate,
+                child: const Text(
+                  'CALCULATE',
+                  style: TextStyle(letterSpacing: 1),
+                ),
+              ),
+            ),
+            if (_result != null) ...[
+              const SizedBox(height: 24),
+              _RecommendationBanner(result: _result!),
+              const SizedBox(height: 20),
+              _FlexBarChart(result: _result!),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/record_module.dart';
+import '../../../core/widgets/max_width_body.dart';
 import '../report_providers.dart';
 import '../report_scope.dart';
 import 'chart_style.dart';
@@ -81,15 +82,18 @@ class ReportTabScaffold extends ConsumerWidget {
                   ),
                 ]
               : builder(context, ref, scope);
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-            children: [
-              ReportPeriodCard(count: records.length, span: scope.span),
-              for (final child in children) ...[
-                const SizedBox(height: 12),
-                child,
+          return MaxWidthBody(
+            maxWidth: 840,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+              children: [
+                ReportPeriodCard(count: records.length, span: scope.span),
+                for (final child in children) ...[
+                  const SizedBox(height: 12),
+                  child,
+                ],
               ],
-            ],
+            ),
           );
         },
       ),

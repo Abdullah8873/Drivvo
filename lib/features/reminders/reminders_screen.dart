@@ -5,6 +5,7 @@ import '../../core/calc/reminder_math.dart';
 import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/main_tab_app_bar.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'reminder_providers.dart';
 import 'upcoming_reminders_strip.dart';
 
@@ -35,11 +36,13 @@ class RemindersScreen extends ConsumerWidget {
         ),
         null => const Center(child: CircularProgressIndicator()),
         [] => const _EmptyState(),
-        _ => ListView.separated(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
-          itemCount: items.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 8),
-          itemBuilder: (context, i) => ReminderCard(item: items[i]),
+        _ => MaxWidthBody(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+            itemCount: items.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, i) => ReminderCard(item: items[i]),
+          ),
         ),
       },
     );

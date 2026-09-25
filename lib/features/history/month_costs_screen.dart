@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/providers.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'history_calc.dart';
 import 'history_providers.dart';
 
@@ -59,58 +60,65 @@ class _MonthCosts extends ConsumerWidget {
           ..sort((a, b) => b.value.compareTo(a.value));
     final total = summary?.spent ?? 0;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text('Cost comparison', style: theme.textTheme.titleMedium),
-        const SizedBox(height: 16),
-        if (costs.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 48),
-            child: Center(child: Text('No costs this month')),
-          )
-        else ...[
-          SizedBox(
-            height: 220,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                PieChart(
-                  PieChartData(
-                    centerSpaceRadius: 64,
-                    sectionsSpace: 2,
-                    sections: [
-                      for (final e in costs)
-                        PieChartSectionData(
-                          value: e.value,
-                          color: e.key.color,
-                          radius: 36,
-                          showTitle: false,
-                        ),
+    return MaxWidthBody(
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Text('Cost comparison', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 16),
+          if (costs.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: Text('No costs this month')),
+            )
+          else ...[
+            SizedBox(
+              height: 220,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  PieChart(
+                    PieChartData(
+                      centerSpaceRadius: 64,
+                      sectionsSpace: 2,
+                      sections: [
+                        for (final e in costs)
+                          PieChartSectionData(
+                            value: e.value,
+                            color: e.key.color,
+                            radius: 36,
+                            showTitle: false,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Total', style: theme.textTheme.labelMedium),
+                      Text(
+                        fmt.money(total),
+                        style: theme.textTheme.titleMedium,
+                      ),
                     ],
                   ),
-                ),
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Total', style: theme.textTheme.labelMedium),
-                    Text(fmt.money(total), style: theme.textTheme.titleMedium),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          for (final e in costs)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: CircleAvatar(radius: 8, backgroundColor: e.key.color),
-              title: Text(e.key.label),
-              subtitle: Text('${(e.value / total * 100).toStringAsFixed(1)}%'),
-              trailing: Text(fmt.money(e.value)),
-            ),
+            const SizedBox(height: 24),
+            for (final e in costs)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(radius: 8, backgroundColor: e.key.color),
+                title: Text(e.key.label),
+                subtitle: Text(
+                  '${(e.value / total * 100).toStringAsFixed(1)}%',
+                ),
+                trailing: Text(fmt.money(e.value)),
+              ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

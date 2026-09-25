@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'checklist_form_editor_screen.dart';
 import 'checklist_queries.dart';
 
@@ -42,24 +43,26 @@ class ChecklistFormsScreen extends ConsumerWidget {
                   style: TextStyle(color: muted),
                 ),
               )
-            : ListView.separated(
-                padding: const EdgeInsets.only(bottom: 88),
-                itemCount: list.length,
-                separatorBuilder: (_, _) => const Divider(indent: 72),
-                itemBuilder: (context, i) {
-                  final s = list[i];
-                  return ListTile(
-                    leading: Icon(
-                      RecordModule.checklist.icon,
-                      color: RecordModule.checklist.color,
-                    ),
-                    title: Text(s.form.name),
-                    subtitle: Text(
-                      '${s.itemCount} ${s.itemCount == 1 ? 'item' : 'items'}',
-                    ),
-                    onTap: () => _open(context, s.form.id),
-                  );
-                },
+            : MaxWidthBody(
+                child: ListView.separated(
+                  padding: const EdgeInsets.only(bottom: 88),
+                  itemCount: list.length,
+                  separatorBuilder: (_, _) => const Divider(indent: 72),
+                  itemBuilder: (context, i) {
+                    final s = list[i];
+                    return ListTile(
+                      leading: Icon(
+                        RecordModule.checklist.icon,
+                        color: RecordModule.checklist.color,
+                      ),
+                      title: Text(s.form.name),
+                      subtitle: Text(
+                        '${s.itemCount} ${s.itemCount == 1 ? 'item' : 'items'}',
+                      ),
+                      onTap: () => _open(context, s.form.id),
+                    );
+                  },
+                ),
               ),
       ),
       floatingActionButton: FloatingActionButton(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
 import '../../core/providers.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'catalog_item_form_screen.dart';
 import 'catalog_labels.dart';
 
@@ -51,26 +52,28 @@ class CatalogScreen extends ConsumerWidget {
                   ),
                 ),
               )
-            : ListView.separated(
-                // Leave room so the FAB never covers the last row.
-                padding: const EdgeInsets.only(bottom: 88),
-                itemCount: list.length,
-                separatorBuilder: (_, _) => const Divider(indent: 72),
-                itemBuilder: (context, i) {
-                  final item = list[i];
-                  final subtitle = _subtitle(item);
-                  return ListTile(
-                    leading: Icon(
-                      kind.icon,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    title: Text(item.name),
-                    subtitle: subtitle == null ? null : Text(subtitle),
-                    onTap: () => _openForm(context, item),
-                    onLongPress: () =>
-                        confirmDeleteCatalogItem(context, ref, item),
-                  );
-                },
+            : MaxWidthBody(
+                child: ListView.separated(
+                  // Leave room so the FAB never covers the last row.
+                  padding: const EdgeInsets.only(bottom: 88),
+                  itemCount: list.length,
+                  separatorBuilder: (_, _) => const Divider(indent: 72),
+                  itemBuilder: (context, i) {
+                    final item = list[i];
+                    final subtitle = _subtitle(item);
+                    return ListTile(
+                      leading: Icon(
+                        kind.icon,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      title: Text(item.name),
+                      subtitle: subtitle == null ? null : Text(subtitle),
+                      onTap: () => _openForm(context, item),
+                      onLongPress: () =>
+                          confirmDeleteCatalogItem(context, ref, item),
+                    );
+                  },
+                ),
               ),
       ),
       floatingActionButton: FloatingActionButton(

@@ -6,6 +6,7 @@ import '../../core/db/app_database.dart';
 import '../../core/providers.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/record_module.dart';
+import '../../core/widgets/max_width_body.dart';
 import 'export_models.dart';
 import 'export_service.dart';
 
@@ -38,113 +39,115 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Export')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        children: [
-          const _SectionLabel('Vehicle'),
-          RadioGroup<bool>(
-            groupValue: _allVehicles,
-            onChanged: (v) => setState(() => _allVehicles = v ?? false),
-            child: Column(
-              children: [
-                RadioListTile<bool>(
-                  value: false,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(currentVehicle?.name ?? 'Current vehicle'),
-                ),
-                RadioListTile<bool>(
-                  value: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('All vehicles'),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 24),
-          const _SectionLabel('Period'),
-          RadioGroup<bool>(
-            groupValue: _period != null,
-            onChanged: (custom) async {
-              if (custom != true) {
-                setState(() => _period = null);
-                return;
-              }
-              final picked = await _pickRange(context);
-              if (picked != null) setState(() => _period = picked);
-            },
-            child: Column(
-              children: [
-                RadioListTile<bool>(
-                  value: false,
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('All time'),
-                ),
-                RadioListTile<bool>(
-                  value: true,
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    _period == null
-                        ? 'Custom range'
-                        : '${_dateFmt.format(_period!.from)} – '
-                              '${_dateFmt.format(_period!.to)}',
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 24),
-          const _SectionLabel('Record types'),
-          for (final module in exportableModules)
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: _modules.contains(module),
-              title: Text(module.label),
-              secondary: Icon(module.icon, color: module.color),
-              onChanged: (checked) => setState(() {
-                checked == true
-                    ? _modules.add(module)
-                    : _modules.remove(module);
-              }),
-            ),
-          const Divider(height: 24),
-          const _SectionLabel('Format'),
-          RadioGroup<ExportFormat>(
-            groupValue: _format,
-            onChanged: (v) => setState(() => _format = v ?? _format),
-            child: Column(
-              children: [
-                for (final format in ExportFormat.values)
-                  RadioListTile<ExportFormat>(
-                    value: format,
+      body: MaxWidthBody(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            const _SectionLabel('Vehicle'),
+            RadioGroup<bool>(
+              groupValue: _allVehicles,
+              onChanged: (v) => setState(() => _allVehicles = v ?? false),
+              child: Column(
+                children: [
+                  RadioListTile<bool>(
+                    value: false,
                     contentPadding: EdgeInsets.zero,
-                    title: Text(format.label),
+                    title: Text(currentVehicle?.name ?? 'Current vehicle'),
                   ),
-              ],
+                  RadioListTile<bool>(
+                    value: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('All vehicles'),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              minimumSize: const Size.fromHeight(48),
-              shape: const StadiumBorder(),
-            ),
-            onPressed: canExport
-                ? () => _export(vehicles, currentVehicle)
-                : null,
-            child: _exporting
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(Colors.white),
+            const Divider(height: 24),
+            const _SectionLabel('Period'),
+            RadioGroup<bool>(
+              groupValue: _period != null,
+              onChanged: (custom) async {
+                if (custom != true) {
+                  setState(() => _period = null);
+                  return;
+                }
+                final picked = await _pickRange(context);
+                if (picked != null) setState(() => _period = picked);
+              },
+              child: Column(
+                children: [
+                  RadioListTile<bool>(
+                    value: false,
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('All time'),
+                  ),
+                  RadioListTile<bool>(
+                    value: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      _period == null
+                          ? 'Custom range'
+                          : '${_dateFmt.format(_period!.from)} – '
+                                '${_dateFmt.format(_period!.to)}',
                     ),
-                  )
-                : const Text('EXPORT', style: TextStyle(letterSpacing: 1)),
-          ),
-        ],
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 24),
+            const _SectionLabel('Record types'),
+            for (final module in exportableModules)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: _modules.contains(module),
+                title: Text(module.label),
+                secondary: Icon(module.icon, color: module.color),
+                onChanged: (checked) => setState(() {
+                  checked == true
+                      ? _modules.add(module)
+                      : _modules.remove(module);
+                }),
+              ),
+            const Divider(height: 24),
+            const _SectionLabel('Format'),
+            RadioGroup<ExportFormat>(
+              groupValue: _format,
+              onChanged: (v) => setState(() => _format = v ?? _format),
+              child: Column(
+                children: [
+                  for (final format in ExportFormat.values)
+                    RadioListTile<ExportFormat>(
+                      value: format,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(format.label),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppTheme.primary,
+                minimumSize: const Size.fromHeight(48),
+                shape: const StadiumBorder(),
+              ),
+              onPressed: canExport
+                  ? () => _export(vehicles, currentVehicle)
+                  : null,
+              child: _exporting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(Colors.white),
+                      ),
+                    )
+                  : const Text('EXPORT', style: TextStyle(letterSpacing: 1)),
+            ),
+          ],
+        ),
       ),
     );
   }

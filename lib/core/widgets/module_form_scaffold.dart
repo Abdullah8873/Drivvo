@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/record_module.dart';
+import 'max_width_body.dart';
 
 /// Full-screen form page in a module's color: colored app bar, scrolling
 /// fields and a full-width rounded SAVE button at the bottom.
@@ -42,24 +43,29 @@ class ModuleFormScaffold extends StatelessWidget {
           actions: actions,
         ),
         body: SafeArea(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(8, 8, 16, 24),
-            children: [
-              ...children,
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: module.color,
-                    minimumSize: const Size.fromHeight(48),
-                    shape: const StadiumBorder(),
+          child: MaxWidthBody(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(8, 8, 16, 24),
+              children: [
+                ...children,
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: FilledButton(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: module.color,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: const StadiumBorder(),
+                    ),
+                    onPressed: onSave,
+                    child: const Text(
+                      'SAVE',
+                      style: TextStyle(letterSpacing: 1),
+                    ),
                   ),
-                  onPressed: onSave,
-                  child: const Text('SAVE', style: TextStyle(letterSpacing: 1)),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
+import '../../core/widgets/max_width_body.dart';
 import '../catalog/catalog_item_form_screen.dart';
 import '../catalog/catalog_labels.dart';
 import 'places_providers.dart';
@@ -45,19 +46,26 @@ class PlacesListTab extends ConsumerWidget {
           for (final i in list)
             if (i.kind == CatalogKind.place) i,
         ];
-        return ListView(
-          children: [
-            if (stations.isNotEmpty) ...[
-              const _SectionHeader('Gas stations'),
-              for (final s in stations)
-                _PlaceTile(item: s, onTap: () => _openForm(context, s)),
-            ],
-            if (places.isNotEmpty) ...[
-              const _SectionHeader('Places'),
-              for (final p in places)
-                _PlaceTile(item: p, onTap: () => _openForm(context, p)),
-            ],
+        // Flatten the two sections (header + rows) into one list so the
+        // whole screen is one lazy ListView.builder, same trick as History.
+        final rows = <Widget Function()>[
+          if (stations.isNotEmpty) ...[
+            () => const _SectionHeader('Gas stations'),
+            for (final s in stations)
+              () => _PlaceTile(item: s, onTap: () => _openForm(context, s)),
           ],
+          if (places.isNotEmpty) ...[
+            () => const _SectionHeader('Places'),
+            for (final p in places)
+              () => _PlaceTile(item: p, onTap: () => _openForm(context, p)),
+          ],
+        ];
+        return MaxWidthBody(
+          maxWidth: 840,
+          child: ListView.builder(
+            itemCount: rows.length,
+            itemBuilder: (context, i) => rows[i](),
+          ),
         );
       },
     );
