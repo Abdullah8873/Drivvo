@@ -94,9 +94,13 @@ class SyncReport {
 /// **Order**: pull first, then push. Pulling first resolves conflicts
 /// locally, so a queued row that lost to a newer server row is dropped
 /// instead of being uploaded just to be rejected; the local edits that won
-/// stay queued and are pushed right after. Parents go before children
-/// ([AppDatabase.syncedTableNames]) in both directions, and a failed push
-/// stops the run, so the server never gets a child without its parent.
+/// stay queued and are pushed right after. Parents go before children in
+/// both directions: tables are grouped in dependency tiers
+/// ([AppDatabase.syncedTableTiers]); the tables of one tier sync in
+/// parallel (their network round trips overlap — a pull used to wait for
+/// 14 tables one by one), and a tier starts only after the previous one
+/// finished. A failed push stops the run before the next tier, so the
+/// server never gets a child without its parent.
 /// Pulled rows are still applied with SQLite foreign keys off: another
 /// device may upload a vehicle and its refueling between our "vehicles" and
 /// "refuelings" pulls, and a missing parent must not block sync forever (it
@@ -130,17 +134,37 @@ class SyncEngine {
 
   /// The synced tables, parents first.
   late final List<TableInfo<Table, Object?>> tables = [
-    for (final name in AppDatabase.syncedTableNames)
-      db.allTables.firstWhere((t) => t.actualTableName == name),
+    for (final tier in tiers) ...tier,
+  ];
+
+  /// [AppDatabase.syncedTableTiers] as drift tables: each tier only depends
+  /// on earlier ones, so a tier's tables sync in parallel.
+  late final List<List<TableInfo<Table, Object?>>> tiers = [
+    for (final tier in AppDatabase.syncedTableTiers)
+      [
+        for (final name in tier)
+          db.allTables.firstWhere((t) => t.actualTableName == name),
+      ],
   ];
 
   // Runs sync / adopt one at a time (a tiny async mutex).
-  Future<void> _tail = Future.value();
+  final _runs = _SerialQueue();
 
-  Future<T> _exclusive<T>(Future<T> Function() body) {
-    final result = _tail.then((_) => body());
-    _tail = result.then((_) {}, onError: (Object _) {});
-    return result;
+  Future<T> _exclusive<T>(Future<T> Function() body) => _runs.run(body);
+
+  // Applies pulled pages one at a time (see [_pullTable]).
+  final _pages = _SerialQueue();
+
+  /// Runs [body] for every table of every tier: the tables of one tier in
+  /// parallel (network round trips overlap), tier after tier. A failure
+  /// lets the rest of its tier finish, then stops before the next tier
+  /// (so children never go without their parents).
+  Future<void> _byTier(
+    Future<void> Function(TableInfo<Table, Object?> table) body,
+  ) async {
+    for (final tier in tiers) {
+      await Future.wait([for (final table in tier) body(table)]);
+    }
   }
 
   // ---- Public API -----------------------------------------------------------
@@ -197,14 +221,10 @@ class SyncEngine {
     }
 
     final report = SyncReport();
-    await _withoutForeignKeys(() async {
-      for (final table in tables) {
-        await _pullTable(state, userId, table, report);
-      }
-    });
-    for (final table in tables) {
-      await _pushTable(userId, table, report);
-    }
+    await _withoutForeignKeys(
+      () => _byTier((table) => _pullTable(state, userId, table, report)),
+    );
+    await _byTier((table) => _pushTable(userId, table, report));
     if (files case final store?) {
       await _syncFiles(store, userId, report);
       // Rows the file step changed (storage_path set/cleared) go up now
@@ -296,13 +316,28 @@ class SyncEngine {
       );
       if (rows.isEmpty) return;
       final last = RemoteCursor.lastOf(rows)!;
-      await db.transaction(() async {
-        report.applied += await _applyRows(table, rows);
-        final current = user.cursors[name];
-        if (current == null || last.compareTo(current) > 0) {
-          user.cursors[name] = last;
+      // Tables download in parallel but pages are applied one at a time:
+      // every page saves the whole state (all cursors), so a page whose
+      // transaction fails must have its cursor rolled back in memory
+      // before another table's page can save it.
+      await _pages.run(() async {
+        final previous = user.cursors[name];
+        try {
+          await db.transaction(() async {
+            report.applied += await _applyRows(table, rows);
+            if (previous == null || last.compareTo(previous) > 0) {
+              user.cursors[name] = last;
+            }
+            await _saveState(state);
+          });
+        } catch (_) {
+          if (previous == null) {
+            user.cursors.remove(name);
+          } else {
+            user.cursors[name] = previous;
+          }
+          rethrow;
         }
-        await _saveState(state);
       });
       report.pulled += rows.length;
       if (rows.length < pullPageSize) return;
@@ -317,7 +352,11 @@ class SyncEngine {
     final ids = [for (final r in rows) r['id']! as String];
     final local = await _readLocal(table, ids);
     final queued = await _queuedIds(name, ids);
-    var applied = 0;
+    // Decide every row first, then write in bulk (one prepared statement
+    // reused for the whole page instead of 2–3 statements per row).
+    final upserts = <Map<String, Object?>>[];
+    final unqueue = <String>[];
+    final requeue = <String>[];
     for (final raw in rows) {
       final theirs = _decode(table, raw);
       final id = theirs['id']! as String;
@@ -334,35 +373,49 @@ class SyncEngine {
       if (cmp > 0 || (cmp == 0 && !same && !queued.contains(id))) {
         // Remote wins: write it as-is (keeping its updatedAt) and forget any
         // local edit of this row that it superseded.
-        await _upsert(table, theirs);
-        await _unqueue(name, id);
-        applied++;
+        upserts.add(theirs);
+        unqueue.add(id);
       } else if (same) {
-        await _unqueue(name, id); // nothing left to upload
+        unqueue.add(id); // nothing left to upload
       } else if (cmp < 0 && !queued.contains(id)) {
-        await _queue(name, id); // local copy is newer: make sure it goes up
+        requeue.add(id); // local copy is newer: make sure it goes up
       }
       // Otherwise the local row is newer (or wins the tie) and is already
       // queued: the push below uploads it.
     }
-    return applied;
+    await _upsertAll(table, upserts);
+    // After the upserts: their outbox triggers queued the rows again.
+    await _unqueueAll(name, unqueue);
+    await _queueAll(name, requeue);
+    return upserts.length;
   }
 
-  Future<void> _upsert(TableInfo table, Map<String, Object?> values) {
-    final cols = values.keys.toList();
-    final names = cols.map((c) => '"$c"').join(', ');
-    final marks = List.filled(cols.length, '?').join(', ');
-    final set = cols
-        .where((c) => c != 'id')
-        .map((c) => '"$c" = excluded."$c"')
-        .join(', ');
-    return db.customUpdate(
-      'INSERT INTO ${table.actualTableName} ($names) VALUES ($marks) '
-      'ON CONFLICT(id) DO UPDATE SET $set',
-      variables: [for (final v in values.values) Variable<Object>(v)],
-      updates: {table},
-      updateKind: UpdateKind.update,
-    );
+  /// `INSERT … ON CONFLICT(id) DO UPDATE` for every row, in one batch.
+  Future<void> _upsertAll(
+    TableInfo table,
+    List<Map<String, Object?>> rows,
+  ) async {
+    if (rows.isEmpty) return;
+    final sqlByColumns = <String, String>{};
+    final update = {TableUpdate.onTable(table, kind: UpdateKind.update)};
+    await db.batch((b) {
+      for (final values in rows) {
+        final cols = values.keys.toList();
+        final sql = sqlByColumns.putIfAbsent(cols.join(','), () {
+          final names = cols.map((c) => '"$c"').join(', ');
+          final set = cols
+              .where((c) => c != 'id')
+              .map((c) => '"$c" = excluded."$c"')
+              .join(', ');
+          return 'INSERT INTO ${table.actualTableName} ($names) '
+              'VALUES (${_marks(cols.length)}) '
+              'ON CONFLICT(id) DO UPDATE SET $set';
+        });
+        b.customStatement(sql, [
+          for (final v in values.values) db.typeMapping.mapToSqlVariable(v),
+        ], update);
+      }
+    });
   }
 
   // ---- Push -----------------------------------------------------------------
@@ -507,17 +560,28 @@ class SyncEngine {
     return result;
   }
 
-  Future<void> _unqueue(String table, String id) => db.customStatement(
-    'DELETE FROM sync_outbox WHERE target_table = ? AND row_id = ?',
-    [table, id],
-  );
+  Future<void> _unqueueAll(String table, List<String> ids) async {
+    for (final chunk in _chunks(ids)) {
+      await db.customStatement(
+        'DELETE FROM sync_outbox WHERE target_table = ? '
+        'AND row_id IN (${_marks(chunk.length)})',
+        [table, ...chunk],
+      );
+    }
+  }
 
-  Future<void> _queue(String table, String id) async {
-    await _unqueue(table, id);
-    await db.customStatement(
-      'INSERT INTO sync_outbox (target_table, row_id) VALUES (?, ?)',
-      [table, id],
-    );
+  /// Queues [ids] at the end of the outbox (a fresh `seq`).
+  Future<void> _queueAll(String table, List<String> ids) async {
+    if (ids.isEmpty) return;
+    await _unqueueAll(table, ids);
+    await db.batch((b) {
+      for (final id in ids) {
+        b.customStatement(
+          'INSERT INTO sync_outbox (target_table, row_id) VALUES (?, ?)',
+          [table, id],
+        );
+      }
+    });
   }
 
   // ---- Row conversion -------------------------------------------------------
@@ -639,6 +703,18 @@ class SyncEngine {
         ),
         mode: InsertMode.insertOrReplace,
       );
+}
+
+/// Runs async tasks one at a time, in call order — a tiny async mutex
+/// (like chaining every job onto one shared `Promise`).
+class _SerialQueue {
+  Future<void> _tail = Future.value();
+
+  Future<T> run<T>(Future<T> Function() body) {
+    final result = _tail.then((_) => body());
+    _tail = result.then((_) {}, onError: (Object _) {});
+    return result;
+  }
 }
 
 /// `sync_state` JSON: which user this device syncs with, and per user the

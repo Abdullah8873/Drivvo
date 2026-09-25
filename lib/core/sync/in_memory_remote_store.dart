@@ -20,6 +20,12 @@ class InMemoryRemoteStore implements RemoteStore {
   /// table → "owner|id" → stored row.
   final _tables = <String, Map<String, RemoteRow>>{};
 
+  /// table → every owner's rows in feed order, rebuilt lazily after a
+  /// write (the fake's "index on (server_updated_at, id)"). Without it every
+  /// pulled page re-sorted the whole table, which made big-dataset
+  /// benchmarks measure the fake instead of the sync engine.
+  final _sortedFeeds = <String, List<_FeedEntry>>{};
+
   /// Called before every [push] / [pull]; throw from it to simulate a
   /// network or server error for that call.
   void Function(String table, List<RemoteRow> rows)? beforePush;
@@ -71,6 +77,7 @@ class InMemoryRemoteStore implements RemoteStore {
       if (old != null && !_shouldApply(old, incoming)) continue;
       incoming['server_updated_at'] = _stamp().toIso8601String();
       stored[key] = incoming;
+      _sortedFeeds.remove(table);
       writes++;
     }
   }
@@ -85,10 +92,13 @@ class InMemoryRemoteStore implements RemoteStore {
     pulls++;
     beforePull?.call(table, after);
     if (limit > RemoteStore.maxPullPage) limit = RemoteStore.maxPullPage;
-    return _feed(table, ownerId)
-        .where((r) => after == null || _cursorOf(r).compareTo(after) > 0)
+    final from = after == null ? null : _FeedEntry.key(after);
+    return _entries(table)
+        .where(
+          (e) => e.owner == ownerId && (from == null || e.compareTo(from) > 0),
+        )
         .take(limit)
-        .map((r) => {...r})
+        .map((e) => {...e.row!})
         .toList();
   }
 
@@ -109,16 +119,14 @@ class InMemoryRemoteStore implements RemoteStore {
     return keys.every((k) => a[k] == b[k]);
   }
 
-  List<RemoteRow> _feed(String table, String ownerId) {
-    final prefix = '$ownerId|';
-    return [
-      for (final e in (_tables[table] ?? const {}).entries)
-        if (e.key.startsWith(prefix)) e.value,
-    ]..sort((a, b) => _cursorOf(a).compareTo(_cursorOf(b)));
-  }
+  List<RemoteRow> _feed(String table, String ownerId) => [
+    for (final e in _entries(table))
+      if (e.owner == ownerId) e.row!,
+  ];
 
-  static RemoteCursor _cursorOf(RemoteRow r) =>
-      RemoteCursor(r['server_updated_at']! as String, r['id']! as String);
+  List<_FeedEntry> _entries(String table) => _sortedFeeds[table] ??= [
+    for (final r in (_tables[table] ?? const {}).values) _FeedEntry.of(r),
+  ]..sort((a, b) => a.compareTo(b));
 
   /// Strictly increasing server time (like `clock_timestamp()`).
   DateTime _stamp() {
@@ -127,5 +135,39 @@ class InMemoryRemoteStore implements RemoteStore {
       now = _lastStamp.add(const Duration(microseconds: 1));
     }
     return _lastStamp = now;
+  }
+}
+
+/// A stored row with its feed position pre-parsed, ordered exactly like
+/// [RemoteCursor.compareTo] (time, then the timestamp text, then id).
+class _FeedEntry {
+  _FeedEntry(this.micros, this.ts, this.id, {this.owner = '', this.row});
+
+  factory _FeedEntry.of(RemoteRow r) {
+    final ts = r['server_updated_at']! as String;
+    return _FeedEntry(
+      DateTime.parse(ts).microsecondsSinceEpoch,
+      ts,
+      r['id']! as String,
+      owner: r['owner_id']! as String,
+      row: r,
+    );
+  }
+
+  factory _FeedEntry.key(RemoteCursor c) =>
+      _FeedEntry(c.time.microsecondsSinceEpoch, c.serverUpdatedAt, c.id);
+
+  final int micros;
+  final String ts;
+  final String id;
+  final String owner;
+  final RemoteRow? row;
+
+  int compareTo(_FeedEntry other) {
+    final byTime = micros.compareTo(other.micros);
+    if (byTime != 0) return byTime;
+    final byText = ts.compareTo(other.ts);
+    if (byText != 0) return byText;
+    return id.compareTo(other.id);
   }
 }

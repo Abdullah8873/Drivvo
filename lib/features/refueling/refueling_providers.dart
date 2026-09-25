@@ -22,22 +22,33 @@ final refuelingProvider = StreamProvider.family<RefuelingDetails?, String>(
   (ref, id) => ref.watch(databaseProvider).watchRefueling(id),
 );
 
+/// The consumption engine's input for every tank of a vehicle (tank →
+/// samples), live — a lighter query than [refuelingsProvider] (see
+/// `watchRefuelSamples`).
+final refuelSamplesProvider =
+    StreamProvider.family<Map<int, List<RefuelSample>>, String>(
+      (ref, vehicleId) =>
+          ref.watch(databaseProvider).watchRefuelSamples(vehicleId),
+    );
+
 /// Identifies one tank of one vehicle (2-tank vehicles are measured per
 /// tank, e.g. gasoline and CNG separately).
 typedef TankKey = ({String vehicleId, int tank});
 
 /// Consumption engine output for one tank of a vehicle. Recomputes whenever
-/// a refueling changes or the "economy position" setting changes.
+/// a refueling changes or the "economy position" setting changes — and only
+/// then: the result is cached per (vehicle, tank) like a memoized selector,
+/// so History, the detail screen and Reports share one computation.
 final tankConsumptionProvider =
     Provider.family<AsyncValue<ConsumptionStats>, TankKey>((ref, key) {
       final position = ref.watch(
         settingsProvider.select((s) => s.economyPosition),
       );
       return ref
-          .watch(refuelingsProvider(key.vehicleId))
+          .watch(refuelSamplesProvider(key.vehicleId))
           .whenData(
-            (list) => ConsumptionStats.compute(
-              list.map((d) => d.toSample(tank: key.tank)).nonNulls,
+            (byTank) => ConsumptionStats.compute(
+              byTank[key.tank] ?? const [],
               position: position,
             ),
           );

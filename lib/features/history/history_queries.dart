@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../core/db/app_database.dart';
+import '../../core/db/reload_on_change.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/calc/checklist_math.dart';
 import '../attachments/attachment_queries.dart';
@@ -155,23 +156,27 @@ class TimelineRecord {
 extension HistoryQueries on AppDatabase {
   /// Every non-deleted record of [vehicleId], newest first. Re-emits whenever
   /// any record/catalog table changes (drift re-runs the dummy "trigger"
-  /// query on writes to its `readsFrom` tables, then we reload everything).
+  /// query on writes to its `readsFrom` tables, then we reload everything —
+  /// at most one reload per burst of writes, see [reloadOnChange]).
   Stream<List<TimelineRecord>> watchTimeline(String vehicleId) {
-    return customSelect(
-      'SELECT 1',
-      readsFrom: {
-        refuelings,
-        refuelingFuels,
-        entries,
-        entryItems,
-        routes,
-        readings,
-        catalogItems,
-        checklists,
-        checklistAnswers,
-        attachments,
-      },
-    ).watch().asyncMap((_) => loadTimeline(vehicleId));
+    return reloadOnChange(
+      customSelect(
+        'SELECT 1',
+        readsFrom: {
+          refuelings,
+          refuelingFuels,
+          entries,
+          entryItems,
+          routes,
+          readings,
+          catalogItems,
+          checklists,
+          checklistAnswers,
+          attachments,
+        },
+      ).watch(),
+      () => loadTimeline(vehicleId),
+    );
   }
 
   /// One-shot version of [watchTimeline].
@@ -180,31 +185,46 @@ extension HistoryQueries on AppDatabase {
     final catalog = {for (final c in await select(catalogItems).get()) c.id: c};
     String? nameOf(String? id) => id == null ? null : catalog[id]?.name;
 
+    // Child rows are filtered by a subquery on the parent (not a Dart list
+    // of thousands of bound ids), grouped by parent id in one pass (not a
+    // scan of every child per parent), and — for fuel lines and entry
+    // items, the most numerous rows — read as plain columns: a typed drift
+    // row parses its text timestamps, which was most of the load time on a
+    // long history. `ORDER BY rowid` keeps the order they always had.
+    final vehicleVar = [Variable.withString(vehicleId)];
     final refuelRows =
         await (select(refuelings)..where(
               (r) => r.vehicleId.equals(vehicleId) & r.deletedAt.isNull(),
             ))
             .get();
-    final fuelRows =
-        await (select(refuelingFuels)..where(
-              (f) =>
-                  f.refuelingId.isIn(refuelRows.map((r) => r.id)) &
-                  f.deletedAt.isNull(),
-            ))
-            .get();
+    final fuelsOf = _groupBy(
+      await customSelect(
+        'SELECT refueling_id, fuel_id, price_per_unit, total, volume, tank '
+        'FROM refueling_fuels WHERE deleted_at IS NULL AND refueling_id IN '
+        '(SELECT id FROM refuelings WHERE vehicle_id = ?1 '
+        'AND deleted_at IS NULL) ORDER BY rowid',
+        variables: vehicleVar,
+        readsFrom: {refuelings, refuelingFuels},
+      ).get(),
+      (f) => f.read<String>('refueling_id'),
+    );
 
     final entryRows =
         await (select(entries)..where(
               (e) => e.vehicleId.equals(vehicleId) & e.deletedAt.isNull(),
             ))
             .get();
-    final itemRows =
-        await (select(entryItems)..where(
-              (i) =>
-                  i.entryId.isIn(entryRows.map((e) => e.id)) &
-                  i.deletedAt.isNull(),
-            ))
-            .get();
+    final itemsOf = _groupBy(
+      await customSelect(
+        'SELECT entry_id, type_id, amount FROM entry_items '
+        'WHERE deleted_at IS NULL AND entry_id IN '
+        '(SELECT id FROM entries WHERE vehicle_id = ?1 '
+        'AND deleted_at IS NULL) ORDER BY rowid',
+        variables: vehicleVar,
+        readsFrom: {entries, entryItems},
+      ).get(),
+      (i) => i.read<String>('entry_id'),
+    );
 
     final routeRows =
         await (select(routes)..where(
@@ -221,15 +241,24 @@ extension HistoryQueries on AppDatabase {
               (c) => c.vehicleId.equals(vehicleId) & c.deletedAt.isNull(),
             ))
             .get();
-    final answerRows =
-        await (select(checklistAnswers)
-              ..where(
-                (a) =>
-                    a.checklistId.isIn(checklistRows.map((c) => c.id)) &
-                    a.deletedAt.isNull(),
-              )
-              ..orderBy([(a) => OrderingTerm.asc(a.position)]))
-            .get();
+    final answersOf = _groupBy(
+      await (select(checklistAnswers)
+            ..where(
+              (a) =>
+                  a.checklistId.isInQuery(
+                    selectOnly(checklists)
+                      ..addColumns([checklists.id])
+                      ..where(
+                        checklists.vehicleId.equals(vehicleId) &
+                            checklists.deletedAt.isNull(),
+                      ),
+                  ) &
+                  a.deletedAt.isNull(),
+            )
+            ..orderBy([(a) => OrderingTerm.asc(a.position)]))
+          .get(),
+      (a) => a.checklistId,
+    );
     final withFiles = await parentsWithAttachments();
     bool files(String table, String id) => withFiles.contains('$table|$id');
 
@@ -243,14 +272,16 @@ extension HistoryQueries on AppDatabase {
           amount: r.totalCost,
           odometer: r.odometer,
           fuels: [
-            for (final f in fuelRows.where((f) => f.refuelingId == r.id))
+            for (final f in fuelsOf[r.id] ?? const <QueryRow>[])
               FuelLine(
-                name: nameOf(f.fuelId) ?? 'Fuel',
-                kind: catalog[f.fuelId]?.fuelKind ?? FuelKind.liquid,
-                pricePerUnit: f.pricePerUnit,
-                total: f.total,
-                volume: f.volume,
-                tank: f.tank,
+                name: nameOf(f.read<String>('fuel_id')) ?? 'Fuel',
+                kind:
+                    catalog[f.read<String>('fuel_id')]?.fuelKind ??
+                    FuelKind.liquid,
+                pricePerUnit: f.read<double>('price_per_unit'),
+                total: f.read<double>('total'),
+                volume: f.read<double>('volume'),
+                tank: f.read<int>('tank'),
               ),
           ],
           place: nameOf(r.gasStationId),
@@ -272,8 +303,11 @@ extension HistoryQueries on AppDatabase {
           amount: e.totalCost,
           odometer: e.odometer,
           items: [
-            for (final i in itemRows.where((i) => i.entryId == e.id))
-              ItemLine(name: nameOf(i.typeId) ?? 'Item', amount: i.amount),
+            for (final i in itemsOf[e.id] ?? const <QueryRow>[])
+              ItemLine(
+                name: nameOf(i.read<String>('type_id')) ?? 'Item',
+                amount: i.read<double>('amount'),
+              ),
           ],
           place: nameOf(e.placeId),
           paymentMethod: nameOf(e.paymentMethodId),
@@ -316,10 +350,7 @@ extension HistoryQueries on AppDatabase {
           amount: 0,
           odometer: c.odometer,
           checklist: c,
-          answers: [
-            for (final a in answerRows)
-              if (a.checklistId == c.id) a,
-          ],
+          answers: answersOf[c.id] ?? const [],
           hasAttachments: files('checklists', c.id),
         ),
     ];
@@ -331,6 +362,18 @@ extension HistoryQueries on AppDatabase {
       return (b.odometer ?? 0).compareTo(a.odometer ?? 0);
     });
     return records;
+  }
+
+  /// [rows] bucketed by [key], keeping their order inside each bucket.
+  static Map<String, List<T>> _groupBy<T>(
+    Iterable<T> rows,
+    String Function(T row) key,
+  ) {
+    final out = <String, List<T>>{};
+    for (final r in rows) {
+      (out[key(r)] ??= []).add(r);
+    }
+    return out;
   }
 
   /// The vehicle a record belongs to (null if it doesn't exist).

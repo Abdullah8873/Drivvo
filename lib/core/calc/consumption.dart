@@ -89,9 +89,13 @@ class RefuelResult {
 /// Everything the History and Reports screens need about fuel consumption.
 /// Build it with [ConsumptionStats.compute].
 class ConsumptionStats {
-  const ConsumptionStats._({required this.results, required this.cycles});
+  const ConsumptionStats._(this.results, this.cycles, [this._byId = const {}]);
 
-  static const empty = ConsumptionStats._(results: [], cycles: []);
+  static const empty = ConsumptionStats._([], []);
+
+  /// [results] by refuel id, so [resultFor] is a lookup, not a scan (History
+  /// calls it for every row it shows).
+  final Map<String, RefuelResult> _byId;
 
   /// One entry per refuel, oldest first.
   final List<RefuelResult> results;
@@ -170,12 +174,13 @@ class ConsumptionStats {
           cycle: cycleByRefuelId[r.id],
         ),
     ];
-    return ConsumptionStats._(results: results, cycles: cycles);
+    return ConsumptionStats._(results, cycles, {
+      for (final r in results.reversed) r.refuel.id: r,
+    });
   }
 
   /// Result for one refuel id, or null.
-  RefuelResult? resultFor(String refuelId) =>
-      results.where((r) => r.refuel.id == refuelId).firstOrNull;
+  RefuelResult? resultFor(String refuelId) => _byId[refuelId];
 
   int get count => results.length;
   bool get isEmpty => results.isEmpty;

@@ -8,7 +8,21 @@ import 'history_queries.dart';
 // file only aggregates its cycles per month.
 
 /// First day of [d]'s month — used as the grouping key.
-DateTime monthOf(DateTime d) => DateTime(d.year, d.month);
+///
+/// Memoized per month: building a local `DateTime(y, m)` asks the OS for the
+/// timezone offset every time, and History/Reports call this for every
+/// record (thousands of times per rebuild on a big history). The values are
+/// immutable, so sharing one instance per month is safe.
+DateTime monthOf(DateTime d) => _months.putIfAbsent(
+  d.year * 12 + d.month - 1,
+  () => DateTime(d.year, d.month),
+);
+
+final _months = <int, DateTime>{};
+
+/// Whether [d] falls in the month starting at [month] (a [monthOf] value).
+bool isInMonth(DateTime d, DateTime month) =>
+    d.year == month.year && d.month == month.month;
 
 /// Totals for one calendar month of the timeline.
 class MonthSummary {
@@ -85,7 +99,7 @@ double? monthEfficiency(Iterable<FuelCycle> cycles, DateTime month) {
   var distance = 0.0;
   var volume = 0.0;
   for (final c in cycles) {
-    if (monthOf(c.end.date) != month) continue;
+    if (!isInMonth(c.end.date, month)) continue;
     distance += c.distance;
     volume += c.volume;
   }
@@ -106,7 +120,7 @@ List<MonthSummary> groupByMonth(List<TimelineRecord> timeline) {
   }
   final byMonth = {for (final g in groups) g.month: g};
   for (final g in groups) {
-    final prev = byMonth[DateTime(g.month.year, g.month.month - 1)];
+    final prev = byMonth[monthOf(DateTime(g.month.year, g.month.month - 1))];
     final spent = prev?.spent;
     g.previousSpent = spent == null || spent <= 0 ? null : spent;
   }

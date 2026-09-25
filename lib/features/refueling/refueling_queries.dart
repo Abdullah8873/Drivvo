@@ -133,6 +133,65 @@ extension RefuelingQueries on AppDatabase {
           .watch()
           .map(_groupRows);
 
+  /// The consumption engine's input for every tank of a vehicle, live:
+  /// tank (1 or 2) → one [RefuelSample] per refueling that put fuel in it.
+  ///
+  /// Same values as `watchRefuelings(...).map((d) => d.toSample(tank: n))`
+  /// (same order, lines summed in the same order), but from one light query:
+  /// no catalog joins and only the columns the engine reads — on a long
+  /// history that is several times cheaper, and it re-runs on every
+  /// refueling change.
+  Stream<Map<int, List<RefuelSample>>> watchRefuelSamples(String vehicleId) {
+    return customSelect(
+      '''
+      SELECT r.id, r.date, r.odometer, r.full_tank, r.missed_previous,
+        r.total_cost, f.tank, f.volume, f.total
+      FROM refuelings r
+      JOIN refueling_fuels f ON f.refueling_id = r.id AND f.deleted_at IS NULL
+      WHERE r.vehicle_id = ?1 AND r.deleted_at IS NULL
+      ORDER BY r.date DESC, r.odometer DESC, r.id ASC, f.created_at ASC
+      ''',
+      variables: [Variable.withString(vehicleId)],
+      readsFrom: {refuelings, refuelingFuels},
+    ).watch().map(_samplesByTank);
+  }
+
+  static Map<int, List<RefuelSample>> _samplesByTank(List<QueryRow> rows) {
+    final out = <int, List<RefuelSample>>{};
+    var i = 0;
+    while (i < rows.length) {
+      final first = rows[i];
+      final id = first.read<String>('id');
+      // This refueling's lines are consecutive (ORDER BY … r.id).
+      final lines = <({int tank, double volume, double total})>[];
+      for (; i < rows.length && rows[i].read<String>('id') == id; i++) {
+        lines.add((
+          tank: rows[i].read<int>('tank'),
+          volume: rows[i].read<double>('volume'),
+          total: rows[i].read<double>('total'),
+        ));
+      }
+      final linesTotal = lines.fold(0.0, (s, l) => s + l.total);
+      final totalCost = first.read<double>('total_cost');
+      for (final tank in {for (final l in lines) l.tank}) {
+        final mine = lines.where((l) => l.tank == tank);
+        final lineCost = mine.fold(0.0, (s, l) => s + l.total);
+        (out[tank] ??= []).add(
+          RefuelSample(
+            id: id,
+            date: first.read<DateTime>('date'),
+            odometer: first.read<double>('odometer'),
+            volume: mine.fold(0.0, (s, l) => s + l.volume),
+            cost: linesTotal <= 0 ? 0 : lineCost * totalCost / linesTotal,
+            fullTank: first.read<bool>('full_tank'),
+            missedPrevious: first.read<bool>('missed_previous'),
+          ),
+        );
+      }
+    }
+    return out;
+  }
+
   /// One refueling (null when missing or deleted), live.
   Stream<RefuelingDetails?> watchRefueling(String id) =>
       _detailsQuery(refuelings.id.equals(id))

@@ -1,0 +1,7 @@
+# package:test configuration (read by `flutter test` too).
+tags:
+  # Big-dataset benchmarks (test/perf/). Skipped in the normal run so it
+  # stays fast; run them explicitly with:
+  #   flutter test --run-skipped -t perf test/perf -r expanded > perf.txt
+  perf:
+    skip: 'Benchmark: flutter test --run-skipped -t perf test/perf'
