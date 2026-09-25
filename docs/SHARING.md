@@ -1,5 +1,30 @@
 # Sharing, users, profiles and Transfer — design
 
+> **Built 2026-09-26** (cloud session, branch `feature/sharing`). SQL:
+> `supabase/migrations/20260926000001_sharing.sql`. Where the build differs
+> from the plan below:
+> - Vehicle assignments are a `vehicle_ids` JSON-array text column on
+>   `account_members` (no `member_vehicles` table): one row per member keeps
+>   last-write-wins simple. `access_profiles.permissions` is text JSON too
+>   (the sync sends every column as-is; SQL casts `::jsonb`).
+> - A shared account's local DB is `motolog_acct_<ownerId>_<memberId>` (per
+>   member too, so a second person on the same device never sees the first
+>   one's cached data). It is created without seeded catalogs.
+> - `created_by` is stamped by the server only for rows a *member* inserts;
+>   the owner's rows (and transferred ones) stay null = owner, so owners'
+>   devices don't re-download everything they upload.
+> - Refused uploads (RLS 42501) in a shared account: the batch is retried
+>   row by row, refused rows are deleted locally and their table re-pulled
+>   from scratch; `/sync` shows "N changes were not allowed".
+> - Access change (profile/vehicles) → the app pushes pending changes, wipes
+>   the shared copy and re-downloads it; membership gone → wipe + back to
+>   "My data" (the file stays, empty).
+> - Invite banner sits above the bottom bar; the account picker is the
+>   "Account" row at the top of My account (+ "Leave …").
+> - Transfer copies attachment rows with the seller's `storage_path`; the
+>   buyer's sync downloads each file (Storage policy allows it for redeemed
+>   transfers) and re-uploads it under the buyer's folder ("re-home").
+
 Decided 2026-09-25 (before building). UI verified against Drivvo: see
 `docs/SPEC.md` "Users, Profiles, Transfer". Permission model:
 `lib/core/calc/access_profile.dart` (pure, tested — build on it, don't fork it).

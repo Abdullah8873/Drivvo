@@ -53,6 +53,53 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   360×640 in light + dark (brand picker, checklist save/expand, Storage,
   Reports, map tiles + attribution).
 
+## Sharing batch — merged 2026-09-26 by the cloud session (code only)
+Users, access profiles, profile editor, invite banner, account switching,
+Transfer. Design + what differs from the plan: `docs/SHARING.md` (top).
+Local schema **v6** (`created_by` on record tables, `access_profiles`,
+`account_members`). Format clean, analyze 0 issues, **549 tests pass**
+(32 new: `sharing_sync_test`, `transfer_test`, `sharing_model_test`,
+`sharing_screens_test`; the in-memory cloud mirrors the new RLS).
+- **SQL to apply (PC session, Supabase SQL editor via Chrome):**
+  `supabase/migrations/20260926000001_sharing.sql` — **to apply**. Run it
+  once after the three existing files (idempotent). It replaces the
+  owner-only table + Storage policies with owner-or-`can_access()` ones;
+  the owner's own access is unchanged. Then check: 17 tables × 4 policies
+  (`<table>_select/_insert/_update/_delete`, no `_own` left), 4
+  `attachments_*` Storage policies, table `transfers` with RLS on and no
+  policies, functions listed in section 8 of the file. **Not verified on a
+  real Postgres** (none in the cloud session) — if the editor reports an
+  error, fix it in a new file or in this one before anyone uses sharing
+  (nobody depends on it yet).
+- **Hands-on QA (PC, two accounts — needs the owner's 2nd test account):**
+  1. Owner: More → Users → + → invite the 2nd account's email as Driver
+     with one vehicle assigned → SHARE text; row shows "Invitation
+     pending". Sync.
+  2. 2nd account (another browser profile, email confirmed): banner "<Owner>
+     invited you … as Driver" above the bottom bar → ACCEPT → OPEN. Vehicle
+     chip shows "<Owner>'s account"; only the assigned vehicle; no owner
+     records (own-records scope); pick lists present; Reports says no
+     access; More hides Vehicles/Users/Profiles/Forms/Transfer; + menu
+     works; add a refueling with a photo → syncs; owner sees it (+ photo).
+  3. Driver tries a delete (not offered in UI — optional: edit via another
+     route) → `/sync` shows "N changes were not allowed" and the record
+     comes back.
+  4. Owner changes the member to Manager / adds a vehicle → member's next
+     sync re-downloads (all vehicles/records appear). Owner removes the
+     member → member's app falls back to "My data".
+  5. My account → Account row switches My data ⇄ shared; "Leave …" works.
+  6. Profiles: built-ins read-only; + custom profile (toggles, expand rows,
+     switches) → assign to member → effect after sync.
+  7. Transfer: owner → Generate code for a synced vehicle (with an
+     attachment) → COPY/SHARE; 2nd account (on "My data") → Redeem →
+     vehicle + history + photo arrive; errors for own/used/expired/
+     cancelled code; cancel a pending code.
+  8. Dark theme + 360×640 pass over Users, Profiles, profile editor
+     (segmented buttons at 320 px), Transfer, banner.
+- Not done / follow-ups: invitation emails (by design: none); a shared account's emptied local DB file isn't deleted from
+  disk (wiped instead); Storage download for a member relies on the new
+  `can_read_attachment_object()` policy (QA step 2).
+
 ## PAUSED 2026-09-26 (owner switching to a new session) — resume here first
 Optimization & compatibility pass (Next 2) is **merged into `develop` and
 pushed** (`9920c9f`): `feature/perf-sync` then `feature/compat-layout`.
@@ -100,11 +147,8 @@ Format clean, analyze 0 issues, **513 tests pass**. No processes running.
   if a worktree folder disappears. Their only uncommitted changes are
   auto-regenerated `windows/flutter/generated_plugin*` files. **Keep them —
   owner wants them kept; don't remove worktrees or branches without asking.**
-- **Then:** sharing batch — design is decided in `docs/SHARING.md`, Drivvo
-  screens verified in `docs/SPEC.md`, permission model already on develop
-  (`lib/core/calc/access_profile.dart`). Plan: Opus = SQL/RLS/sync/account
-  switching/Transfer RPCs; Sonnet = Users/Profiles/Profile editor/invite
-  banner/Transfer screens. Needs a 2nd test account from the owner.
+- **Sharing batch: built and merged** — see "Sharing batch" above (SQL to
+  apply + QA list). Needs a 2nd test account from the owner for QA.
 - **Android email deep link (cloud session can write it):** custom scheme
   + intent filter + `authRedirectUrl()` TODO; the redirect URL must also be
   added in Supabase (local session, via Chrome).
@@ -170,6 +214,8 @@ Format clean, analyze 0 issues, **513 tests pass**. No processes running.
    CI/CD re-enable (parked in `.github/workflows-disabled/`).
 
 ## Needs the owner (batch these)
+- A 2nd test account (email you can confirm) for the sharing/Transfer QA,
+  and applying `20260926000001_sharing.sql` (see "Sharing batch").
 - Password-reset and delete-account live tests (see Next 1).
 - Google sign-in: `docs/SETUP-CLOUD.md` step 4 (web) and step 5 (Android).
 - Android Studio first-run wizard (Android SDK) + Windows Developer Mode
