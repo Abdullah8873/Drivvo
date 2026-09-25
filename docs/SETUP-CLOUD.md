@@ -59,6 +59,12 @@ limit). Every file is safe to run again if something failed halfway.
    (also needed for Google sign-in on the web; add your real web address
    later). The app sends this same origin back as the link's redirect, so
    whichever port you ran on is where the link returns you.
+   **For the Android (and later iOS) app**, also add the Redirect URL
+   `com.abdullah8873.motolog://login-callback` — the app sends that as the
+   redirect on a phone, and tapping the emailed link then reopens MotoLog
+   and signs in (registered in `AndroidManifest.xml` / `Info.plist`; see
+   `authRedirectUrl()` in `lib/core/cloud/cloud_config.dart`). Open the link
+   on the same phone that asked for it (PKCE, like the browser rule on web).
 4. Note: Supabase's built-in email sender allows only a few emails per hour —
    fine for testing. For real use, add your own SMTP later
    (Authentication → Emails → SMTP).

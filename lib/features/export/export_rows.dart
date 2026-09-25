@@ -3,10 +3,11 @@ import 'package:intl/intl.dart';
 import '../../core/calc/checklist_math.dart';
 import '../../core/db/app_database.dart';
 import '../../core/theme/record_module.dart';
+import 'export_columns.dart';
 import 'export_data.dart';
 
-final _dateFmt = DateFormat('yyyy-MM-dd');
-final _timeFmt = DateFormat('HH:mm');
+final _dateFmt = DateFormat(exportDatePattern);
+final _timeFmt = DateFormat(exportTimePattern);
 
 /// Number exactly as stored, no rounding — `double.toString()` prints the
 /// shortest decimal that reads back to the same value, so `293.03` and
@@ -116,18 +117,7 @@ ExportSection _buildChecklistSection(ExportData data) {
   return ExportSection(
     module: RecordModule.checklist,
     title: 'Checklists',
-    headers: const [
-      'Vehicle',
-      'Date',
-      'Time',
-      'Odometer',
-      'Form',
-      'OK',
-      'Problems',
-      'Problem Items',
-      'Driver',
-      'Notes',
-    ],
+    headers: checklistExportHeaders,
     rows: rows,
     recordCount: checklists.length,
     moneyTotal: 0,
@@ -202,27 +192,7 @@ ExportSection _buildRefuelingSection(ExportData data, String currencyCode) {
   return ExportSection(
     module: RecordModule.refueling,
     title: 'Refueling',
-    headers: const [
-      'Vehicle',
-      'Date',
-      'Time',
-      'Odometer',
-      'Fuel',
-      'Tank',
-      'Price/Unit',
-      'Volume',
-      'Line Total',
-      'Full Tank',
-      'Missed Previous',
-      'Gas Station',
-      'Payment Method',
-      'Reason',
-      'Driver',
-      'Discount',
-      'Total Cost',
-      'Currency',
-      'Notes',
-    ],
+    headers: refuelingExportHeaders,
     rows: rows,
     recordCount: refuelings.length,
     moneyTotal: refuelings.fold(0.0, (s, r) => s + r.totalCost),
@@ -268,25 +238,7 @@ ExportSection _buildEntrySection(
   return ExportSection(
     module: module,
     title: title,
-    headers: const [
-      'Vehicle',
-      'Date',
-      'Time',
-      'Odometer',
-      'Title',
-      'Type',
-      'Item Amount',
-      'Place',
-      'Payment Method',
-      'Reason',
-      'Driver',
-      'Discount',
-      'Installment No',
-      'Installment Count',
-      'Total Cost',
-      'Currency',
-      'Notes',
-    ],
+    headers: entryExportHeaders,
     rows: rows,
     recordCount: entries.length,
     moneyTotal: entries.fold(0.0, (s, e) => s + e.totalCost),
@@ -353,32 +305,7 @@ ExportSection _buildRouteSection(ExportData data, String currencyCode) {
   return ExportSection(
     module: RecordModule.route,
     title: 'Route',
-    headers: const [
-      'Vehicle',
-      'Mode',
-      'Origin',
-      'Start Date',
-      'Start Time',
-      'Start Odometer',
-      'Destination',
-      'End Date',
-      'End Time',
-      'End Odometer',
-      'Value/Distance',
-      'Total',
-      'Cargo Type',
-      'Contractor',
-      'Cargo Unit',
-      'Cargo Amount',
-      'Cargo Weight',
-      'Cargo Volume',
-      'Freight Value',
-      'Installments',
-      'Driver',
-      'Reason',
-      'Currency',
-      'Notes',
-    ],
+    headers: routeExportHeaders,
     rows: rows,
     recordCount: routes.length,
     moneyTotal: routes.fold(
@@ -408,7 +335,7 @@ ExportSection _buildReadingSection(ExportData data) {
   return ExportSection(
     module: RecordModule.reading,
     title: 'Reading',
-    headers: const ['Vehicle', 'Date', 'Time', 'Odometer', 'Driver', 'Notes'],
+    headers: readingExportHeaders,
     rows: rows,
     recordCount: readings.length,
     moneyTotal: 0,
@@ -447,23 +374,7 @@ ExportSection _buildReminderSection(ExportData data) {
   return ExportSection(
     module: RecordModule.reminder,
     title: 'Reminders',
-    headers: const [
-      'Vehicle',
-      'Target',
-      'Type',
-      'Repeat',
-      'By Distance',
-      'Due Odometer',
-      'Every Distance',
-      'By Date',
-      'Due Date',
-      'Every Amount',
-      'Every Unit',
-      'Last Done Odometer',
-      'Last Done Date',
-      'Active',
-      'Notes',
-    ],
+    headers: reminderExportHeaders,
     rows: rows,
     recordCount: reminders.length,
     moneyTotal: 0,
