@@ -66,7 +66,7 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
 2. [x] Cloud session merged `feature/extras-ui`, `feature/import-links`,
    `feature/animations` (2026-09-26, see "Extras, Import & Animations"
    below — hands-on QA list there).
-3. [ ] Supabase → Auth → Redirect URLs: add
+3. [x] (done 2026-09-26 by the PC session via Chrome; list now has 3 URLs) Supabase → Auth → Redirect URLs: add
    `com.abdullah8873.motolog://login-callback`.
 4. [ ] **Cloud session #3 (Sonnet)** — part number / brand field on service items (schema v6: nullable
    column on `entry_items` + Supabase migration + sync + service type
