@@ -30,6 +30,11 @@ class _MyPlacesScreenState extends State<MyPlacesScreen>
         title: const Text('My places'),
         bottom: TabBar(
           controller: _tabs,
+          // Sits on the teal app bar: the default M3 label color is the
+          // primary teal itself, which made the selected tab invisible.
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
           tabs: const [
             Tab(text: 'LIST'),
             Tab(text: 'MAP'),
