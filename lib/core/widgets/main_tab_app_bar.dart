@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../features/vehicles/vehicle_labels.dart';
 import '../../features/vehicles/vehicle_picker_screen.dart';
 import '../db/app_database.dart';
+import '../../features/sharing/account_switcher.dart';
 import '../providers.dart';
+import '../sharing/active_account.dart';
 import '../theme/app_theme.dart';
 import 'vehicle_switcher.dart';
 
@@ -40,10 +42,16 @@ class MainTabAppBar extends ConsumerWidget implements PreferredSizeWidget {
     } else if (current.value case final vehicle?) {
       title = _CurrentVehicleChip(vehicle: vehicle);
     } else {
-      title = VehicleSwitcher(
-        name: 'Add a vehicle',
-        onTap: () => context.push('/vehicles/new'),
-      );
+      final account = ref.watch(activeAccountProvider);
+      title = account != null
+          ? VehicleSwitcher(
+              name: 'No vehicles',
+              subtitle: accountLabel(account),
+            )
+          : VehicleSwitcher(
+              name: 'Add a vehicle',
+              onTap: () => context.push('/vehicles/new'),
+            );
     }
     return AppBar(
       backgroundColor: color,
@@ -66,10 +74,14 @@ class _CurrentVehicleChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final odometer = ref.watch(lastOdometerProvider(vehicle.id)).value;
     final fmt = ref.watch(formattersProvider);
-    final subtitle = [
-      if (vehicle.model case final m? when m.isNotEmpty) m,
-      if (odometer != null) fmt.distance(odometer, vehicle.distanceUnit),
-    ].join(' · ');
+    // In a shared account the chip says whose data this is.
+    final account = ref.watch(activeAccountProvider);
+    final subtitle = account != null
+        ? accountLabel(account)
+        : [
+            if (vehicle.model case final m? when m.isNotEmpty) m,
+            if (odometer != null) fmt.distance(odometer, vehicle.distanceUnit),
+          ].join(' · ');
     return VehicleSwitcher(
       name: vehicle.name,
       subtitle: subtitle,

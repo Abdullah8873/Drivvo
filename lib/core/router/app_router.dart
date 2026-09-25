@@ -27,6 +27,12 @@ import '../../features/reminders/reminder_form_screen.dart';
 import '../../features/reminders/reminders_screen.dart';
 import '../../features/reports/reports_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/sharing/member_form_screen.dart';
+import '../../features/sharing/profile_editor_screen.dart';
+import '../../features/sharing/profiles_screen.dart';
+import '../../features/sharing/reports_gate.dart';
+import '../../features/sharing/transfer_screen.dart';
+import '../../features/sharing/users_screen.dart';
 import '../../features/sync/sync_screen.dart';
 import '../../features/vehicles/vehicle_form_screen.dart';
 import '../../features/vehicles/vehicles_screen.dart';
@@ -55,6 +61,9 @@ import '../widgets/main_shell.dart';
 ///   /places                   My places list/map (More → My places)
 ///   /about                    App info + licenses (More → About)
 ///   /translation              Language (More → Translation)
+///   /users, /users/new, /users/<id>          More → Users (sharing)
+///   /profiles, /profiles/new, /profiles/<id> More → Profiles
+///   /transfer                 More → Transfer
 /// ```
 ///
 /// [activeRouter] tracks the most recently created router. A tapped OS
@@ -86,7 +95,10 @@ GoRouter _buildRouter() => GoRouter(
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(path: '/reports', builder: (_, _) => const ReportsScreen()),
+            GoRoute(
+              path: '/reports',
+              builder: (_, _) => const ReportsGate(child: ReportsScreen()),
+            ),
           ],
         ),
         StatefulShellBranch(
@@ -156,6 +168,23 @@ GoRouter _buildRouter() => GoRouter(
     GoRoute(path: '/forms', builder: (_, _) => const ChecklistFormsScreen()),
     GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
     GoRoute(path: '/translation', builder: (_, _) => const TranslationScreen()),
+    GoRoute(path: '/users', builder: (_, _) => const UsersScreen()),
+    GoRoute(path: '/users/new', builder: (_, _) => const MemberFormScreen()),
+    GoRoute(
+      path: '/users/:id',
+      builder: (_, state) => MemberFormScreen(id: state.pathParameters['id']),
+    ),
+    GoRoute(path: '/profiles', builder: (_, _) => const ProfilesScreen()),
+    GoRoute(
+      path: '/profiles/new',
+      builder: (_, _) => const ProfileEditorScreen(),
+    ),
+    GoRoute(
+      path: '/profiles/:id',
+      builder: (_, state) =>
+          ProfileEditorScreen(id: state.pathParameters['id']),
+    ),
+    GoRoute(path: '/transfer', builder: (_, _) => const TransferScreen()),
     GoRoute(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(

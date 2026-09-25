@@ -58,6 +58,21 @@ class RemoteCursor {
   String toString() => 'RemoteCursor($serverUpdatedAt, $id)';
 }
 
+/// Thrown by [RemoteStore.push] when the server's row-level security
+/// refused the batch — only possible in a shared account, where a member
+/// uploaded something their profile doesn't allow (Postgres error 42501).
+/// Nothing of the batch was stored.
+class RemotePermissionDenied implements Exception {
+  const RemotePermissionDenied(this.table, [this.detail = '']);
+
+  final String table;
+  final String detail;
+
+  @override
+  String toString() =>
+      'Permission denied on $table${detail.isEmpty ? '' : ': $detail'}';
+}
+
 /// The cloud side of the sync — an interface so the engine can be tested
 /// against [InMemoryRemoteStore] and run for real against Supabase
 /// ([SupabaseRemoteStore]); think of it as the "API client" layer.
@@ -80,7 +95,8 @@ abstract interface class RemoteStore {
   static const maxPullPage = 1000;
 
   /// Upserts [rows] of [table] for [ownerId]. All-or-nothing: throws when the
-  /// batch failed, in which case nothing was stored.
+  /// batch failed, in which case nothing was stored
+  /// ([RemotePermissionDenied] when row-level security refused it).
   Future<void> push(String table, String ownerId, List<RemoteRow> rows);
 
   /// Up to [limit] rows of [table] owned by [ownerId] that come strictly

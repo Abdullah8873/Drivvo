@@ -10,6 +10,7 @@ import 'core/notifications/noop_notification_scheduler.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/notifications/notification_scheduler.dart';
 import 'core/providers.dart';
+import 'core/sharing/active_account.dart';
 
 /// Entry point — like index.tsx calling createRoot(...).render(`<App />`).
 /// We open the local database and load settings first, then hand both to
@@ -27,6 +28,7 @@ Future<void> main() async {
   // is offline-only.
   await initCloud(const CloudConfig.fromEnvironment());
   final settings = await settingsLoading;
+  final activeAccount = await loadActiveAccount(db);
   // flutter_local_notifications doesn't support scheduling on web, so the
   // web build stays on the no-op scheduler (like a site with no service
   // worker registered) — everywhere else uses real OS notifications.
@@ -36,7 +38,8 @@ Future<void> main() async {
   runApp(
     ProviderScope(
       overrides: [
-        databaseProvider.overrideWithValue(db),
+        homeDatabaseProvider.overrideWithValue(db),
+        initialActiveAccountProvider.overrideWithValue(activeAccount),
         initialSettingsProvider.overrideWithValue(settings),
         notificationSchedulerProvider.overrideWithValue(scheduler),
         notificationDebounceProvider.overrideWithValue(

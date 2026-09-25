@@ -13,6 +13,8 @@ import '../../refueling/efficiency_text.dart' as shared;
 import '../history_calc.dart';
 import '../history_providers.dart';
 import '../history_queries.dart';
+import '../../sharing/sharing_widgets.dart';
+import '../../../core/calc/access_profile.dart';
 
 /// Horizontal center of the timeline track, from the list's left edge.
 const double kTrackX = 30;
@@ -469,17 +471,29 @@ class _RowDetails extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => confirmAndDeleteRecord(context, ref, record),
-              ),
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_outlined),
-                onPressed: () =>
-                    context.push('/edit/${record.module.name}/${record.id}'),
-              ),
+              if (canActOnRecord(
+                ref,
+                record.module,
+                record.id,
+                AccessAction.delete,
+              ))
+                IconButton(
+                  tooltip: 'Delete',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: () => confirmAndDeleteRecord(context, ref, record),
+                ),
+              if (canActOnRecord(
+                ref,
+                record.module,
+                record.id,
+                AccessAction.edit,
+              ))
+                IconButton(
+                  tooltip: 'Edit',
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () =>
+                      context.push('/edit/${record.module.name}/${record.id}'),
+                ),
               IconButton(
                 tooltip: 'View',
                 icon: const Icon(Icons.visibility_outlined),
