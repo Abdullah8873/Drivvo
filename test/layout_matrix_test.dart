@@ -45,6 +45,27 @@ void main() {
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
   }
 
+  /// `pumpAndSettle()` with a 10s cap instead of its 10-minute default — a
+  /// perpetually-loading spinner should fail this file fast, not burn ten
+  /// real minutes per combination before reporting anything.
+  Future<void> settle(WidgetTester tester) => tester.pumpAndSettle(
+    const Duration(milliseconds: 50),
+    EnginePhase.sendSemanticsUpdate,
+    const Duration(seconds: 10),
+  );
+
+  /// `testWidgets` with a hard 25s per-test timeout — belt and suspenders
+  /// alongside [settle]'s bound, in case something hangs outside a
+  /// `pumpAndSettle` call (e.g. a real `setUp`/`tearDown` await).
+  void testLayout(
+    String description,
+    Future<void> Function(WidgetTester tester) body,
+  ) => testWidgets(
+    description,
+    body,
+    timeout: const Timeout(Duration(seconds: 25)),
+  );
+
   setUp(() async {
     db = testDatabase();
     vehicleId = await addTestVehicle(db, name: 'Honda');
@@ -142,14 +163,49 @@ void main() {
   ) async {
     setViewport(tester, width: width, height: height, textScale: textScale);
     await tester.pumpWidget(app());
-    await tester.pumpAndSettle();
-    await body(tester);
+    await settle(tester);
+    // try/finally: always unmount, even when `body` throws (e.g. a finder
+    // that can't find its target) — otherwise the drift-backed widget tree
+    // stays live into the next test, which reliably wedges it (the next
+    // test's own navigation then fails too, cascading failures through the
+    // rest of the file instead of isolating the one real bug).
+    Object? failure;
+    try {
+      await body(tester);
+      failure = tester.takeException();
+    } catch (e) {
+      failure = e;
+    } finally {
+      await unmountApp(tester);
+    }
     expect(
-      tester.takeException(),
+      failure,
       isNull,
       reason: '${width.toInt()}x${height.toInt()} @ $textScale×',
     );
-    await unmountApp(tester);
+  }
+
+  /// Taps the "More" tab, then taps the menu row labelled [label] — scrolling
+  /// it into view first if needed. `more_screen.dart`'s list is long enough
+  /// that rows past the first few sections (Settings, My places, Flex
+  /// calculator, Achievements, …) sit outside the initial viewport + the
+  /// `Scrollable`'s default cache extent, so they aren't mounted yet and a
+  /// plain `find.text(label)` finds nothing — same fix as the speed-dial
+  /// "Reminder" scroll in narrow_ui_test.dart.
+  Future<void> openFromMore(WidgetTester tester, String label) async {
+    await tester.tap(find.text('More'));
+    await settle(tester);
+    final finder = find.text(label);
+    if (finder.evaluate().isEmpty) {
+      await tester.dragUntilVisible(
+        finder,
+        find.byType(Scrollable).first,
+        const Offset(0, -300),
+      );
+      await settle(tester);
+    }
+    await tester.tap(finder);
+    await settle(tester);
   }
 
   /// The two combinations every screen is checked at, plus [extra] more
@@ -160,7 +216,7 @@ void main() {
 
   group('History', () {
     for (final (w, h, ts) in combos([(360, 640, 1.3), (800, 1280, 1.3)])) {
-      testWidgets('history screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('history screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
           // Already on History (the initial route); nothing to navigate.
         });
@@ -170,16 +226,16 @@ void main() {
 
   group('Reports', () {
     for (final (w, h, ts) in combos([(800, 1280, 1.3)])) {
-      testWidgets('reports tabs at ${w}x$h @ $ts', (tester) async {
+      testLayout('reports tabs at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
           await tester.tap(find.text('Reports'));
-          await tester.pumpAndSettle();
+          await settle(tester);
           for (final tab in ['REFUELING', 'EXPENSE', 'ROUTE']) {
             final finder = find.text(tab);
             await tester.ensureVisible(finder);
-            await tester.pumpAndSettle();
+            await settle(tester);
             await tester.tap(finder);
-            await tester.pumpAndSettle();
+            await settle(tester);
           }
         });
       });
@@ -188,10 +244,10 @@ void main() {
 
   group('Reminders', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('reminders screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('reminders screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
           await tester.tap(find.text('Reminders'));
-          await tester.pumpAndSettle();
+          await settle(tester);
         });
       });
     }
@@ -199,10 +255,10 @@ void main() {
 
   group('More', () {
     for (final (w, h, ts) in combos([(360, 640, 1.3)])) {
-      testWidgets('more screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('more screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
           await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
+          await settle(tester);
         });
       });
     }
@@ -210,12 +266,9 @@ void main() {
 
   group('Settings', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('settings screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('settings screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
-          await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Settings'));
-          await tester.pumpAndSettle();
+          await openFromMore(tester, 'Settings');
         });
       });
     }
@@ -223,14 +276,11 @@ void main() {
 
   group('Vehicle form', () {
     for (final (w, h, ts) in combos([(800, 1280, 1.3)])) {
-      testWidgets('vehicle form at ${w}x$h @ $ts', (tester) async {
+      testLayout('vehicle form at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
-          await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Vehicles'));
-          await tester.pumpAndSettle();
+          await openFromMore(tester, 'Vehicles');
           await tester.tap(find.byIcon(Icons.add));
-          await tester.pumpAndSettle();
+          await settle(tester);
         });
       });
     }
@@ -238,12 +288,9 @@ void main() {
 
   group('Places', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('places list at ${w}x$h @ $ts', (tester) async {
+      testLayout('places list at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
-          await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('My places'));
-          await tester.pumpAndSettle();
+          await openFromMore(tester, 'My places');
         });
       });
     }
@@ -251,12 +298,9 @@ void main() {
 
   group('Storage', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('storage screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('storage screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
-          await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Storage'));
-          await tester.pumpAndSettle();
+          await openFromMore(tester, 'Storage');
         });
       });
     }
@@ -264,12 +308,9 @@ void main() {
 
   group('Sync', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('sync screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('sync screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
-          await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Synchronize data'));
-          await tester.pumpAndSettle();
+          await openFromMore(tester, 'Synchronize data');
         });
       });
     }
@@ -277,10 +318,10 @@ void main() {
 
   group('Export', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('export screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('export screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
           await tester.tap(find.byTooltip('Export'));
-          await tester.pumpAndSettle();
+          await settle(tester);
         });
       });
     }
@@ -288,12 +329,9 @@ void main() {
 
   group('Flex calculator', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('flex screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('flex screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
-          await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Flex calculator'));
-          await tester.pumpAndSettle();
+          await openFromMore(tester, 'Flex calculator');
         });
       });
     }
@@ -301,12 +339,9 @@ void main() {
 
   group('Achievements', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('achievements screen at ${w}x$h @ $ts', (tester) async {
+      testLayout('achievements screen at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
-          await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Achievements'));
-          await tester.pumpAndSettle();
+          await openFromMore(tester, 'Achievements');
         });
       });
     }
@@ -324,17 +359,17 @@ void main() {
       'Checklist',
     ]) {
       for (final (w, h, ts) in combos()) {
-        testWidgets('$module form at ${w}x$h @ $ts', (tester) async {
+        testLayout('$module form at ${w}x$h @ $ts', (tester) async {
           await at(tester, w, h, ts, (tester) async {
             await tester.tap(find.byIcon(Icons.add));
-            await tester.pumpAndSettle();
+            await settle(tester);
             await tester.tap(
               find.descendant(
                 of: find.byType(SpeedDialMenu),
                 matching: find.text(module),
               ),
             );
-            await tester.pumpAndSettle();
+            await settle(tester);
           });
         });
       }
@@ -343,14 +378,17 @@ void main() {
 
   group('Select list screen', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('currency picker at ${w}x$h @ $ts', (tester) async {
+      testLayout('currency picker at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
-          await tester.tap(find.text('More'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Settings'));
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Currency format'));
-          await tester.pumpAndSettle();
+          await openFromMore(tester, 'Settings');
+          // "Currency format" is a few rows down Settings' own list — at a
+          // short screen + large text it can be built but scrolled out of
+          // the hit-testable viewport, same as the More-list rows above.
+          final finder = find.text('Currency format');
+          await tester.ensureVisible(finder);
+          await settle(tester);
+          await tester.tap(finder);
+          await settle(tester);
           expect(find.byType(SelectListScreen), findsOneWidget);
         });
       });
@@ -359,7 +397,7 @@ void main() {
 
   group('Record detail', () {
     for (final (w, h, ts) in combos()) {
-      testWidgets('refueling record detail at ${w}x$h @ $ts', (tester) async {
+      testLayout('refueling record detail at ${w}x$h @ $ts', (tester) async {
         await at(tester, w, h, ts, (tester) async {
           // Tap the first (newest) timeline row to expand it, then its
           // "View details" affordance — simpler: push the route directly,
@@ -369,7 +407,7 @@ void main() {
           final refuels = await db.select(db.refuelings).get();
           if (refuels.isNotEmpty) {
             router!.push('/record/refueling/${refuels.first.id}');
-            await tester.pumpAndSettle();
+            await settle(tester);
           }
         });
       });
