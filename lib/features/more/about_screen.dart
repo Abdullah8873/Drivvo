@@ -25,9 +25,8 @@ class AboutScreen extends StatelessWidget {
             Text(
               AppInfo.appName,
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 4),
             FutureBuilder<PackageInfo>(

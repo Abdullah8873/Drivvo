@@ -64,9 +64,8 @@ Future<void> _emailUs(BuildContext context) async {
   );
   final ok = await launchUrl(uri);
   if (!ok && context.mounted) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('No email app available')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('No email app available')));
   }
 }
 

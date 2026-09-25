@@ -22,6 +22,35 @@ import 'tabs/service_report_tab.dart';
 /// What the Share sheet's two rows produce.
 enum _ShareAs { image, pdf }
 
+/// Rasterizes a report tab to PNG bytes (null when the engine can't encode
+/// it).
+typedef ReportImageCapture = Future<Uint8List?> Function(
+  RenderRepaintBoundary boundary,
+  double ratio,
+);
+
+/// The real capture: `toImage` + PNG encoding.
+Future<Uint8List?> captureBoundaryPng(
+  RenderRepaintBoundary boundary,
+  double pixelRatio,
+) async {
+  final image = await boundary.toImage(pixelRatio: pixelRatio);
+  try {
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData?.buffer.asUint8List();
+  } finally {
+    image.dispose();
+  }
+}
+
+/// How Share captures the current tab. Widget tests override it with a fake
+/// that returns fixed bytes: `toImage()` needs a real GPU/raster frame and
+/// doesn't complete reliably under the test binding (like mocking
+/// `canvas.toBlob` in jsdom).
+final reportImageCaptureProvider = Provider<ReportImageCapture>(
+  (ref) => captureBoundaryPng,
+);
+
 /// Reports tab: scrollable tabs (General, Refueling, Expense, …). Each tab
 /// lives in its own file under `tabs/` and is built on `ReportTabScaffold`
 /// (period card + stat cards + charts); the selected period is shared by
@@ -159,25 +188,18 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
   /// assume a bounded size, …) for a "nice to have"; documenting the
   /// limitation here was judged the better trade for now.
   Future<void> _share(_ShareAs action) async {
-    debugPrint('DBG _share start');
     final index = _tabController.index;
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
-    final boundary =
-        _boundaryKeys[index].currentContext?.findRenderObject();
-    debugPrint('DBG boundary=$boundary');
+    final boundary = _boundaryKeys[index].currentContext?.findRenderObject();
     if (boundary is! RenderRepaintBoundary) return;
 
     setState(() => _sharing = true);
     try {
-      debugPrint('DBG calling toImage');
-      final image = await boundary.toImage(pixelRatio: devicePixelRatio);
-      debugPrint('DBG got image ${image.width}x${image.height}');
-      final byteData = await image.toByteData(
-        format: ui.ImageByteFormat.png,
+      final pngBytes = await ref.read(reportImageCaptureProvider)(
+        boundary,
+        devicePixelRatio,
       );
-      debugPrint('DBG got byteData ${byteData?.lengthInBytes}');
-      if (byteData == null) return;
-      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      if (pngBytes == null) return;
 
       final slug = _tabs[index].$1.toLowerCase();
       final dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -203,6 +225,12 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
         bytes: pdfBytes,
         mimeType: 'application/pdf',
       );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't share the report")),
+        );
+      }
     } finally {
       if (mounted) setState(() => _sharing = false);
     }

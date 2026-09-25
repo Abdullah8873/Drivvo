@@ -50,9 +50,7 @@ class SharePlusFileSharer implements FileSharer {
 
   @override
   Future<void> shareText(String text, {String? subject}) async {
-    await SharePlus.instance.share(
-      ShareParams(text: text, subject: subject),
-    );
+    await SharePlus.instance.share(ShareParams(text: text, subject: subject));
   }
 }
 

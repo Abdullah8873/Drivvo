@@ -93,9 +93,8 @@ class MoreScreen extends StatelessWidget {
       case _ when route != null:
         context.push(route);
       default:
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('$label — coming soon')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('$label — coming soon')));
     }
   }
 }

@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:motolog/app.dart';
 import 'package:motolog/core/db/app_database.dart';
 import 'package:motolog/core/files/file_sharer.dart';
@@ -92,11 +93,15 @@ class FakeFileSharer implements FileSharer {
 
 /// The full app wired to [db] with a fake share sheet — pump this in widget
 /// tests that trigger export/backup/share flows.
-Widget appWithFakeSharer(AppDatabase db, FakeFileSharer sharer) =>
-    ProviderScope(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-        fileSharerProvider.overrideWithValue(sharer),
-      ],
-      child: const MotoLogApp(),
-    );
+Widget appWithFakeSharer(
+  AppDatabase db,
+  FakeFileSharer sharer, {
+  List<Override> overrides = const [],
+}) => ProviderScope(
+  overrides: [
+    databaseProvider.overrideWithValue(db),
+    fileSharerProvider.overrideWithValue(sharer),
+    ...overrides,
+  ],
+  child: const MotoLogApp(),
+);
