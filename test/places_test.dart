@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kDoubleTapTimeout;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,6 +51,11 @@ Future<LatLng?> pickViaCenterTap(WidgetTester tester, {LatLng? initial}) async {
   expect(opened, isFalse);
 
   await tester.tapAt(tester.getCenter(find.byType(FlutterMap)));
+  // flutter_map's tap recognizer waits out the double-tap window before
+  // firing `onTap` (to rule out a double-tap-to-zoom); `pumpAndSettle`
+  // alone can miss that since a bare Timer without a scheduled frame
+  // doesn't count as "unsettled".
+  await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
   await tester.pumpAndSettle();
 
   await tester.tap(confirm);
@@ -83,7 +89,6 @@ void main() {
       latitude: 24.9,
       longitude: 67.0,
     );
-    addTearDown(() => tester.pumpWidget(const SizedBox()));
     await tester.pumpWidget(testApp(db));
     await tester.pumpAndSettle();
     await tester.tap(find.text('More'));
@@ -107,7 +112,7 @@ void main() {
     expect(find.text('Place'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Name'), findsOneWidget);
 
-    await tester.runAsync(db.close);
+    await closeApp(tester, db);
   });
 
   testWidgets('the MAP tab shows a marker for the located item', (
@@ -124,7 +129,6 @@ void main() {
       latitude: 24.9,
       longitude: 67.0,
     );
-    addTearDown(() => tester.pumpWidget(const SizedBox()));
     await tester.pumpWidget(testApp(db));
     await tester.pumpAndSettle();
     await tester.tap(find.text('More'));
@@ -144,7 +148,7 @@ void main() {
     expect(find.text('Shell'), findsOneWidget);
     expect(find.text('EDIT'), findsOneWidget);
 
-    await tester.runAsync(db.close);
+    await closeApp(tester, db);
   });
 
   testWidgets('the location picker returns the tapped coordinates', (
@@ -170,6 +174,8 @@ void main() {
     await tester.tap(find.widgetWithText(PickerField, 'Not set'));
     await tester.pumpAndSettle();
     await tester.tapAt(tester.getCenter(find.byType(FlutterMap)));
+    // See the comment in `pickViaCenterTap` above about this extra pump.
+    await tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Confirm'));
     await tester.pumpAndSettle();
