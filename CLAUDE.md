@@ -12,7 +12,9 @@ Router, Riverpod ≈ React Query/Context, drift ≈ Prisma/Drizzle).
 
 ## Commands
 
-Flutter lives at `C:\dev\flutter\bin` (on PATH).
+Flutter lives at `C:\dev\flutter\bin` (on PATH). **In a Claude cloud
+(Linux) session, read `docs/CLOUD-SESSION.md` first and run
+`bash tool/cloud_setup.sh`.**
 
 ```bash
 flutter pub get                                    # install deps (npm install)
