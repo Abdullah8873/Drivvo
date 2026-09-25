@@ -27,7 +27,8 @@ flutter run -d web-server --release --web-port 8085  # preview server (see .clau
 ```
 
 Before merging anything into `develop`: format, analyze and test must all pass
-locally (CI/CD is parked in `.github/workflows-disabled/` for now).
+locally. CI (`.github/workflows/ci.yml`) also runs format/analyze/test on every
+PR and push to `develop`/`main` and must be green before merging.
 
 ## Git workflow
 
