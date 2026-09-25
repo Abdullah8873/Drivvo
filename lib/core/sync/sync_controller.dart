@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../cloud/auth_state.dart';
 import '../cloud/cloud_config.dart';
 import '../providers.dart';
+import '../sharing/active_account.dart';
 import 'remote_store.dart';
 import 'remote_file_store.dart';
 import 'supabase_remote_file_store.dart';
@@ -79,8 +80,10 @@ class SyncStatus {
   const SyncStatus({
     required this.phase,
     this.userId,
+    this.ownerId,
     this.lastSyncedAt,
     this.error,
+    this.rejected = 0,
   });
 
   final SyncPhase phase;
@@ -88,19 +91,36 @@ class SyncStatus {
   /// Signed-in user (null when [SyncPhase.unavailable] / [SyncPhase.signedOut]).
   final String? userId;
 
-  /// When this user last completed a sync on this device.
+  /// Owner of the active account: [userId] for the user's own data, or
+  /// the owner of a shared account they joined.
+  final String? ownerId;
+
+  /// Whether the active account is someone else's.
+  bool get isShared => ownerId != null && ownerId != userId;
+
+  /// When this account last completed a sync on this device.
   final DateTime? lastSyncedAt;
+
+  /// Changes the server refused in the last sync (shared accounts only),
+  /// undone on this device.
+  final int rejected;
 
   /// Human-readable reason of the last failure.
   final String? error;
 
   bool get isSyncing => phase == SyncPhase.syncing;
 
-  SyncStatus copyWith({SyncPhase? phase, DateTime? lastSyncedAt}) => SyncStatus(
+  SyncStatus copyWith({
+    SyncPhase? phase,
+    DateTime? lastSyncedAt,
+    int? rejected,
+  }) => SyncStatus(
     phase: phase ?? this.phase,
     userId: userId,
+    ownerId: ownerId,
     lastSyncedAt: lastSyncedAt ?? this.lastSyncedAt,
     error: null,
+    rejected: rejected ?? this.rejected,
   );
 }
 
@@ -120,11 +140,14 @@ class SyncController extends Notifier<SyncStatus> {
     final userId = ref.watch(authUserIdProvider).value;
     if (userId == null) return const SyncStatus(phase: SyncPhase.signedOut);
 
+    final ownerId =
+        ref.watch(activeAccountProvider.select((a) => a?.ownerId)) ?? userId;
+
     final auto = ref.watch(autoSyncProvider);
     if (auto) _startAutoSync(engine);
     // Read the saved state (and sync, when automatic) once built.
     Future.microtask(() => _load(engine, userId, syncAfter: auto));
-    return SyncStatus(phase: SyncPhase.idle, userId: userId);
+    return SyncStatus(phase: SyncPhase.idle, userId: userId, ownerId: ownerId);
   }
 
   /// Syncs now (no-op while one is already running, signed out, or waiting
@@ -144,10 +167,11 @@ class SyncController extends Notifier<SyncStatus> {
   Future<void> resolveAccountSwitch({required bool keepLocalData}) async {
     final engine = ref.read(syncEngineProvider);
     final userId = state.userId;
-    if (engine == null || userId == null) return;
+    final ownerId = state.ownerId;
+    if (engine == null || userId == null || ownerId == null) return;
     state = state.copyWith(phase: SyncPhase.syncing);
     try {
-      await engine.adoptAccount(userId, keepLocalData: keepLocalData);
+      await engine.adoptAccount(ownerId, keepLocalData: keepLocalData);
     } catch (e) {
       if (_isCurrent(userId)) state = _failed(e);
       return;
@@ -163,14 +187,16 @@ class SyncController extends Notifier<SyncStatus> {
     required bool syncAfter,
   }) async {
     try {
-      final match = await engine.checkAccount(userId);
-      final last = await engine.lastSyncedAt(userId);
+      final ownerId = state.ownerId ?? userId;
+      final match = await engine.checkAccount(ownerId);
+      final last = await engine.lastSyncedAt(ownerId);
       if (!_isCurrent(userId)) return;
       state = SyncStatus(
         phase: match == AccountMatch.differentUser
             ? SyncPhase.needsDecision
             : state.phase,
         userId: userId,
+        ownerId: ownerId,
         lastSyncedAt: last,
         error: state.error,
       );
@@ -183,17 +209,23 @@ class SyncController extends Notifier<SyncStatus> {
   Future<void> _sync() async {
     final engine = ref.read(syncEngineProvider);
     final userId = state.userId;
+    final ownerId = state.ownerId ?? userId;
     if (engine == null ||
         userId == null ||
+        ownerId == null ||
         state.phase == SyncPhase.needsDecision) {
       return;
     }
     state = state.copyWith(phase: SyncPhase.syncing);
     try {
-      await engine.sync(userId);
-      final last = await engine.lastSyncedAt(userId);
+      final report = await engine.sync(ownerId, shared: ownerId != userId);
+      final last = await engine.lastSyncedAt(ownerId);
       if (!_isCurrent(userId)) return;
-      state = state.copyWith(phase: SyncPhase.idle, lastSyncedAt: last);
+      state = state.copyWith(
+        phase: SyncPhase.idle,
+        lastSyncedAt: last,
+        rejected: report.rejected,
+      );
     } on SyncAccountMismatch {
       if (_isCurrent(userId)) {
         state = state.copyWith(phase: SyncPhase.needsDecision);
@@ -206,6 +238,7 @@ class SyncController extends Notifier<SyncStatus> {
   SyncStatus _failed(Object e) => SyncStatus(
     phase: SyncPhase.error,
     userId: state.userId,
+    ownerId: state.ownerId,
     lastSyncedAt: state.lastSyncedAt,
     error: _describe(e),
   );

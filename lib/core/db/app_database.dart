@@ -35,19 +35,35 @@ part 'app_database.g.dart';
     ChecklistAnswers,
     Attachments,
     AttachmentFiles,
+    AccessProfiles,
+    AccountMembers,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   /// Tests pass an in-memory executor: `AppDatabase(NativeDatabase.memory())`.
-  AppDatabase(super.e);
+  ///
+  /// [seedDefaults] = false creates the database without the default
+  /// catalogs and checklist template: a shared account's local copy
+  /// ([AppDatabase.named]) gets everything from the owner's account, and
+  /// seeded rows would otherwise be uploaded into it.
+  AppDatabase(super.e, {this.seedDefaults = true});
 
   /// On the web, [PersistWritesInterceptor] makes every write reach
   /// IndexedDB (drift alone misses commits and `… RETURNING` writes).
-  AppDatabase.defaults() : super(_openDefault());
+  AppDatabase.defaults() : this(_open('motolog'));
 
-  static QueryExecutor _openDefault() {
+  /// Another local database file, e.g. `motolog_acct_<owner>_<member>` for
+  /// a shared account (see docs/SHARING.md "One active account per device
+  /// session").
+  AppDatabase.named(String name, {bool seedDefaults = true})
+    : this(_open(name), seedDefaults: seedDefaults);
+
+  /// Whether the default catalogs are seeded (see the constructor).
+  final bool seedDefaults;
+
+  static QueryExecutor _open(String name) {
     final executor = driftDatabase(
-      name: 'motolog',
+      name: name,
       web: DriftWebOptions(
         sqlite3Wasm: Uri.parse('sqlite3.wasm'),
         driftWorker: Uri.parse('drift_worker.js'),
@@ -68,8 +84,10 @@ class AppDatabase extends _$AppDatabase {
   /// v5: indexes (`@TableIndex` in tables.dart) on `(vehicle_id, date)` of
   ///     every record table, child → parent ids, attachments' parent key
   ///     and the outbox push order. Data is unchanged.
+  /// v6: sharing — `created_by` on the record tables, `access_profiles`
+  ///     (custom profiles) and `account_members` (users of the account).
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   /// `settings_entries` key written once the default catalogs are seeded.
   static const seedMarkerKey = 'catalog_seed_version';
@@ -89,7 +107,13 @@ class AppDatabase extends _$AppDatabase {
   /// against the real schema.
   static const syncedTableTiers = [_syncTier1, _syncTier2, _syncTier3];
 
-  static const _syncTier1 = ['vehicles', 'catalog_items', 'checklist_forms'];
+  static const _syncTier1 = [
+    'vehicles',
+    'catalog_items',
+    'checklist_forms',
+    'access_profiles',
+    'account_members',
+  ];
   static const _syncTier2 = [
     'refuelings',
     'entries',
@@ -110,6 +134,17 @@ class AppDatabase extends _$AppDatabase {
   /// SQL names of the tables the cloud sync mirrors, parents before
   /// children ([syncedTableTiers] flattened).
   static const syncedTableNames = [..._syncTier1, ..._syncTier2, ..._syncTier3];
+
+  /// Record tables with a `created_by` column (schema v6).
+  static const createdByTables = [
+    'refuelings',
+    'entries',
+    'routes',
+    'readings',
+    'reminders',
+    'checklists',
+    'attachments',
+  ];
 
   /// Tables whose records can carry attachments (`attachments.parent_table`).
   static const attachmentParentTables = [
@@ -132,7 +167,7 @@ class AppDatabase extends _$AppDatabase {
       await createIndexes();
       await createSyncTriggers();
       await createAttachmentTriggers();
-      await seedCatalogs();
+      if (seedDefaults) await seedCatalogs();
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
@@ -168,6 +203,18 @@ class AppDatabase extends _$AppDatabase {
       if (from < 5) {
         await transaction(createIndexes);
       }
+      if (from < 6) {
+        await transaction(() async {
+          for (final table in createdByTables) {
+            await customStatement(
+              'ALTER TABLE $table ADD COLUMN created_by TEXT NULL',
+            );
+          }
+          await m.createTable(accessProfiles);
+          await m.createTable(accountMembers);
+          await createSyncTriggers();
+        });
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -175,7 +222,7 @@ class AppDatabase extends _$AppDatabase {
       final marker = await (select(
         settingsEntries,
       )..where((s) => s.key.equals(seedMarkerKey))).getSingleOrNull();
-      if (marker == null) await seedCatalogs();
+      if (marker == null && seedDefaults) await seedCatalogs();
     },
   );
 

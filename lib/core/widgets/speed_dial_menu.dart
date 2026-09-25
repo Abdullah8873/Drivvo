@@ -9,9 +9,17 @@ const _labelStyle = TextStyle(fontSize: 15);
 /// The white popup card above the center "+" button listing every record
 /// type (Reminder … Refueling), each with its colored round icon.
 class SpeedDialMenu extends StatelessWidget {
-  const SpeedDialMenu({super.key, required this.onSelected});
+  const SpeedDialMenu({
+    super.key,
+    required this.onSelected,
+    this.modules = RecordModule.speedDialOrder,
+  });
 
   final ValueChanged<RecordModule> onSelected;
+
+  /// The entries, top to bottom (in a shared account only the modules the
+  /// profile may register).
+  final List<RecordModule> modules;
 
   /// Just wide enough for an icon, the gap and the longest label — a
   /// concrete width instead of `IntrinsicWidth`, which throws when asked to
@@ -23,7 +31,7 @@ class SpeedDialMenu extends StatelessWidget {
     final style = DefaultTextStyle.of(context).style.merge(_labelStyle);
     final scaler = MediaQuery.textScalerOf(context);
     var maxLabelWidth = 0.0;
-    for (final module in RecordModule.speedDialOrder) {
+    for (final module in modules) {
       final painter = TextPainter(
         text: TextSpan(text: module.label, style: style),
         textDirection: Directionality.of(context),
@@ -54,7 +62,7 @@ class SpeedDialMenu extends StatelessWidget {
           shrinkWrap: true,
           padding: const EdgeInsets.symmetric(vertical: 8),
           children: [
-            for (final module in RecordModule.speedDialOrder)
+            for (final module in modules)
               InkWell(
                 onTap: () => onSelected(module),
                 child: Padding(

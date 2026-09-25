@@ -55,11 +55,20 @@ class SyncReport {
   /// Storage objects of deleted attachments removed.
   int filesRemoved = 0;
 
+  /// Attachment files copied from another account's folder (a redeemed
+  /// transfer) into this account's.
+  int filesRehomed = 0;
+
+  /// Local changes the server refused (shared accounts only: the member's
+  /// profile doesn't allow them). They were undone on this device.
+  int rejected = 0;
+
   @override
   String toString() =>
       'SyncReport(pulled: $pulled, applied: $applied, pushed: $pushed, '
       'filesUploaded: $filesUploaded, fileUploadFailures: '
-      '$fileUploadFailures, filesRemoved: $filesRemoved)';
+      '$fileUploadFailures, filesRemoved: $filesRemoved, '
+      'filesRehomed: $filesRehomed, rejected: $rejected)';
 }
 
 /// Two-way sync between the local drift database and a [RemoteStore]
@@ -211,30 +220,40 @@ class SyncEngine {
   /// this device the local data is attached to the account; when another
   /// user synced here before, throws [SyncAccountMismatch] until
   /// [adoptAccount] is called.
-  Future<SyncReport> sync(String userId) => _exclusive(() async {
-    final state = await _loadState();
-    final last = state.lastUserId;
-    if (last == null) {
-      await _attach(state, userId, keepLocalData: true);
-    } else if (last != userId) {
-      throw SyncAccountMismatch(last, userId);
-    }
+  ///
+  /// [userId] is the account's owner: the signed-in user for their own
+  /// data, or the owner of a [shared] account the signed-in user joined
+  /// (this database is then that account's local copy). In a shared
+  /// account, rows the server refuses ([RemotePermissionDenied]) are
+  /// undone locally — deleted, and downloaded again if the member may see
+  /// them — and counted in [SyncReport.rejected]; in the user's own
+  /// account a refusal can't happen legitimately, so it fails the sync.
+  Future<SyncReport> sync(String userId, {bool shared = false}) =>
+      _exclusive(() async {
+        final state = await _loadState();
+        final last = state.lastUserId;
+        if (last == null) {
+          await _attach(state, userId, keepLocalData: true);
+        } else if (last != userId) {
+          throw SyncAccountMismatch(last, userId);
+        }
 
-    final report = SyncReport();
-    await _withoutForeignKeys(
-      () => _byTier((table) => _pullTable(state, userId, table, report)),
-    );
-    await _byTier((table) => _pushTable(userId, table, report));
-    if (files case final store?) {
-      await _syncFiles(store, userId, report);
-      // Rows the file step changed (storage_path set/cleared) go up now
-      // rather than on the next run.
-      await _pushTable(userId, _attachmentsTable, report);
-    }
-    state.user(userId).lastSyncedAt = _clock();
-    await _saveState(state);
-    return report;
-  });
+        final report = SyncReport();
+        await _withoutForeignKeys(
+          () => _byTier((table) => _pullTable(state, userId, table, report)),
+        );
+        final rejectedBy = shared ? state : null;
+        await _byTier((table) => _pushTable(userId, table, report, rejectedBy));
+        if (files case final store?) {
+          await _syncFiles(store, userId, report);
+          // Rows the file step changed (storage_path set/cleared) go up now
+          // rather than on the next run.
+          await _pushTable(userId, _attachmentsTable, report, rejectedBy);
+        }
+        state.user(userId).lastSyncedAt = _clock();
+        await _saveState(state);
+        return report;
+      });
 
   // ---- Account attach / wipe -----------------------------------------------
 
@@ -290,7 +309,7 @@ class SyncEngine {
     // Never leave the app without pick lists, even if the download fails.
     // Seed rows have shared ids and an old timestamp, so the account's own
     // versions replace them on the next pull.
-    await db.seedCatalogs();
+    if (db.seedDefaults) await db.seedCatalogs();
   }
 
   // ---- Pull -----------------------------------------------------------------
@@ -420,11 +439,15 @@ class SyncEngine {
 
   // ---- Push -----------------------------------------------------------------
 
+  /// Uploads [table]'s queued rows. With [shared] (the sync state of a
+  /// shared account) a refused batch is retried row by row and the refused
+  /// rows are rolled back; without it the refusal is rethrown.
   Future<void> _pushTable(
     String userId,
     TableInfo table,
-    SyncReport report,
-  ) async {
+    SyncReport report, [
+    _SyncState? shared,
+  ]) async {
     final name = table.actualTableName;
     while (true) {
       final queued = await db
@@ -446,15 +469,83 @@ class SyncEngine {
           if (local[id] case final row?) _encode(row),
       ];
       // Throws on failure: the entries stay queued for the next run.
-      if (payload.isNotEmpty) await remote.push(name, userId, payload);
+      var sent = payload;
+      if (payload.isNotEmpty) {
+        try {
+          await remote.push(name, userId, payload);
+        } on RemotePermissionDenied {
+          if (shared == null) rethrow;
+          final refused = await _pushOneByOne(name, userId, payload);
+          await _rollBack(shared, table, refused);
+          report.rejected += refused.length;
+          sent = [
+            for (final r in payload)
+              if (!refused.contains(r['id'])) r,
+          ];
+        }
+      }
       // Only the entries we read: a row edited during the upload was
       // re-queued with a newer seq and goes up in the next batch.
       await db.customStatement(
         'DELETE FROM sync_outbox WHERE seq IN (${seqs.join(', ')})',
       );
-      report.pushed += payload.length;
+      report.pushed += sent.length;
       if (queued.length < pushBatchSize) return;
     }
+  }
+
+  /// Uploads [rows] one at a time; returns the ids the server refused.
+  /// Any other error still fails the run (the rows stay queued).
+  Future<Set<String>> _pushOneByOne(
+    String table,
+    String ownerId,
+    List<RemoteRow> rows,
+  ) async {
+    final refused = <String>{};
+    for (final row in rows) {
+      try {
+        await remote.push(table, ownerId, [row]);
+      } on RemotePermissionDenied {
+        refused.add(row['id']! as String);
+      }
+    }
+    return refused;
+  }
+
+  /// Undoes refused local changes: the rows are deleted on this device
+  /// and [table]'s pull restarts from the beginning, so the server's
+  /// version (if the member may see one) comes back on the next sync.
+  Future<void> _rollBack(
+    _SyncState state,
+    TableInfo table,
+    Set<String> ids,
+  ) async {
+    if (ids.isEmpty) return;
+    final name = table.actualTableName;
+    await _withoutForeignKeys(() async {
+      for (final chunk in _chunks(ids.toList())) {
+        if (name == 'attachments') {
+          await db.customStatement(
+            'DELETE FROM attachment_files WHERE attachment_id IN '
+            '(${_marks(chunk.length)})',
+            chunk,
+          );
+        }
+        await db.customUpdate(
+          'DELETE FROM $name WHERE id IN (${_marks(chunk.length)})',
+          variables: [for (final id in chunk) Variable.withString(id)],
+          updates: {table},
+          updateKind: UpdateKind.delete,
+        );
+        await _unqueueAll(name, chunk);
+      }
+    });
+    await _pages.run(() async {
+      for (final user in state.users.values) {
+        user.cursors.remove(name);
+      }
+      await _saveState(state);
+    });
   }
 
   // ---- Attachment files -------------------------------------------------------
@@ -470,6 +561,11 @@ class SyncEngine {
   /// - every deleted attachment that still has a `storage_path` gets its
   ///   object removed and the path cleared.
   ///
+  /// - every live attachment whose file sits in *another* account's
+  ///   folder and has no local bytes (copied by a redeemed transfer) is
+  ///   downloaded and its `storage_path` cleared, so the step above
+  ///   uploads it again under this account's folder.
+  ///
   /// Best effort: a failed file never fails the sync (the rows are already
   /// safe); it is simply retried on the next run.
   Future<void> _syncFiles(
@@ -477,6 +573,7 @@ class SyncEngine {
     String userId,
     SyncReport report,
   ) async {
+    await _rehomeFiles(store, userId, report);
     final pending = await db
         .customSelect(
           'SELECT a.id, a.file_name, a.mime_type FROM attachments a '
@@ -538,6 +635,53 @@ class SyncEngine {
           );
     }
     report.filesRemoved += deleted.length;
+  }
+
+  Future<void> _rehomeFiles(
+    RemoteFileStore store,
+    String userId,
+    SyncReport report,
+  ) async {
+    final foreign = await db
+        .customSelect(
+          'SELECT a.id, a.storage_path FROM attachments a '
+          'WHERE a.deleted_at IS NULL AND a.storage_path IS NOT NULL '
+          'AND substr(a.storage_path, 1, ?) != ? '
+          'AND a.id NOT IN (SELECT attachment_id FROM attachment_files)',
+          variables: [
+            Variable.withInt(userId.length + 1),
+            Variable.withString('$userId/'),
+          ],
+          readsFrom: {db.attachments, db.attachmentFiles},
+        )
+        .get();
+    for (final row in foreign) {
+      final id = row.read<String>('id');
+      final path = row.read<String>('storage_path');
+      final Uint8List bytes;
+      try {
+        bytes = await store.download(path);
+      } catch (_) {
+        continue; // not readable (yet): retried next run
+      }
+      await db.transaction(() async {
+        await db
+            .into(db.attachmentFiles)
+            .insert(
+              AttachmentFilesCompanion.insert(attachmentId: id, bytes: bytes),
+              mode: InsertMode.insertOrReplace,
+            );
+        await (db.update(
+          db.attachments,
+        )..where((a) => a.id.equals(id) & a.storagePath.equals(path))).write(
+          AttachmentsCompanion(
+            storagePath: const Value(null),
+            updatedAt: Value(_clock()),
+          ),
+        );
+      });
+      report.filesRehomed++;
+    }
   }
 
   // ---- Outbox helpers --------------------------------------------------------

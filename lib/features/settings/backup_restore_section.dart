@@ -7,6 +7,7 @@ import '../../core/backup/backup_format.dart';
 import '../../core/backup/backup_service.dart';
 import '../../core/files/file_sharer.dart';
 import '../../core/providers.dart';
+import '../../core/sharing/active_account.dart';
 import '../../core/theme/app_theme.dart';
 
 /// Settings → "Backup & restore": one-tap local backup file (share/save
@@ -54,18 +55,21 @@ class _BackupRestoreSectionState extends ConsumerState<BackupRestoreSection> {
           enabled: !_busy,
           onTap: _createBackup,
         ),
-        ListTile(
-          leading: Icon(
-            Icons.settings_backup_restore,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
+        // Restoring would overwrite (and upload into) someone else's
+        // account: only in the user's own data.
+        if (ref.watch(currentAccessProvider).isOwner)
+          ListTile(
+            leading: Icon(
+              Icons.settings_backup_restore,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            title: const Text('Restore from backup'),
+            subtitle: const Text(
+              'Replace all data on this device with a backup file',
+            ),
+            enabled: !_busy,
+            onTap: _restoreBackup,
           ),
-          title: const Text('Restore from backup'),
-          subtitle: const Text(
-            'Replace all data on this device with a backup file',
-          ),
-          enabled: !_busy,
-          onTap: _restoreBackup,
-        ),
       ],
     );
   }

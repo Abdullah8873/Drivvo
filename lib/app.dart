@@ -7,6 +7,7 @@ import 'core/cloud/auth_state.dart';
 import 'core/notifications/notification_providers.dart';
 import 'core/providers.dart';
 import 'core/router/app_router.dart';
+import 'core/sharing/sharing_controller.dart';
 import 'core/sync/sync_controller.dart';
 import 'core/theme/app_theme.dart';
 
@@ -60,6 +61,8 @@ class _MotoLogAppState extends ConsumerState<MotoLogApp>
     // Keeps the background sync alive for the app's lifetime (it is inert
     // without a cloud config or while signed out).
     ref.listen(syncControllerProvider, (_, _) {});
+    // Invitations + joined accounts (sharing); also inert when signed out.
+    ref.listen(sharingControllerProvider, (_, _) {});
     // Opening a password-reset email link puts Supabase in a recovery
     // session and fires this event — route straight to "Set new password"
     // wherever the user currently is, the same way a service worker's

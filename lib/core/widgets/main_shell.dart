@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/sharing/invitation_banner.dart';
+import '../../features/sharing/sharing_widgets.dart';
+import '../calc/access_profile.dart';
+import '../sharing/active_account.dart';
 import '../theme/app_theme.dart';
 import '../theme/record_module.dart';
 import 'speed_dial_menu.dart';
@@ -8,16 +13,16 @@ import 'speed_dial_menu.dart';
 /// Layout wrapping the four main tabs: the active tab's page on top and the
 /// bottom bar (History · Reports · [+] · Reminders · More) below it.
 /// Similar to a React Router layout route with an `<Outlet />`.
-class MainShell extends StatefulWidget {
+class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  ConsumerState<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends ConsumerState<MainShell> {
   bool _menuOpen = false;
 
   void _toggleMenu() => setState(() => _menuOpen = !_menuOpen);
@@ -38,32 +43,17 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final access = ref.watch(currentAccessProvider);
+    final modules = [
+      for (final m in RecordModule.speedDialOrder)
+        if (access.can(areaOfModule(m), AccessAction.register)) m,
+    ];
     return Scaffold(
-      body: Stack(
+      body: Column(
         children: [
-          widget.navigationShell,
-          if (_menuOpen) ...[
-            // Dimmed backdrop; tap to close.
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: _toggleMenu,
-                child: ColoredBox(color: Colors.black.withValues(alpha: 0.3)),
-              ),
-            ),
-            // Bounded to the space between the status bar and the FAB, so on
-            // short screens the menu scrolls instead of pushing its top
-            // items off-screen and unreachable.
-            Positioned(
-              left: 0,
-              right: 0,
-              top: MediaQuery.paddingOf(context).top + 8,
-              bottom: 12,
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: SpeedDialMenu(onSelected: _openForm),
-              ),
-            ),
-          ],
+          Expanded(child: _body(context, modules)),
+          // Pending invitation to someone's account (sharing).
+          const InvitationBanner(),
         ],
       ),
       bottomNavigationBar: _BottomBar(
@@ -72,6 +62,36 @@ class _MainShellState extends State<MainShell> {
         onTab: _goTab,
         onFab: _toggleMenu,
       ),
+    );
+  }
+
+  Widget _body(BuildContext context, List<RecordModule> modules) {
+    return Stack(
+      children: [
+        widget.navigationShell,
+        if (_menuOpen) ...[
+          // Dimmed backdrop; tap to close.
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _toggleMenu,
+              child: ColoredBox(color: Colors.black.withValues(alpha: 0.3)),
+            ),
+          ),
+          // Bounded to the space between the status bar and the FAB, so on
+          // short screens the menu scrolls instead of pushing its top
+          // items off-screen and unreachable.
+          Positioned(
+            left: 0,
+            right: 0,
+            top: MediaQuery.paddingOf(context).top + 8,
+            bottom: 12,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: SpeedDialMenu(onSelected: _openForm, modules: modules),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

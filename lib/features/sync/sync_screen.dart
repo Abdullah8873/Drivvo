@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
 import '../../core/sync/sync_controller.dart';
+import '../../core/sharing/active_account.dart';
+import '../sharing/account_switcher.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/max_width_body.dart';
 
@@ -108,11 +110,33 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             'itself; you can also start it here.',
       ),
       const SizedBox(height: 16),
+      if (status.isShared)
+        ListTile(
+          leading: const Icon(Icons.group),
+          title: const Text('Account'),
+          subtitle: Text(accountLabel(ref.watch(activeAccountProvider))),
+        ),
       ListTile(
         leading: Icon(icon, color: color),
         title: Text(label),
         subtitle: status.error == null ? null : Text(status.error!),
       ),
+      if (status.rejected > 0)
+        ListTile(
+          key: const Key('sync-rejected'),
+          leading: Icon(
+            Icons.block,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          title: Text(
+            '${status.rejected} ${status.rejected == 1 ? 'change was' : 'changes were'} '
+            'not allowed',
+          ),
+          subtitle: const Text(
+            "Your profile in this account doesn't allow them, so they "
+            'were undone on this device.',
+          ),
+        ),
       ListTile(
         leading: const Icon(Icons.history),
         title: const Text('Last synchronized'),
