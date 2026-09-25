@@ -18,7 +18,7 @@ extension ExportFormatLabel on ExportFormat {
 }
 
 /// Record types the Export screen offers, in the order they're listed and
-/// exported. Checklists aren't implemented yet, so they're left out.
+/// exported.
 const exportableModules = [
   RecordModule.refueling,
   RecordModule.expense,
@@ -26,6 +26,7 @@ const exportableModules = [
   RecordModule.income,
   RecordModule.route,
   RecordModule.reading,
+  RecordModule.checklist,
   RecordModule.reminder,
 ];
 

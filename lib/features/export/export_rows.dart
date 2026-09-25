@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../../core/calc/checklist_math.dart';
 import '../../core/db/app_database.dart';
 import '../../core/theme/record_module.dart';
 import 'export_data.dart';
@@ -75,8 +76,62 @@ List<ExportSection> buildExportSections(
     if (modules.contains(RecordModule.route))
       _buildRouteSection(data, currencyCode),
     if (modules.contains(RecordModule.reading)) _buildReadingSection(data),
+    if (modules.contains(RecordModule.checklist)) _buildChecklistSection(data),
     if (modules.contains(RecordModule.reminder)) _buildReminderSection(data),
   ];
+}
+
+ExportSection _buildChecklistSection(ExportData data) {
+  final checklists = [...data.checklists]
+    ..sort((a, b) => a.date.compareTo(b.date));
+  final rows = [
+    for (final c in checklists)
+      () {
+        final answers = [
+          for (final a in data.checklistAnswers)
+            if (a.checklistId == c.id) a,
+        ];
+        final counts = ChecklistCounts.of(answers.map((a) => a.status));
+        final problems = [
+          for (final a in answers)
+            if (a.status == ChecklistStatus.problem)
+              a.note == null || a.note!.trim().isEmpty
+                  ? a.label
+                  : '${a.label}: ${a.note}',
+        ];
+        return [
+          data.vehicleNames[c.vehicleId] ?? '',
+          _dateFmt.format(c.date),
+          _timeFmt.format(c.date),
+          _num(c.odometer),
+          c.title,
+          '${counts.ok}',
+          '${counts.problem}',
+          problems.join('; '),
+          _text(c.driver),
+          _text(c.notes),
+        ];
+      }(),
+  ];
+  return ExportSection(
+    module: RecordModule.checklist,
+    title: 'Checklists',
+    headers: const [
+      'Vehicle',
+      'Date',
+      'Time',
+      'Odometer',
+      'Form',
+      'OK',
+      'Problems',
+      'Problem Items',
+      'Driver',
+      'Notes',
+    ],
+    rows: rows,
+    recordCount: checklists.length,
+    moneyTotal: 0,
+  );
 }
 
 /// One row per fuel line (a refueling with a second fuel/tank produces two

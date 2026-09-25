@@ -6,7 +6,10 @@ import 'package:motolog/core/backup/backup_format.dart';
 import 'package:motolog/core/backup/backup_service.dart';
 import 'package:motolog/core/db/app_database.dart';
 import 'package:motolog/core/settings/app_settings.dart';
+import 'package:motolog/core/db/seed_data.dart';
 import 'package:motolog/core/sync/sync_engine.dart';
+import 'package:motolog/features/attachments/attachment_queries.dart';
+import 'package:motolog/features/checklists/checklist_queries.dart';
 
 import 'helpers.dart';
 import 'history_fixtures.dart';
@@ -239,4 +242,102 @@ void main() {
       expect(await get('other'), 'from-backup');
     },
   );
+
+  group('schema v4', () {
+    Future<(String, String)> checklistWithPhoto() async {
+      final vid = await addTestVehicle(db);
+      final cid = await db.saveChecklist(
+        ChecklistDraft(
+          vehicleId: vid,
+          date: DateTime(2026, 9, 1),
+          title: 'Pre-trip inspection',
+          answers: const [
+            ChecklistAnswerDraft(
+              label: 'Tires',
+              status: ChecklistStatus.problem,
+              note: 'Worn',
+            ),
+          ],
+        ),
+      );
+      await db.applyAttachmentChanges(
+        parentTable: 'checklists',
+        parentId: cid,
+        vehicleId: vid,
+        added: [
+          PendingAttachment(
+            fileName: 'tire.jpg',
+            mimeType: 'image/jpeg',
+            bytes: Uint8List.fromList([7, 8, 9]),
+          ),
+        ],
+      );
+      final a = (await db.getAttachments('checklists', cid)).single;
+      // Pretend it was uploaded (possibly under another account).
+      await (db.update(db.attachments)..where((x) => x.id.equals(a.id))).write(
+        const AttachmentsCompanion(storagePath: Value('u9/x/tire.jpg')),
+      );
+      return (cid, a.id);
+    }
+
+    test('round-trips checklists, attachments and their bytes', () async {
+      final (cid, aid) = await checklistWithPhoto();
+      final bytes = await service.createBackupBytes(db);
+      final json = service.parseAndValidate(bytes, db.schemaVersion);
+      expect(service.summarize(json).recordCount, 1);
+
+      // Lose everything on the device, then restore.
+      await db.deleteChecklist(cid);
+      await db.deleteChecklistForm(SeedData.formIdFor('Pre-trip inspection'));
+      expect(await db.select(db.attachmentFiles).get(), isEmpty);
+
+      await service.restore(db, json);
+
+      final restored = await db.getChecklist(cid);
+      expect(restored!.answers.single.note, 'Worn');
+      expect(
+        await db.getChecklistForm(SeedData.formIdFor('Pre-trip inspection')),
+        isNotNull,
+      );
+      final a = (await db.getAttachments('checklists', cid)).single;
+      expect(a.id, aid);
+      expect(await db.localAttachmentBytes(aid), [7, 8, 9]);
+      // Re-uploaded by the next sync under the signed-in account.
+      expect(a.storagePath, isNull);
+    });
+
+    test('an older backup without the v4 tables still restores', () async {
+      final (cid, aid) = await checklistWithPhoto();
+      final json = jsonDecode(
+        utf8.decode(await service.createBackupBytes(db)),
+      ) as Map<String, dynamic>;
+      final tables = json['tables'] as Map<String, dynamic>;
+      for (final key in [
+        BackupFormat.tableChecklistForms,
+        BackupFormat.tableChecklistFormItems,
+        BackupFormat.tableChecklists,
+        BackupFormat.tableChecklistAnswers,
+        BackupFormat.tableAttachments,
+        BackupFormat.tableAttachmentFiles,
+      ]) {
+        tables.remove(key);
+      }
+      json['schemaVersion'] = 3;
+      final old = service.parseAndValidate(
+        _bytesOf(jsonEncode(json)),
+        db.schemaVersion,
+      );
+
+      await service.restore(db, old);
+
+      // Tables the file knows nothing about are left alone.
+      expect(await db.getChecklist(cid), isNotNull);
+      expect(
+        await db.getChecklistForm(SeedData.formIdFor('Pre-trip inspection')),
+        isNotNull,
+      );
+      expect(await db.localAttachmentBytes(aid), [7, 8, 9]);
+      expect(await db.select(db.vehicles).get(), hasLength(1));
+    });
+  });
 }

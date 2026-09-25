@@ -18,6 +18,8 @@ class ExportData {
     required this.reminders,
     required this.vehicleNames,
     required this.catalogNames,
+    this.checklists = const [],
+    this.checklistAnswers = const [],
   });
 
   final List<Refueling> refuelings;
@@ -27,6 +29,10 @@ class ExportData {
   final List<Route> routes;
   final List<Reading> readings;
   final List<Reminder> reminders;
+  final List<Checklist> checklists;
+
+  /// Live answers of [checklists].
+  final List<ChecklistAnswer> checklistAnswers;
 
   /// vehicleId -> name.
   final Map<String, String> vehicleNames;
@@ -134,7 +140,29 @@ Future<ExportData> loadExportData(AppDatabase db, ExportOptions options) async {
             .get()
       : <Reminder>[];
 
+  final checklists = options.modules.contains(RecordModule.checklist)
+      ? await (db.select(db.checklists)..where(
+              (c) =>
+                  c.vehicleId.isIn(vehicleIds) &
+                  c.deletedAt.isNull() &
+                  inRange(c.date),
+            ))
+            .get()
+      : <Checklist>[];
+  final checklistAnswers = checklists.isEmpty
+      ? <ChecklistAnswer>[]
+      : await (db.select(db.checklistAnswers)
+              ..where(
+                (a) =>
+                    a.checklistId.isIn(checklists.map((c) => c.id)) &
+                    a.deletedAt.isNull(),
+              )
+              ..orderBy([(a) => OrderingTerm.asc(a.position)]))
+            .get();
+
   return ExportData(
+    checklists: checklists,
+    checklistAnswers: checklistAnswers,
     refuelings: refuelings,
     refuelingFuels: refuelingFuels,
     entries: entries,
