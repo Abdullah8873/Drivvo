@@ -513,7 +513,11 @@ class _NoVehicle extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.two_wheeler, size: 96, color: Colors.grey.shade400),
+            Icon(
+              Icons.two_wheeler,
+              size: 96,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
             const SizedBox(height: 16),
             const Text(
               'Add a vehicle before creating reminders',

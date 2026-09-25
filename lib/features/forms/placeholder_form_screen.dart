@@ -20,7 +20,9 @@ class PlaceholderFormScreen extends StatelessWidget {
           child: Text(
             '${module.label} form is coming in milestone 3.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade700),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ],

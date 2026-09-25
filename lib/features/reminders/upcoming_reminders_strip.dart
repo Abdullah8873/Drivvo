@@ -7,14 +7,19 @@ import '../../core/theme/record_module.dart';
 import 'reminder_providers.dart';
 
 /// Color of the "in 197 km · in 9 days" line: red when overdue, amber
-/// otherwise (grey for reminders that are comfortably far away).
-Color remainingColor(ReminderStatus status, {bool amberWhenOk = false}) =>
-    switch (status) {
-      ReminderStatus.overdue => Colors.red.shade700,
-      ReminderStatus.soon => Colors.amber.shade800,
-      ReminderStatus.ok =>
-        amberWhenOk ? Colors.amber.shade800 : Colors.grey.shade700,
-    };
+/// otherwise (muted for reminders that are comfortably far away).
+Color remainingColor(
+  BuildContext context,
+  ReminderStatus status, {
+  bool amberWhenOk = false,
+}) => switch (status) {
+  ReminderStatus.overdue => Colors.red.shade700,
+  ReminderStatus.soon => Colors.amber.shade800,
+  ReminderStatus.ok =>
+    amberWhenOk
+        ? Colors.amber.shade800
+        : Theme.of(context).colorScheme.onSurfaceVariant,
+};
 
 /// Opens the record behind an item: the reminder's edit form, or a new
 /// refueling for the "Next refueling" prediction.
@@ -55,7 +60,7 @@ class UpcomingRemindersStrip extends ConsumerWidget {
               fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
-              color: Colors.grey.shade600,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
@@ -117,7 +122,7 @@ class _StripCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12,
-                        color: Colors.grey.shade700,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -127,7 +132,11 @@ class _StripCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12,
-                        color: remainingColor(item.status, amberWhenOk: true),
+                        color: remainingColor(
+                          context,
+                          item.status,
+                          amberWhenOk: true,
+                        ),
                       ),
                     ),
                   ],

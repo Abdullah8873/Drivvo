@@ -65,7 +65,11 @@ class _SignedOutView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+          Icon(
+            Icons.cloud_off,
+            size: 48,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(height: 16),
           const Text(
             'Optional. Sign in to back up and sync your data across '

@@ -73,7 +73,7 @@ class _Grid extends ConsumerWidget {
               style: TextStyle(
                 color: a.earned
                     ? Theme.of(context).colorScheme.primary
-                    : Colors.grey.shade600,
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w600,
               ),
             ),

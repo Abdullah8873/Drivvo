@@ -80,26 +80,36 @@ class TimelineTrack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Positioned(
       left: kTrackX - 3,
       top: 0,
       bottom: 0,
       width: 6,
-      child: CustomPaint(painter: _TrackPainter(Colors.grey.shade300)),
+      child: CustomPaint(
+        painter: _TrackPainter(
+          theme.colorScheme.outlineVariant,
+          theme.scaffoldBackgroundColor,
+        ),
+      ),
     );
   }
 }
 
 class _TrackPainter extends CustomPainter {
-  _TrackPainter(this.color);
+  _TrackPainter(this.color, this.gapColor);
 
   final Color color;
+
+  /// Color of the dashes cut into the track — matches the scaffold
+  /// background so the dashes read as gaps rather than bright marks.
+  final Color gapColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     canvas.drawRect(Offset.zero & size, Paint()..color = color);
     final dash = Paint()
-      ..color = Colors.white
+      ..color = gapColor
       ..strokeWidth = 1.5;
     final x = size.width / 2;
     for (double y = 3; y < size.height; y += 12) {
@@ -108,7 +118,8 @@ class _TrackPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_TrackPainter old) => old.color != color;
+  bool shouldRepaint(_TrackPainter old) =>
+      old.color != color || old.gapColor != gapColor;
 }
 
 /// Colored circle with the module's icon (the dot on the track).
@@ -151,7 +162,7 @@ class AchievementTimelineRow extends ConsumerWidget {
     final fmt = ref.watch(formattersProvider);
     final theme = Theme.of(context);
     final grey = theme.textTheme.bodySmall?.copyWith(
-      color: Colors.grey.shade600,
+      color: theme.colorScheme.onSurfaceVariant,
     );
     return Stack(
       children: [
@@ -187,7 +198,7 @@ class AchievementTimelineRow extends ConsumerWidget {
                   achievement.text,
                   key: Key('achievement-${achievement.id}'),
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.grey.shade700,
+                    color: theme.colorScheme.onSurfaceVariant,
                     fontStyle: FontStyle.italic,
                   ),
                 ),
@@ -263,7 +274,7 @@ class TimelineRow extends ConsumerWidget {
     final fmt = ref.watch(formattersProvider);
     final theme = Theme.of(context);
     final grey = theme.textTheme.bodySmall?.copyWith(
-      color: Colors.grey.shade600,
+      color: theme.colorScheme.onSurfaceVariant,
     );
     final showAmount = record.module != RecordModule.reading;
     // Efficiency comes from the shared consumption engine (per tank,
@@ -368,6 +379,7 @@ class _RowDetails extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final fmt = ref.watch(formattersProvider);
+    final theme = Theme.of(context);
     final lines = <Widget>[];
     void line(String label, String value) =>
         lines.add(_DetailLine(label: label, value: value));
@@ -423,7 +435,7 @@ class _RowDetails extends ConsumerWidget {
               child: Text(
                 notes,
                 style: TextStyle(
-                  color: Colors.grey.shade700,
+                  color: theme.colorScheme.onSurfaceVariant,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -464,7 +476,8 @@ class _DetailLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodyMedium;
+    final theme = Theme.of(context);
+    final style = theme.textTheme.bodyMedium;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -472,7 +485,7 @@ class _DetailLine extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: style?.copyWith(color: Colors.grey.shade700),
+              style: style?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
           ),
           const SizedBox(width: 8),
@@ -553,7 +566,7 @@ class MonthSummaryCard extends ConsumerWidget {
                             .format(summary.month)
                             .toUpperCase(),
                         style: theme.textTheme.labelLarge?.copyWith(
-                          color: Colors.grey.shade700,
+                          color: theme.colorScheme.onSurfaceVariant,
                           letterSpacing: 0.8,
                         ),
                       ),
@@ -636,7 +649,7 @@ class _Stat extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 18, color: Colors.grey.shade600),
+        Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -644,7 +657,7 @@ class _Stat extends StatelessWidget {
             Text(
               label,
               style: theme.textTheme.labelSmall?.copyWith(
-                color: Colors.grey.shade600,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
             Text(value, style: theme.textTheme.bodyMedium),

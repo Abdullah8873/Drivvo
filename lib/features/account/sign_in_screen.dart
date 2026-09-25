@@ -168,7 +168,11 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   ];
 
   List<Widget> _linkSentStep() => [
-    const Icon(Icons.mark_email_read_outlined, size: 48, color: Colors.grey),
+    Icon(
+      Icons.mark_email_read_outlined,
+      size: 48,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
     const SizedBox(height: 16),
     Text(
       'Check your email — we sent a sign-in link to ${_email.text}. Open '

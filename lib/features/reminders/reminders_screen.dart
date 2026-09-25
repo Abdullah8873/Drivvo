@@ -55,11 +55,17 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.alarm, size: 120, color: Colors.grey.shade400),
+          Icon(
+            Icons.alarm,
+            size: 120,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(height: 16),
           Text(
             'Add your first reminder',
-            style: TextStyle(color: Colors.grey.shade700),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -76,7 +82,7 @@ class ReminderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = item.module.color;
-    final statusColor = remainingColor(item.status);
+    final statusColor = remainingColor(context, item.status);
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -106,7 +112,9 @@ class ReminderCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         item.dueText,
-                        style: TextStyle(color: Colors.grey.shade700),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                     if (item.remainingText.isNotEmpty) ...[
@@ -131,7 +139,9 @@ class ReminderCard extends StatelessWidget {
                           color: item.status == ReminderStatus.ok
                               ? RecordModule.reminder.color
                               : statusColor,
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHighest,
                         ),
                       ),
                     ],
