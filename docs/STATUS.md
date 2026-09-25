@@ -1,9 +1,9 @@
 # MotoLog — current status / session handoff
 
-_Last updated: 2026-09-25 (evening). Read this first when starting a new
+_Last updated: 2026-09-26. Read this first when starting a new
 session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
 
-## Done (merged into `develop`, pushed, 443 tests passing in ~2 min, web release build OK)
+## Done (merged into `develop`, pushed, 513 tests passing in ~1.5 min, web release build OK)
 - M1 app shell · M2 database (drift; schema **v4**: seeded catalogs with
   deterministic ids, v2 dedupe, v3 `sync_outbox` + triggers, v4 attachments +
   checklists) · vehicles (manufacturer = searchable brand picker,
@@ -52,31 +52,32 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   360×640 in light + dark (brand picker, checklist save/expand, Storage,
   Reports, map tiles + attribution).
 
-## PAUSED 2026-09-25 (owner asked) — in flight, resume here first
-Optimization & compatibility pass (Next 2) is ~80% done in two worktrees,
-**not merged yet**. Both agents were stopped cleanly (no processes left).
-- **Perf/sync (Opus)** — branch `feature/perf-sync`, worktree
-  `.claude/worktrees/agent-a2f8d55c9d631019c`. Commits: big-dataset seeder +
-  benchmark (`test/perf/`, tag `perf`, skipped by default) · schema **v5**
-  indexes · sync pull/push per dependency tier in parallel · lean
-  consumption query + DB opens while cloud initializes. **Uncommitted:**
-  `history_queries.dart` + benchmark edits (was re-running the benchmark —
-  timings were noisy). Left to do: finish History query work, AFTER numbers,
-  maybe `supabase/migrations/20260926000001_perf_indexes.sql`, full suite.
-- **Layout/compat (Sonnet)** — branch `feature/compat-layout`, worktree
-  `.claude/worktrees/agent-ae78d97490d812b60`. Commits: tablet max-width
-  wrapper (`core/widgets/max_width_body.dart`), lazy lists, Android/web
-  config · overflow fixes from the layout smoke matrix. Web release build
-  with `--no-web-resources-cdn` built; a `--wasm` build had just finished
-  (result not checked). Left to do: check the wasm build, full test suite,
-  final report.
-- **Resume:** in the same Claude session, SendMessage each agent "resume";
-  in a fresh session, spawn one agent per branch ("continue the work on
-  branch X in worktree Y — see docs/STATUS.md PAUSED section and `git log
-  develop..HEAD`"), then: review diffs, format/analyze/test, merge both into
-  develop (perf first — it owns schema v5), push, hands-on QA in the browser
-  pane (320 px, text 2×, tablet, dark), apply the perf SQL on Supabase via
-  Claude in Chrome (owner OK'd using it).
+## PAUSED 2026-09-26 (owner switching to a new session) — resume here first
+Optimization & compatibility pass (Next 2) is **merged into `develop` and
+pushed** (`9920c9f`): `feature/perf-sync` then `feature/compat-layout`.
+Format clean, analyze 0 issues, **513 tests pass**. No processes running.
+- Perf results (big dataset, median): History month cards 2446 → 3 ms,
+  loadTimeline 256 → ~150 ms, groupByMonth 78 → 8 ms, consumption input
+  108 → 12 ms, reports all-time general 79 → 6 ms, full sync pull 11.8 →
+  2.8 s, push at 100 ms/call latency 10.6 → 5.0 s; v5 indexes cost ~0.6 ms
+  per write, v4→v5 migration 122 ms on the big DB. Benchmark:
+  `flutter test --run-skipped -t perf test/perf -r expanded > perf.txt`.
+- **No Supabase SQL needed:** every synced table already has the
+  `(owner_id, server_updated_at, id)` pull index.
+- Compat: minSdk 24, R8 shrink on release, `MaxWidthBody` on tablets, lazy
+  lists, web title/theme color; `--wasm` build compiled OK (not yet run in a
+  browser). No COOP/COEP on purpose (breaks OSM tiles + Google OAuth — see
+  `web/index.html` comment).
+- **Left to do:** finish hands-on QA in the browser pane on `motolog-cloud`
+  (8085). Done so far at 320×640 light: fresh v5 DB opens with no console
+  errors, add vehicle, 2 refuelings, History month card + rows render.
+  Still: Reports, text scale 2×, tablet width (768+ → centred max-width
+  body), dark theme, one sync to Supabase (parallel tier pull live), and a
+  `--wasm` build served + opened. **Check:** in History the km/L figure
+  shows on the *first* refueling row (1000 km), not the second (1200 km) —
+  confirm against Drivvo before changing anything.
+- Old worktrees under `.claude/worktrees/` (≈28, all merged branches) can be
+  removed with `git worktree remove` + branch delete — ask the owner first.
 - **Then:** sharing batch — design is decided in `docs/SHARING.md`, Drivvo
   screens verified in `docs/SPEC.md`, permission model already on develop
   (`lib/core/calc/access_profile.dart`). Plan: Opus = SQL/RLS/sync/account
