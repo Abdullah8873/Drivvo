@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/account/account_screen.dart';
@@ -86,16 +86,17 @@ GoRouter _buildRouter() => GoRouter(
   initialLocation: '/history',
   routes: [
     StatefulShellRoute.indexedStack(
-      builder: (context, state, shell) => MainShell(navigationShell: shell),
+      pageBuilder: (context, state, shell) =>
+          _materialPage(state, MainShell(navigationShell: shell)),
       branches: [
         StatefulShellBranch(
           routes: [
-            GoRoute(path: '/history', builder: (_, _) => const HistoryScreen()),
+            _page(path: '/history', builder: (_, _) => const HistoryScreen()),
           ],
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(
+            _page(
               path: '/reports',
               builder: (_, _) => const ReportsGate(child: ReportsScreen()),
             ),
@@ -103,89 +104,81 @@ GoRouter _buildRouter() => GoRouter(
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(
+            _page(
               path: '/reminders',
               builder: (_, _) => const RemindersScreen(),
             ),
           ],
         ),
         StatefulShellBranch(
-          routes: [
-            GoRoute(path: '/more', builder: (_, _) => const MoreScreen()),
-          ],
+          routes: [_page(path: '/more', builder: (_, _) => const MoreScreen())],
         ),
       ],
     ),
-    GoRoute(
+    _page(
       path: '/add/:module',
       builder: (context, state) =>
           _form(_module(state.pathParameters['module']!), null),
     ),
-    GoRoute(
+    _page(
       path: '/edit/:module/:id',
       builder: (context, state) => _form(
         _module(state.pathParameters['module']!),
         state.pathParameters['id'],
       ),
     ),
-    GoRoute(
+    _page(
       path: '/record/:module/:id',
       builder: (context, state) => RecordDetailScreen(
         module: _module(state.pathParameters['module']!),
         id: state.pathParameters['id']!,
       ),
     ),
-    GoRoute(path: '/vehicles', builder: (_, _) => const VehiclesScreen()),
-    GoRoute(
-      path: '/vehicles/new',
-      builder: (_, _) => const VehicleFormScreen(),
-    ),
-    GoRoute(
+    _page(path: '/vehicles', builder: (_, _) => const VehiclesScreen()),
+    _page(path: '/vehicles/new', builder: (_, _) => const VehicleFormScreen()),
+    _page(
       path: '/vehicles/:id',
       builder: (_, state) => VehicleFormScreen(id: state.pathParameters['id']),
     ),
-    GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
-    GoRoute(path: '/account', builder: (_, _) => const AccountScreen()),
-    GoRoute(path: '/account/sign-in', builder: (_, _) => const SignInScreen()),
-    GoRoute(path: '/account/sign-up', builder: (_, _) => const SignUpScreen()),
-    GoRoute(
+    _page(path: '/settings', builder: (_, _) => const SettingsScreen()),
+    _page(path: '/account', builder: (_, _) => const AccountScreen()),
+    _page(path: '/account/sign-in', builder: (_, _) => const SignInScreen()),
+    _page(path: '/account/sign-up', builder: (_, _) => const SignUpScreen()),
+    _page(
       path: '/account/reset-password',
       builder: (_, _) => const ResetPasswordScreen(),
     ),
-    GoRoute(
+    _page(
       path: '/account/new-password',
       builder: (_, _) => const NewPasswordScreen(),
     ),
-    GoRoute(path: '/sync', builder: (_, _) => const SyncScreen()),
-    GoRoute(path: '/places', builder: (_, _) => const MyPlacesScreen()),
-    GoRoute(path: '/flex', builder: (_, _) => const FlexCalculatorScreen()),
-    GoRoute(
-      path: '/achievements',
-      builder: (_, _) => const AchievementsScreen(),
-    ),
-    GoRoute(path: '/export', builder: (_, _) => const ExportScreen()),
-    GoRoute(path: '/storage', builder: (_, _) => const StorageScreen()),
-    GoRoute(path: '/forms', builder: (_, _) => const ChecklistFormsScreen()),
-    GoRoute(path: '/about', builder: (_, _) => const AboutScreen()),
-    GoRoute(path: '/translation', builder: (_, _) => const TranslationScreen()),
-    GoRoute(path: '/users', builder: (_, _) => const UsersScreen()),
-    GoRoute(path: '/users/new', builder: (_, _) => const MemberFormScreen()),
-    GoRoute(
+    _page(path: '/sync', builder: (_, _) => const SyncScreen()),
+    _page(path: '/places', builder: (_, _) => const MyPlacesScreen()),
+    _page(path: '/flex', builder: (_, _) => const FlexCalculatorScreen()),
+    _page(path: '/achievements', builder: (_, _) => const AchievementsScreen()),
+    _page(path: '/export', builder: (_, _) => const ExportScreen()),
+    _page(path: '/storage', builder: (_, _) => const StorageScreen()),
+    _page(path: '/forms', builder: (_, _) => const ChecklistFormsScreen()),
+    _page(path: '/about', builder: (_, _) => const AboutScreen()),
+    _page(path: '/translation', builder: (_, _) => const TranslationScreen()),
+    _page(path: '/users', builder: (_, _) => const UsersScreen()),
+    _page(path: '/users/new', builder: (_, _) => const MemberFormScreen()),
+    _page(
       path: '/users/:id',
       builder: (_, state) => MemberFormScreen(id: state.pathParameters['id']),
     ),
-    GoRoute(path: '/profiles', builder: (_, _) => const ProfilesScreen()),
-    GoRoute(
+    _page(path: '/profiles', builder: (_, _) => const ProfilesScreen()),
+    _page(
       path: '/profiles/new',
       builder: (_, _) => const ProfileEditorScreen(),
     ),
-    GoRoute(
+    _page(
       path: '/profiles/:id',
       builder: (_, state) =>
           ProfileEditorScreen(id: state.pathParameters['id']),
     ),
-    GoRoute(path: '/transfer', builder: (_, _) => const TransferScreen()),
-    GoRoute(
+    _page(path: '/transfer', builder: (_, _) => const TransferScreen()),
+    _page(
       path: '/catalog/:kind',
       builder: (_, state) => CatalogScreen(
         kind: CatalogKind.values.byName(state.pathParameters['kind']!),
@@ -193,6 +186,29 @@ GoRouter _buildRouter() => GoRouter(
     ),
   ],
 );
+
+/// A route whose page is Flutter's own [MaterialPage], so pushed screens
+/// get the theme's page transition (`appPageTransitionsTheme` in
+/// `core/widgets/motion.dart`). A plain `GoRoute(builder: …)` can't be used:
+/// go_router 18 detects the app type through `package:material_ui`'s
+/// `MaterialApp`, which isn't the `package:flutter` one this app uses, so it
+/// fell back to `NoTransitionPage` and screens appeared with no transition
+/// at all.
+GoRoute _page({required String path, required GoRouterWidgetBuilder builder}) =>
+    GoRoute(
+      path: path,
+      pageBuilder: (context, state) =>
+          _materialPage(state, builder(context, state)),
+    );
+
+Page<void> _materialPage(GoRouterState state, Widget child) =>
+    MaterialPage<void>(
+      key: state.pageKey,
+      name: state.name ?? state.path,
+      arguments: state.extra,
+      restorationId: state.pageKey.value,
+      child: child,
+    );
 
 RecordModule _module(String name) => RecordModule.values.byName(name);
 
