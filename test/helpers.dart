@@ -3,8 +3,10 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:motolog/app.dart';
 import 'package:motolog/core/db/app_database.dart';
+import 'package:motolog/core/files/file_sharer.dart';
 import 'package:motolog/core/geo/map_tile_provider.dart';
 import 'package:motolog/core/providers.dart';
 
@@ -58,3 +60,50 @@ Future<void> unmountApp(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox());
   await tester.pump(const Duration(milliseconds: 1));
 }
+
+/// Records every share instead of touching a real share sheet/file system —
+/// the interface `FileSharer` exists specifically so tests can swap this in.
+class FakeFileSharer implements FileSharer {
+  int callCount = 0;
+  String? filename;
+  Uint8List? bytes;
+  String? mimeType;
+
+  /// Set by [shareText] instead of the file fields above.
+  int textCallCount = 0;
+  String? sharedText;
+
+  @override
+  Future<void> shareBytes({
+    required String filename,
+    required Uint8List bytes,
+    required String mimeType,
+    String? subject,
+  }) async {
+    callCount++;
+    this.filename = filename;
+    this.bytes = bytes;
+    this.mimeType = mimeType;
+  }
+
+  @override
+  Future<void> shareText(String text, {String? subject}) async {
+    textCallCount++;
+    sharedText = text;
+  }
+}
+
+/// The full app wired to [db] with a fake share sheet — pump this in widget
+/// tests that trigger export/backup/share flows.
+Widget appWithFakeSharer(
+  AppDatabase db,
+  FakeFileSharer sharer, {
+  List<Override> overrides = const [],
+}) => ProviderScope(
+  overrides: [
+    databaseProvider.overrideWithValue(db),
+    fileSharerProvider.overrideWithValue(sharer),
+    ...overrides,
+  ],
+  child: const MotoLogApp(),
+);

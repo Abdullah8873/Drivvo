@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -74,19 +75,40 @@ Future<void> initCloud(CloudConfig config) async {
   );
 }
 
-/// Where Supabase should send the browser back after a sign-in link,
+/// The custom-scheme link that reopens the Android/iOS app after an emailed
+/// sign-in, sign-up confirmation or password-reset link is clicked.
+///
+/// The scheme is the app id (`applicationId` in
+/// `android/app/build.gradle.kts`), registered by the intent filter in
+/// `AndroidManifest.xml` and by `CFBundleURLTypes` in `ios/Runner/Info.plist`
+/// — the mobile equivalent of a route the browser can open. It must also be
+/// in Supabase → Authentication → URL Configuration → Redirect URLs (see
+/// docs/SETUP-CLOUD.md), or Supabase ignores it and uses the Site URL.
+const mobileAuthRedirectUrl = 'com.abdullah8873.motolog://login-callback';
+
+/// Where Supabase should send the user back after a sign-in link,
 /// sign-up confirmation link, or password-reset link is clicked — the
 /// `emailRedirectTo`/`redirectTo` argument every link-sending call needs.
 ///
-/// On web this is the app's own origin (`Uri.base.origin`), so it resolves
-/// to whichever allow-listed preview port (8085 or 8086) the link was
-/// requested from — the Flutter equivalent of `window.location.origin`.
-/// supabase_flutter then picks the session up from the URL automatically
-/// when the app reloads there (`detectSessionInUri`, on by default).
+/// - Web: the app's own origin (`Uri.base.origin`), so it resolves to
+///   whichever allow-listed preview port (8085 or 8086) the link was
+///   requested from — the Flutter equivalent of `window.location.origin`.
+///   supabase_flutter picks the session up from the URL when the app
+///   reloads there (`detectSessionInUri`, on by default).
+/// - Android / iOS: [mobileAuthRedirectUrl]. The OS opens the app and
+///   supabase_flutter (listening through `app_links`, again because
+///   `detectSessionInUri` is on) exchanges the link's PKCE `code` for a
+///   session. A failed link arrives on `onAuthStateChange` as an error,
+///   which `auth_state.dart` already turns into a SnackBar.
+/// - Anything else (desktop): null, so Supabase falls back to the project's
+///   Site URL.
 ///
-/// On other platforms there's no app link registered yet, so this returns
-/// null and Supabase falls back to the project's Site URL.
-// TODO(android): deep link — register an app link (e.g.
-// `https://motolog.app/auth-callback` or a custom scheme) and return it
-// here so a link opened on Android returns straight to the app.
-String? authRedirectUrl() => kIsWeb ? Uri.base.origin : null;
+/// [isWeb], [platform] and [base] default to the running app's values;
+/// tests pass them to check each platform without a device.
+String? authRedirectUrl({bool? isWeb, TargetPlatform? platform, Uri? base}) {
+  if (isWeb ?? kIsWeb) return (base ?? Uri.base).origin;
+  return switch (platform ?? defaultTargetPlatform) {
+    TargetPlatform.android || TargetPlatform.iOS => mobileAuthRedirectUrl,
+    _ => null,
+  };
+}

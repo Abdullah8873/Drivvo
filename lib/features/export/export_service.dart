@@ -93,7 +93,14 @@ class ExportService {
     final ext = options.format == ExportFormat.csv && options.modules.length > 1
         ? 'zip'
         : options.format.fileExtension;
-    return 'motolog-$vehiclePart-$datePart.$ext';
+    // A single-type CSV names its record type (`…-expense.csv`): Expense,
+    // Service and Income share one column layout, so the CSV importer reads
+    // the type from the file name (inside a .zip it's the entry name).
+    final typePart =
+        options.format == ExportFormat.csv && options.modules.length == 1
+        ? '-${options.modules.single.name}'
+        : '';
+    return 'motolog-$vehiclePart-$datePart$typePart.$ext';
   }
 
   static String _slug(String s) {
