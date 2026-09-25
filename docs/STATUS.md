@@ -68,7 +68,7 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
    didn't.
 3. [ ] Supabase → Auth → Redirect URLs: add
    `com.abdullah8873.motolog://login-callback`.
-4. [ ] Part number / brand field on service items (schema v6: nullable
+4. [ ] **Cloud session #3 (Sonnet)** — part number / brand field on service items (schema v6: nullable
    column on `entry_items` + Supabase migration + sync + service type
    picker/detail/export). Only after sharing SQL is applied (avoid two
    schema changes in flight).
@@ -79,7 +79,7 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
 6. [ ] Hands-on QA: Sharing checklist (needs owner's 2nd test account),
    dark theme, one live sync, email link on Android, animations vs Drivvo
    (BlueStacks, view only) — fix what's found.
-7. [ ] Release: re-enable CI (`.github/workflows-disabled/` →
+7. [ ] **CI part: cloud session #3**; merge to main + tag: PC session. Release: re-enable CI (`.github/workflows-disabled/` →
    `.github/workflows/`, make it green), bump version to 1.0.0, merge
    `develop` → `main`, tag `v1.0.0`, push.
 8. [ ] Final STATUS.md: done / owner-only leftovers (Google sign-in setup,
