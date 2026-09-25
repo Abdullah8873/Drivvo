@@ -95,7 +95,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     ),
     const SizedBox(height: 16),
     Text(
-      'Check your email for a reset link. Open it on this device to '
+      'Check your email for a reset link. Open it in this browser to '
       'choose a new password.',
       textAlign: TextAlign.center,
     ),
