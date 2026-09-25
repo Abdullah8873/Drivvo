@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../achievements/achievements_providers.dart';
 import '../reminders/upcoming_reminders_strip.dart';
 import '../../core/db/app_database.dart';
+import '../../core/calc/access_profile.dart';
 import '../../core/providers.dart';
+import '../../core/sharing/active_account.dart';
 import '../../core/widgets/main_tab_app_bar.dart';
 import '../../core/widgets/max_width_body.dart';
 import 'achievement_timeline.dart';
@@ -53,15 +55,25 @@ class HistoryScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('$e')),
         data: (vehicle) => vehicle == null
-            ? _EmptyState(
-                icon: Icons.two_wheeler,
-                message: 'No vehicle yet',
-                // No "+" icon here: the bottom bar's FAB already uses it.
-                action: FilledButton(
-                  onPressed: () => context.push('/vehicles/new'),
-                  child: const Text('Add your first vehicle'),
-                ),
-              )
+            ? ref
+                      .watch(currentAccessProvider)
+                      .can(AccessArea.vehicles, AccessAction.register)
+                  ? _EmptyState(
+                      icon: Icons.two_wheeler,
+                      message: 'No vehicle yet',
+                      // No "+" icon here: the bottom bar's FAB already uses it.
+                      action: FilledButton(
+                        onPressed: () => context.push('/vehicles/new'),
+                        child: const Text('Add your first vehicle'),
+                      ),
+                    )
+                  // A member of a shared account without vehicles yet.
+                  : const _EmptyState(
+                      icon: Icons.two_wheeler,
+                      message:
+                          'No vehicles shared with you yet. Synchronize, or '
+                          'ask the account owner to assign one.',
+                    )
             : _Timeline(vehicle: vehicle),
       ),
     );

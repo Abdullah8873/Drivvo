@@ -43,6 +43,10 @@ class FakeSharer implements FileSharer {
     required String mimeType,
     String? subject,
   }) async => shared.add(filename);
+
+  @override
+  Future<void> shareText(String text, {String? subject}) async =>
+      shared.add(text);
 }
 
 void main() {

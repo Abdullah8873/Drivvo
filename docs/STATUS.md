@@ -53,6 +53,122 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   360×640 in light + dark (brand picker, checklist save/expand, Storage,
   Reports, map tiles + attribution).
 
+## FINISH LINE — owner wants the app COMPLETE in the next PC session
+Scope (owner decisions): Android + web, English only, no web hosting yet,
+no iOS (needs a Mac). Work through this list top to bottom; tick items here
+as they land. Code items may use helper agents (worktrees, rules in memory)
+if the cloud session "Extras, Import & Animations" hasn't done them.
+1. [ ] Sharing SQL: review then apply
+   `supabase/migrations/20260926000001_sharing.sql` in the Supabase SQL
+   editor via Claude in Chrome; run the checks in "Sharing batch" below.
+   (Sharing is merged on develop `2839e13`, 551 tests; never run on real
+   Postgres — fix errors on a branch if the editor reports any.)
+2. [ ] Cloud session merges `feature/extras-ui`, `feature/import-links`,
+   `feature/animations` — check `git log develop` / STATUS; finish any it
+   didn't.
+3. [ ] Supabase → Auth → Redirect URLs: add
+   `com.abdullah8873.motolog://login-callback`.
+4. [ ] **Cloud session #3 (Sonnet)** — part number / brand field on service items (schema v6: nullable
+   column on `entry_items` + Supabase migration + sync + service type
+   picker/detail/export). Only after sharing SQL is applied (avoid two
+   schema changes in flight).
+5. [ ] New release APK with sync: `flutter build apk --release
+   --split-per-abi --dart-define-from-file=env/cloud.json`; send
+   `app-arm64-v8a-release.apk` to the owner (SendUserFile); emulator
+   `motolog_api36` smoke test (close other heavy apps first).
+6. [ ] Hands-on QA: Sharing checklist (needs owner's 2nd test account),
+   dark theme, one live sync, email link on Android, animations vs Drivvo
+   (BlueStacks, view only) — fix what's found.
+7. [ ] **CI part: cloud session #3**; merge to main + tag: PC session. Release: re-enable CI (`.github/workflows-disabled/` →
+   `.github/workflows/`, make it green), bump version to 1.0.0, merge
+   `develop` → `main`, tag `v1.0.0`, push.
+8. [ ] Final STATUS.md: done / owner-only leftovers (Google sign-in setup,
+   Play Store signing key, iOS later, web hosting later).
+
+## HANDOFF 2026-09-26 evening (PC session hit 88% of the 5-hour limit)
+Owner wants the app complete today (Android + web features; English only;
+no web deploy; iOS impossible without a Mac). Two unmerged branches are
+**pushed to GitHub** — finish, check and merge them:
+- `feature/extras-ui` (Sonnet agent, stopped): About / Contact (email left
+  empty on purpose — `lib/core/app_info.dart`) / Translation ("English")
+  / Share app screens + Reports "Share as image / PDF". Last commit is a
+  **WIP test fix, unverified** — run its tests (`test/extras_ui_test.dart`),
+  fix, full suite, merge.
+- `feature/import-links` (Opus agent, stopped): CSV import on the Export
+  screen with preview + tests, `navigator.storage.persist()` on web,
+  Android/iOS deep link for emailed auth links. Was about to add a widget
+  test for the import preview dialog. Check it compiles for web
+  (`flutter build web --release`), full suite, merge. Then list in STATUS
+  the Supabase redirect URL to add (`com.abdullah8873.motolog://login-callback`)
+  — the PC session adds it via Chrome.
+- **Animation polish pass (owner request):** the app has NO custom
+  transitions (pure Flutter defaults, tab switches instant). Add: screen
+  slide-in transitions (`pageTransitionsTheme` / go_router pages), + speed
+  dial expand animation, soft fade between main tabs, cards/charts ease-in;
+  ~200–300 ms, respect `MediaQuery.disableAnimations`. The PC session will
+  compare with Drivvo in BlueStacks afterwards and tune.
+- **Android:** first release APK built and installed on the owner's phone
+  (Android 12+ target — owner doesn't need older phones tested); adding a
+  refueling works. It's an **offline build** (no `env/cloud.json`). Next
+  APK (PC session): `flutter build apk --release --split-per-abi
+  --dart-define-from-file=env/cloud.json` after the deep link merges.
+  Emulator `motolog_api36` exists (Android 16); an ANR seen there was the
+  PC at 100% CPU / 250 MB free RAM, not the app. Release build tip: stop
+  stray Gradle/Kotlin daemons if you see "file used by another process".
+- Sharing batch: **merged** by the cloud session — see the next section.
+## Sharing batch — merged 2026-09-26 by the cloud session (code only)
+Users, access profiles, profile editor, invite banner, account switching,
+Transfer. Design + what differs from the plan: `docs/SHARING.md` (top).
+Local schema **v6** (`created_by` on record tables, `access_profiles`,
+`account_members`). Format clean, analyze 0 issues, **551 tests pass**
+(34 new: `sharing_sync_test`, `transfer_test`, `sharing_model_test`,
+`sharing_screens_test`; the in-memory cloud mirrors the new RLS).
+- **SQL to apply (PC session, Supabase SQL editor via Chrome):**
+  `supabase/migrations/20260926000001_sharing.sql` — **to apply**. Run it
+  once after the three existing files (idempotent). It replaces the
+  owner-only table + Storage policies with owner-or-`can_access()` ones;
+  the owner's own access is unchanged. Then check: 17 tables × 4 policies
+  (`<table>_select/_insert/_update/_delete`, no `_own` left), 4
+  `attachments_*` Storage policies, table `transfers` with RLS on and no
+  policies, functions listed in section 8 of the file (the three helpers
+  `profile_permissions`, `account_display_name`, `profile_label` must NOT
+  be executable by `authenticated`). Reviewed line by line by an Opus
+  agent; its findings are fixed (decline was a no-op, upsert vs insert
+  policy, members raising their own profile, Storage read by id). **Not
+  verified on a real Postgres** (none in the cloud session) — if the editor reports an
+  error, fix it in a new file or in this one before anyone uses sharing
+  (nobody depends on it yet).
+- **Hands-on QA (PC, two accounts — needs the owner's 2nd test account):**
+  1. Owner: More → Users → + → invite the 2nd account's email as Driver
+     with one vehicle assigned → SHARE text; row shows "Invitation
+     pending". Sync.
+  2. 2nd account (another browser profile, email confirmed): banner "<Owner>
+     invited you … as Driver" above the bottom bar → ACCEPT → OPEN. Vehicle
+     chip shows "<Owner>'s account"; only the assigned vehicle; no owner
+     records (own-records scope); pick lists present; Reports says no
+     access; More hides Vehicles/Users/Profiles/Forms/Transfer; + menu
+     works; add a refueling with a photo → syncs; owner sees it (+ photo).
+  3. Driver tries a delete (not offered in UI — optional: edit via another
+     route) → `/sync` shows "N changes were not allowed" and the record
+     comes back.
+  4. Owner changes the member to Manager / adds a vehicle → member's next
+     sync re-downloads (all vehicles/records appear). Owner removes the
+     member → member's app falls back to "My data".
+  5. My account → Account row switches My data ⇄ shared; "Leave …" works.
+  6. Profiles: built-ins read-only; + custom profile (toggles, expand rows,
+     switches) → assign to member → effect after sync.
+  7. Transfer: owner → Generate code for a synced vehicle (with an
+     attachment) → COPY/SHARE; 2nd account (on "My data") → Redeem →
+     vehicle + history + photo arrive; errors for own/used/expired/
+     cancelled code; cancel a pending code.
+  8. Dark theme + 360×640 pass over Users, Profiles, profile editor
+     (segmented buttons at 320 px), Transfer, banner.
+- Not done / follow-ups: invitation emails (by design: none); a shared account's emptied local DB file isn't deleted from
+  disk (wiped instead); Storage download for a member relies on the new
+  `can_read_attachment_object()` policy (QA step 2). Perf idea if a big
+  shared account pulls slowly: for assigned-scope members, filter pulls by
+  `vehicle_id in (assigned)` so RLS doesn't scan the whole account.
+
 ## PAUSED 2026-09-26 (owner switching to a new session) — resume here first
 Optimization & compatibility pass (Next 2) is **merged into `develop` and
 pushed** (`9920c9f`): `feature/perf-sync` then `feature/compat-layout`.
@@ -100,11 +216,8 @@ Format clean, analyze 0 issues, **513 tests pass**. No processes running.
   if a worktree folder disappears. Their only uncommitted changes are
   auto-regenerated `windows/flutter/generated_plugin*` files. **Keep them —
   owner wants them kept; don't remove worktrees or branches without asking.**
-- **Then:** sharing batch — design is decided in `docs/SHARING.md`, Drivvo
-  screens verified in `docs/SPEC.md`, permission model already on develop
-  (`lib/core/calc/access_profile.dart`). Plan: Opus = SQL/RLS/sync/account
-  switching/Transfer RPCs; Sonnet = Users/Profiles/Profile editor/invite
-  banner/Transfer screens. Needs a 2nd test account from the owner.
+- **Sharing batch: built and merged** — see "Sharing batch" above (SQL to
+  apply + QA list). Needs a 2nd test account from the owner for QA.
 - **Android email deep link (cloud session can write it):** custom scheme
   + intent filter + `authRedirectUrl()` TODO; the redirect URL must also be
   added in Supabase (local session, via Chrome).
@@ -170,6 +283,8 @@ Format clean, analyze 0 issues, **513 tests pass**. No processes running.
    CI/CD re-enable (parked in `.github/workflows-disabled/`).
 
 ## Needs the owner (batch these)
+- A 2nd test account (email you can confirm) for the sharing/Transfer QA,
+  and applying `20260926000001_sharing.sql` (see "Sharing batch").
 - Password-reset and delete-account live tests (see Next 1).
 - Google sign-in: `docs/SETUP-CLOUD.md` step 4 (web) and step 5 (Android).
 - Android Studio first-run wizard (Android SDK) + Windows Developer Mode

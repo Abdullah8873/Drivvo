@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers.dart';
+import '../../core/calc/access_profile.dart';
+import '../../core/sharing/active_account.dart';
 import '../../core/widgets/max_width_body.dart';
 import 'vehicle_widgets.dart';
 
@@ -42,12 +44,17 @@ class VehiclesScreen extends ConsumerWidget {
                 ),
               ),
       ),
-      floatingActionButton: FloatingActionButton(
-        tooltip: 'Add vehicle',
-        shape: const CircleBorder(),
-        onPressed: () => context.push('/vehicles/new'),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton:
+          ref
+              .watch(currentAccessProvider)
+              .can(AccessArea.vehicles, AccessAction.register)
+          ? FloatingActionButton(
+              tooltip: 'Add vehicle',
+              shape: const CircleBorder(),
+              onPressed: () => context.push('/vehicles/new'),
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

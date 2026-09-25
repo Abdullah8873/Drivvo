@@ -10,7 +10,6 @@ import 'package:motolog/core/settings/app_settings.dart';
 import 'package:motolog/features/settings/settings_screen.dart';
 
 import 'catalog_test_utils.dart';
-import 'export_screen_test.dart' show FakeFileSharer;
 import 'helpers.dart';
 import 'notification_controller_test.dart' show FakeNotificationScheduler;
 

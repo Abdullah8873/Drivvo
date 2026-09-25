@@ -573,6 +573,102 @@ void main() {
       await tester.pumpAndSettle();
       expect(popped!.entries.single.kind, EntryKind.income);
     });
+
+    /// Pumps a button that opens the dialog for [bytes]; returns a getter
+    /// for what the dialog popped with.
+    Future<CsvImportBatch? Function()> openPreview(
+      WidgetTester tester,
+      List<int> bytes,
+      String fileName,
+    ) async {
+      CsvImportBatch? popped;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(splashFactory: InkRipple.splashFactory),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async => popped = await showDialog(
+                context: context,
+                builder: (_) => CsvImportPreviewDialog(
+                  db: target,
+                  bytes: bytes,
+                  fileName: fileName,
+                  currentVehicleId: targetHonda,
+                ),
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pumpAndSettle();
+      return () => popped;
+    }
+
+    bool importEnabled(WidgetTester tester) =>
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'IMPORT'))
+            .onPressed !=
+        null;
+
+    final readingCsv = _csv([
+      'Vehicle,Date,Time,Odometer,Driver,Notes',
+      'Honda,2024-01-01,08:00,100,,',
+    ]);
+
+    testWidgets('CANCEL closes without importing anything', (tester) async {
+      final popped = await openPreview(
+        tester,
+        _bytes(readingCsv),
+        'Reading.csv',
+      );
+      expect(find.text('Adds 1 reading.'), findsOneWidget);
+      expect(importEnabled(tester), isTrue);
+
+      await tester.tap(find.text('CANCEL'));
+      await tester.pumpAndSettle();
+      expect(find.text('Import CSV'), findsNothing);
+      expect(popped(), isNull);
+    });
+
+    testWidgets('a file already imported offers nothing to import', (
+      tester,
+    ) async {
+      await tester.runAsync(
+        () => _service.run(
+          target,
+          parseImportFile(_bytes(readingCsv), fileName: 'Reading.csv'),
+          currentVehicleId: targetHonda,
+        ),
+      );
+      await openPreview(tester, _bytes(readingCsv), 'Reading.csv');
+      expect(
+        find.text('1 already on this device — skipped as duplicates.'),
+        findsOneWidget,
+      );
+      expect(importEnabled(tester), isFalse);
+    });
+
+    testWidgets('a file that is not an export shows why, IMPORT disabled', (
+      tester,
+    ) async {
+      await openPreview(
+        tester,
+        _bytes(_csv(['Name,Amount', 'x,1'])),
+        'other.csv',
+      );
+      expect(find.textContaining('Not a MotoLog export'), findsOneWidget);
+      expect(importEnabled(tester), isFalse);
+    });
+
+    testWidgets('a damaged zip is reported, IMPORT disabled', (tester) async {
+      // Zip magic number followed by garbage.
+      await openPreview(tester, [0x50, 0x4B, 0x03, 0x04, 1, 2, 3], 'x.zip');
+      expect(find.textContaining('The .zip file is damaged.'), findsOneWidget);
+      expect(importEnabled(tester), isFalse);
+    });
   });
 
   group('errors', () {

@@ -28,7 +28,13 @@ class SupabaseRemoteStore implements RemoteStore {
       ];
       // `INSERT ... ON CONFLICT (owner_id, id) DO UPDATE` — the trigger
       // turns stale or identical rows into no-ops.
-      await _client.from(table).upsert(chunk, onConflict: 'owner_id,id');
+      try {
+        await _client.from(table).upsert(chunk, onConflict: 'owner_id,id');
+      } on PostgrestException catch (e) {
+        // insufficient_privilege: row-level security refused a row.
+        if (e.code == '42501') throw RemotePermissionDenied(table, e.message);
+        rethrow;
+      }
     }
   }
 

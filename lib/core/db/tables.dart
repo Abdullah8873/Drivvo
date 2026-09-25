@@ -131,6 +131,12 @@ class Refuelings extends Table with SyncColumns {
   /// Sum of all fuel lines minus discount (denormalized for fast lists).
   RealColumn get totalCost => real()();
   TextColumn get notes => text().nullable()();
+
+  /// Sharing (schema v6): the Supabase user who created the record, for
+  /// the "own records" profile scope. The server stamps it on the first
+  /// upload and never changes it; null = not uploaded yet (so created on
+  /// this device) or created before sharing existed (= the account owner).
+  TextColumn get createdBy => text().nullable()();
 }
 
 /// One fuel inside a refueling (a refueling can hold several, e.g. + AdBlue).
@@ -173,6 +179,9 @@ class Entries extends Table with SyncColumns {
   IntColumn get installmentNo => integer().withDefault(const Constant(1))();
   IntColumn get installmentCount => integer().withDefault(const Constant(1))();
   TextColumn get notes => text().nullable()();
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  TextColumn get createdBy => text().nullable()();
 }
 
 /// A typed line inside an entry (e.g. "Oil Change — 1200").
@@ -216,6 +225,9 @@ class Routes extends Table with SyncColumns {
   TextColumn get driver => text().nullable()();
   TextColumn get reasonId => text().nullable().references(CatalogItems, #id)();
   TextColumn get notes => text().nullable()();
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  TextColumn get createdBy => text().nullable()();
 }
 
 /// Quick odometer update.
@@ -226,6 +238,9 @@ class Readings extends Table with SyncColumns {
   RealColumn get odometer => real()();
   TextColumn get driver => text().nullable()();
   TextColumn get notes => text().nullable()();
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  TextColumn get createdBy => text().nullable()();
 }
 
 enum ReminderTarget { expense, service }
@@ -258,6 +273,9 @@ class Reminders extends Table with SyncColumns {
   DateTimeColumn get lastDoneDate => dateTime().nullable()();
   BoolColumn get active => boolean().withDefault(const Constant(true))();
   TextColumn get notes => text().nullable()();
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  TextColumn get createdBy => text().nullable()();
 }
 
 // ---------------------------------------------------------------------------
@@ -295,6 +313,9 @@ class Checklists extends Table with SyncColumns {
   TextColumn get title => text()();
   TextColumn get driver => text().nullable()();
   TextColumn get notes => text().nullable()();
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  TextColumn get createdBy => text().nullable()();
 }
 
 /// Result of one checklist line: `ok`, `problem` or `na` (null = not
@@ -338,6 +359,9 @@ class Attachments extends Table with SyncColumns {
 
   /// Set once the file is in cloud storage; null = local only.
   TextColumn get storagePath => text().nullable()();
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  TextColumn get createdBy => text().nullable()();
 }
 
 /// The on-device copy of an attachment's bytes (LOCAL ONLY, never synced).
@@ -352,6 +376,56 @@ class AttachmentFiles extends Table {
 
   @override
   Set<Column<Object>> get primaryKey => {attachmentId};
+}
+
+// ---------------------------------------------------------------------------
+// Sharing (schema v6): custom access profiles and account members
+// ---------------------------------------------------------------------------
+//
+// Synced like every other table, inside the account they belong to (the
+// owner's). See docs/SHARING.md and `lib/core/calc/access_profile.dart`.
+
+/// A custom access profile (More → Profiles). The three built-in profiles
+/// live in code (`BuiltInProfile`), never in this table. Rows are
+/// `AccessProfileRow`s (the pure `AccessProfile` model lives in
+/// `core/calc/access_profile.dart`).
+@DataClassName('AccessProfileRow')
+class AccessProfiles extends Table with SyncColumns {
+  TextColumn get name => text()();
+
+  /// `AccessProfile.permissionsToJson()` as JSON text.
+  TextColumn get permissions => text()();
+}
+
+/// Where an invitation stands. `pending` until the invited user accepts it
+/// (server RPC `accept_invitation`), `declined` when they say no,
+/// `removed` when the owner/a manager removes them (or they leave).
+enum MemberStatus { pending, active, declined, removed }
+
+/// A user invited into this account (More → Users).
+///
+/// [memberId] and [status] `active` are only ever set by the server when
+/// the invited user accepts (a trigger ignores clients that try).
+class AccountMembers extends Table with SyncColumns {
+  /// The address the invitation was sent to (matched case-insensitively
+  /// against the invited user's verified sign-in email).
+  TextColumn get email => text()();
+
+  /// Supabase user id, once accepted.
+  TextColumn get memberId => text().nullable()();
+
+  /// Display name copied from the member's account on accept.
+  TextColumn get memberName => text().nullable()();
+
+  /// A `BuiltInProfile` id or an [AccessProfiles] id.
+  TextColumn get profileId => text()();
+  TextColumn get status => textEnum<MemberStatus>().withDefault(
+    Constant(MemberStatus.pending.name),
+  )();
+
+  /// Assigned vehicle ids (JSON array text) — used when the profile's
+  /// vehicle scope is "assigned".
+  TextColumn get vehicleIds => text().withDefault(const Constant('[]'))();
 }
 
 // ---------------------------------------------------------------------------

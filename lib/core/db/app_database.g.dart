@@ -2047,6 +2047,17 @@ class $RefuelingsTable extends Refuelings
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2065,6 +2076,7 @@ class $RefuelingsTable extends Refuelings
     discount,
     totalCost,
     notes,
+    createdBy,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2188,6 +2200,12 @@ class $RefuelingsTable extends Refuelings
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     return context;
   }
 
@@ -2261,6 +2279,10 @@ class $RefuelingsTable extends Refuelings
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
     );
   }
 
@@ -2289,6 +2311,12 @@ class Refueling extends DataClass implements Insertable<Refueling> {
   /// Sum of all fuel lines minus discount (denormalized for fast lists).
   final double totalCost;
   final String? notes;
+
+  /// Sharing (schema v6): the Supabase user who created the record, for
+  /// the "own records" profile scope. The server stamps it on the first
+  /// upload and never changes it; null = not uploaded yet (so created on
+  /// this device) or created before sharing existed (= the account owner).
+  final String? createdBy;
   const Refueling({
     required this.id,
     required this.createdAt,
@@ -2306,6 +2334,7 @@ class Refueling extends DataClass implements Insertable<Refueling> {
     this.discount,
     required this.totalCost,
     this.notes,
+    this.createdBy,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2339,6 +2368,9 @@ class Refueling extends DataClass implements Insertable<Refueling> {
     map['total_cost'] = Variable<double>(totalCost);
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
     }
     return map;
   }
@@ -2375,6 +2407,9 @@ class Refueling extends DataClass implements Insertable<Refueling> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
     );
   }
 
@@ -2400,6 +2435,7 @@ class Refueling extends DataClass implements Insertable<Refueling> {
       discount: serializer.fromJson<double?>(json['discount']),
       totalCost: serializer.fromJson<double>(json['totalCost']),
       notes: serializer.fromJson<String?>(json['notes']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
     );
   }
   @override
@@ -2422,6 +2458,7 @@ class Refueling extends DataClass implements Insertable<Refueling> {
       'discount': serializer.toJson<double?>(discount),
       'totalCost': serializer.toJson<double>(totalCost),
       'notes': serializer.toJson<String?>(notes),
+      'createdBy': serializer.toJson<String?>(createdBy),
     };
   }
 
@@ -2442,6 +2479,7 @@ class Refueling extends DataClass implements Insertable<Refueling> {
     Value<double?> discount = const Value.absent(),
     double? totalCost,
     Value<String?> notes = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
   }) => Refueling(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -2461,6 +2499,7 @@ class Refueling extends DataClass implements Insertable<Refueling> {
     discount: discount.present ? discount.value : this.discount,
     totalCost: totalCost ?? this.totalCost,
     notes: notes.present ? notes.value : this.notes,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
   );
   Refueling copyWithCompanion(RefuelingsCompanion data) {
     return Refueling(
@@ -2486,6 +2525,7 @@ class Refueling extends DataClass implements Insertable<Refueling> {
       discount: data.discount.present ? data.discount.value : this.discount,
       totalCost: data.totalCost.present ? data.totalCost.value : this.totalCost,
       notes: data.notes.present ? data.notes.value : this.notes,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
     );
   }
 
@@ -2507,7 +2547,8 @@ class Refueling extends DataClass implements Insertable<Refueling> {
           ..write('driver: $driver, ')
           ..write('discount: $discount, ')
           ..write('totalCost: $totalCost, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy')
           ..write(')'))
         .toString();
   }
@@ -2530,6 +2571,7 @@ class Refueling extends DataClass implements Insertable<Refueling> {
     discount,
     totalCost,
     notes,
+    createdBy,
   );
   @override
   bool operator ==(Object other) =>
@@ -2550,7 +2592,8 @@ class Refueling extends DataClass implements Insertable<Refueling> {
           other.driver == this.driver &&
           other.discount == this.discount &&
           other.totalCost == this.totalCost &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.createdBy == this.createdBy);
 }
 
 class RefuelingsCompanion extends UpdateCompanion<Refueling> {
@@ -2570,6 +2613,7 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
   final Value<double?> discount;
   final Value<double> totalCost;
   final Value<String?> notes;
+  final Value<String?> createdBy;
   final Value<int> rowid;
   const RefuelingsCompanion({
     this.id = const Value.absent(),
@@ -2588,6 +2632,7 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
     this.discount = const Value.absent(),
     this.totalCost = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RefuelingsCompanion.insert({
@@ -2607,6 +2652,7 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
     this.discount = const Value.absent(),
     required double totalCost,
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : vehicleId = Value(vehicleId),
        date = Value(date),
@@ -2629,6 +2675,7 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
     Expression<double>? discount,
     Expression<double>? totalCost,
     Expression<String>? notes,
+    Expression<String>? createdBy,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2648,6 +2695,7 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
       if (discount != null) 'discount': discount,
       if (totalCost != null) 'total_cost': totalCost,
       if (notes != null) 'notes': notes,
+      if (createdBy != null) 'created_by': createdBy,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2669,6 +2717,7 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
     Value<double?>? discount,
     Value<double>? totalCost,
     Value<String?>? notes,
+    Value<String?>? createdBy,
     Value<int>? rowid,
   }) {
     return RefuelingsCompanion(
@@ -2688,6 +2737,7 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
       discount: discount ?? this.discount,
       totalCost: totalCost ?? this.totalCost,
       notes: notes ?? this.notes,
+      createdBy: createdBy ?? this.createdBy,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2743,6 +2793,9 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2768,6 +2821,7 @@ class RefuelingsCompanion extends UpdateCompanion<Refueling> {
           ..write('discount: $discount, ')
           ..write('totalCost: $totalCost, ')
           ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3604,6 +3658,17 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3625,6 +3690,7 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
     installmentNo,
     installmentCount,
     notes,
+    createdBy,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3758,6 +3824,12 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     return context;
   }
 
@@ -3845,6 +3917,10 @@ class $EntriesTable extends Entries with TableInfo<$EntriesTable, Entry> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
     );
   }
 
@@ -3881,6 +3957,9 @@ class Entry extends DataClass implements Insertable<Entry> {
   final int installmentNo;
   final int installmentCount;
   final String? notes;
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  final String? createdBy;
   const Entry({
     required this.id,
     required this.createdAt,
@@ -3901,6 +3980,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     required this.installmentNo,
     required this.installmentCount,
     this.notes,
+    this.createdBy,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3946,6 +4026,9 @@ class Entry extends DataClass implements Insertable<Entry> {
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
+    }
     return map;
   }
 
@@ -3990,6 +4073,9 @@ class Entry extends DataClass implements Insertable<Entry> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
     );
   }
 
@@ -4020,6 +4106,7 @@ class Entry extends DataClass implements Insertable<Entry> {
       installmentNo: serializer.fromJson<int>(json['installmentNo']),
       installmentCount: serializer.fromJson<int>(json['installmentCount']),
       notes: serializer.fromJson<String?>(json['notes']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
     );
   }
   @override
@@ -4047,6 +4134,7 @@ class Entry extends DataClass implements Insertable<Entry> {
       'installmentNo': serializer.toJson<int>(installmentNo),
       'installmentCount': serializer.toJson<int>(installmentCount),
       'notes': serializer.toJson<String?>(notes),
+      'createdBy': serializer.toJson<String?>(createdBy),
     };
   }
 
@@ -4070,6 +4158,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     int? installmentNo,
     int? installmentCount,
     Value<String?> notes = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
   }) => Entry(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -4092,6 +4181,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     installmentNo: installmentNo ?? this.installmentNo,
     installmentCount: installmentCount ?? this.installmentCount,
     notes: notes.present ? notes.value : this.notes,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
   );
   Entry copyWithCompanion(EntriesCompanion data) {
     return Entry(
@@ -4120,6 +4210,7 @@ class Entry extends DataClass implements Insertable<Entry> {
           ? data.installmentCount.value
           : this.installmentCount,
       notes: data.notes.present ? data.notes.value : this.notes,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
     );
   }
 
@@ -4144,7 +4235,8 @@ class Entry extends DataClass implements Insertable<Entry> {
           ..write('parentId: $parentId, ')
           ..write('installmentNo: $installmentNo, ')
           ..write('installmentCount: $installmentCount, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy')
           ..write(')'))
         .toString();
   }
@@ -4170,6 +4262,7 @@ class Entry extends DataClass implements Insertable<Entry> {
     installmentNo,
     installmentCount,
     notes,
+    createdBy,
   );
   @override
   bool operator ==(Object other) =>
@@ -4193,7 +4286,8 @@ class Entry extends DataClass implements Insertable<Entry> {
           other.parentId == this.parentId &&
           other.installmentNo == this.installmentNo &&
           other.installmentCount == this.installmentCount &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.createdBy == this.createdBy);
 }
 
 class EntriesCompanion extends UpdateCompanion<Entry> {
@@ -4216,6 +4310,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
   final Value<int> installmentNo;
   final Value<int> installmentCount;
   final Value<String?> notes;
+  final Value<String?> createdBy;
   final Value<int> rowid;
   const EntriesCompanion({
     this.id = const Value.absent(),
@@ -4237,6 +4332,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     this.installmentNo = const Value.absent(),
     this.installmentCount = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   EntriesCompanion.insert({
@@ -4259,6 +4355,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     this.installmentNo = const Value.absent(),
     this.installmentCount = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : vehicleId = Value(vehicleId),
        kind = Value(kind),
@@ -4284,6 +4381,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     Expression<int>? installmentNo,
     Expression<int>? installmentCount,
     Expression<String>? notes,
+    Expression<String>? createdBy,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4306,6 +4404,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
       if (installmentNo != null) 'installment_no': installmentNo,
       if (installmentCount != null) 'installment_count': installmentCount,
       if (notes != null) 'notes': notes,
+      if (createdBy != null) 'created_by': createdBy,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4330,6 +4429,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     Value<int>? installmentNo,
     Value<int>? installmentCount,
     Value<String?>? notes,
+    Value<String?>? createdBy,
     Value<int>? rowid,
   }) {
     return EntriesCompanion(
@@ -4352,6 +4452,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
       installmentNo: installmentNo ?? this.installmentNo,
       installmentCount: installmentCount ?? this.installmentCount,
       notes: notes ?? this.notes,
+      createdBy: createdBy ?? this.createdBy,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4418,6 +4519,9 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4446,6 +4550,7 @@ class EntriesCompanion extends UpdateCompanion<Entry> {
           ..write('installmentNo: $installmentNo, ')
           ..write('installmentCount: $installmentCount, ')
           ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5185,6 +5290,17 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Route> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5212,6 +5328,7 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Route> {
     driver,
     reasonId,
     notes,
+    createdBy,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5399,6 +5516,12 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Route> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     return context;
   }
 
@@ -5510,6 +5633,10 @@ class $RoutesTable extends Routes with TableInfo<$RoutesTable, Route> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
     );
   }
 
@@ -5552,6 +5679,9 @@ class Route extends DataClass implements Insertable<Route> {
   final String? driver;
   final String? reasonId;
   final String? notes;
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  final String? createdBy;
   const Route({
     required this.id,
     required this.createdAt,
@@ -5578,6 +5708,7 @@ class Route extends DataClass implements Insertable<Route> {
     this.driver,
     this.reasonId,
     this.notes,
+    this.createdBy,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5643,6 +5774,9 @@ class Route extends DataClass implements Insertable<Route> {
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
+    }
     return map;
   }
 
@@ -5707,6 +5841,9 @@ class Route extends DataClass implements Insertable<Route> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
     );
   }
 
@@ -5743,6 +5880,7 @@ class Route extends DataClass implements Insertable<Route> {
       driver: serializer.fromJson<String?>(json['driver']),
       reasonId: serializer.fromJson<String?>(json['reasonId']),
       notes: serializer.fromJson<String?>(json['notes']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
     );
   }
   @override
@@ -5776,6 +5914,7 @@ class Route extends DataClass implements Insertable<Route> {
       'driver': serializer.toJson<String?>(driver),
       'reasonId': serializer.toJson<String?>(reasonId),
       'notes': serializer.toJson<String?>(notes),
+      'createdBy': serializer.toJson<String?>(createdBy),
     };
   }
 
@@ -5805,6 +5944,7 @@ class Route extends DataClass implements Insertable<Route> {
     Value<String?> driver = const Value.absent(),
     Value<String?> reasonId = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
   }) => Route(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -5833,6 +5973,7 @@ class Route extends DataClass implements Insertable<Route> {
     driver: driver.present ? driver.value : this.driver,
     reasonId: reasonId.present ? reasonId.value : this.reasonId,
     notes: notes.present ? notes.value : this.notes,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
   );
   Route copyWithCompanion(RoutesCompanion data) {
     return Route(
@@ -5881,6 +6022,7 @@ class Route extends DataClass implements Insertable<Route> {
       driver: data.driver.present ? data.driver.value : this.driver,
       reasonId: data.reasonId.present ? data.reasonId.value : this.reasonId,
       notes: data.notes.present ? data.notes.value : this.notes,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
     );
   }
 
@@ -5911,7 +6053,8 @@ class Route extends DataClass implements Insertable<Route> {
           ..write('installments: $installments, ')
           ..write('driver: $driver, ')
           ..write('reasonId: $reasonId, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy')
           ..write(')'))
         .toString();
   }
@@ -5943,6 +6086,7 @@ class Route extends DataClass implements Insertable<Route> {
     driver,
     reasonId,
     notes,
+    createdBy,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -5972,7 +6116,8 @@ class Route extends DataClass implements Insertable<Route> {
           other.installments == this.installments &&
           other.driver == this.driver &&
           other.reasonId == this.reasonId &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.createdBy == this.createdBy);
 }
 
 class RoutesCompanion extends UpdateCompanion<Route> {
@@ -6001,6 +6146,7 @@ class RoutesCompanion extends UpdateCompanion<Route> {
   final Value<String?> driver;
   final Value<String?> reasonId;
   final Value<String?> notes;
+  final Value<String?> createdBy;
   final Value<int> rowid;
   const RoutesCompanion({
     this.id = const Value.absent(),
@@ -6028,6 +6174,7 @@ class RoutesCompanion extends UpdateCompanion<Route> {
     this.driver = const Value.absent(),
     this.reasonId = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RoutesCompanion.insert({
@@ -6056,6 +6203,7 @@ class RoutesCompanion extends UpdateCompanion<Route> {
     this.driver = const Value.absent(),
     this.reasonId = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : vehicleId = Value(vehicleId),
        startDate = Value(startDate),
@@ -6086,6 +6234,7 @@ class RoutesCompanion extends UpdateCompanion<Route> {
     Expression<String>? driver,
     Expression<String>? reasonId,
     Expression<String>? notes,
+    Expression<String>? createdBy,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6114,6 +6263,7 @@ class RoutesCompanion extends UpdateCompanion<Route> {
       if (driver != null) 'driver': driver,
       if (reasonId != null) 'reason_id': reasonId,
       if (notes != null) 'notes': notes,
+      if (createdBy != null) 'created_by': createdBy,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6144,6 +6294,7 @@ class RoutesCompanion extends UpdateCompanion<Route> {
     Value<String?>? driver,
     Value<String?>? reasonId,
     Value<String?>? notes,
+    Value<String?>? createdBy,
     Value<int>? rowid,
   }) {
     return RoutesCompanion(
@@ -6172,6 +6323,7 @@ class RoutesCompanion extends UpdateCompanion<Route> {
       driver: driver ?? this.driver,
       reasonId: reasonId ?? this.reasonId,
       notes: notes ?? this.notes,
+      createdBy: createdBy ?? this.createdBy,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6256,6 +6408,9 @@ class RoutesCompanion extends UpdateCompanion<Route> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6290,6 +6445,7 @@ class RoutesCompanion extends UpdateCompanion<Route> {
           ..write('driver: $driver, ')
           ..write('reasonId: $reasonId, ')
           ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -6398,6 +6554,17 @@ class $ReadingsTable extends Readings with TableInfo<$ReadingsTable, Reading> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -6409,6 +6576,7 @@ class $ReadingsTable extends Readings with TableInfo<$ReadingsTable, Reading> {
     odometer,
     driver,
     notes,
+    createdBy,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -6479,6 +6647,12 @@ class $ReadingsTable extends Readings with TableInfo<$ReadingsTable, Reading> {
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     return context;
   }
 
@@ -6524,6 +6698,10 @@ class $ReadingsTable extends Readings with TableInfo<$ReadingsTable, Reading> {
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
     );
   }
 
@@ -6543,6 +6721,9 @@ class Reading extends DataClass implements Insertable<Reading> {
   final double odometer;
   final String? driver;
   final String? notes;
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  final String? createdBy;
   const Reading({
     required this.id,
     required this.createdAt,
@@ -6553,6 +6734,7 @@ class Reading extends DataClass implements Insertable<Reading> {
     required this.odometer,
     this.driver,
     this.notes,
+    this.createdBy,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -6571,6 +6753,9 @@ class Reading extends DataClass implements Insertable<Reading> {
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
     }
     return map;
   }
@@ -6592,6 +6777,9 @@ class Reading extends DataClass implements Insertable<Reading> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
     );
   }
 
@@ -6610,6 +6798,7 @@ class Reading extends DataClass implements Insertable<Reading> {
       odometer: serializer.fromJson<double>(json['odometer']),
       driver: serializer.fromJson<String?>(json['driver']),
       notes: serializer.fromJson<String?>(json['notes']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
     );
   }
   @override
@@ -6625,6 +6814,7 @@ class Reading extends DataClass implements Insertable<Reading> {
       'odometer': serializer.toJson<double>(odometer),
       'driver': serializer.toJson<String?>(driver),
       'notes': serializer.toJson<String?>(notes),
+      'createdBy': serializer.toJson<String?>(createdBy),
     };
   }
 
@@ -6638,6 +6828,7 @@ class Reading extends DataClass implements Insertable<Reading> {
     double? odometer,
     Value<String?> driver = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
   }) => Reading(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -6648,6 +6839,7 @@ class Reading extends DataClass implements Insertable<Reading> {
     odometer: odometer ?? this.odometer,
     driver: driver.present ? driver.value : this.driver,
     notes: notes.present ? notes.value : this.notes,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
   );
   Reading copyWithCompanion(ReadingsCompanion data) {
     return Reading(
@@ -6660,6 +6852,7 @@ class Reading extends DataClass implements Insertable<Reading> {
       odometer: data.odometer.present ? data.odometer.value : this.odometer,
       driver: data.driver.present ? data.driver.value : this.driver,
       notes: data.notes.present ? data.notes.value : this.notes,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
     );
   }
 
@@ -6674,7 +6867,8 @@ class Reading extends DataClass implements Insertable<Reading> {
           ..write('date: $date, ')
           ..write('odometer: $odometer, ')
           ..write('driver: $driver, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy')
           ..write(')'))
         .toString();
   }
@@ -6690,6 +6884,7 @@ class Reading extends DataClass implements Insertable<Reading> {
     odometer,
     driver,
     notes,
+    createdBy,
   );
   @override
   bool operator ==(Object other) =>
@@ -6703,7 +6898,8 @@ class Reading extends DataClass implements Insertable<Reading> {
           other.date == this.date &&
           other.odometer == this.odometer &&
           other.driver == this.driver &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.createdBy == this.createdBy);
 }
 
 class ReadingsCompanion extends UpdateCompanion<Reading> {
@@ -6716,6 +6912,7 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
   final Value<double> odometer;
   final Value<String?> driver;
   final Value<String?> notes;
+  final Value<String?> createdBy;
   final Value<int> rowid;
   const ReadingsCompanion({
     this.id = const Value.absent(),
@@ -6727,6 +6924,7 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
     this.odometer = const Value.absent(),
     this.driver = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ReadingsCompanion.insert({
@@ -6739,6 +6937,7 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
     required double odometer,
     this.driver = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : vehicleId = Value(vehicleId),
        date = Value(date),
@@ -6753,6 +6952,7 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
     Expression<double>? odometer,
     Expression<String>? driver,
     Expression<String>? notes,
+    Expression<String>? createdBy,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6765,6 +6965,7 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
       if (odometer != null) 'odometer': odometer,
       if (driver != null) 'driver': driver,
       if (notes != null) 'notes': notes,
+      if (createdBy != null) 'created_by': createdBy,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6779,6 +6980,7 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
     Value<double>? odometer,
     Value<String?>? driver,
     Value<String?>? notes,
+    Value<String?>? createdBy,
     Value<int>? rowid,
   }) {
     return ReadingsCompanion(
@@ -6791,6 +6993,7 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
       odometer: odometer ?? this.odometer,
       driver: driver ?? this.driver,
       notes: notes ?? this.notes,
+      createdBy: createdBy ?? this.createdBy,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6825,6 +7028,9 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6843,6 +7049,7 @@ class ReadingsCompanion extends UpdateCompanion<Reading> {
           ..write('odometer: $odometer, ')
           ..write('driver: $driver, ')
           ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7073,6 +7280,17 @@ class $RemindersTable extends Reminders
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -7094,6 +7312,7 @@ class $RemindersTable extends Reminders
     lastDoneDate,
     active,
     notes,
+    createdBy,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -7225,6 +7444,12 @@ class $RemindersTable extends Reminders
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     return context;
   }
 
@@ -7314,6 +7539,10 @@ class $RemindersTable extends Reminders
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
     );
   }
 
@@ -7359,6 +7588,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
   final DateTime? lastDoneDate;
   final bool active;
   final String? notes;
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  final String? createdBy;
   const Reminder({
     required this.id,
     required this.createdAt,
@@ -7379,6 +7611,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     this.lastDoneDate,
     required this.active,
     this.notes,
+    this.createdBy,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -7426,6 +7659,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
     }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
+    }
     return map;
   }
 
@@ -7468,6 +7704,9 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
     );
   }
 
@@ -7500,6 +7739,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       lastDoneDate: serializer.fromJson<DateTime?>(json['lastDoneDate']),
       active: serializer.fromJson<bool>(json['active']),
       notes: serializer.fromJson<String?>(json['notes']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
     );
   }
   @override
@@ -7529,6 +7769,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
       'lastDoneDate': serializer.toJson<DateTime?>(lastDoneDate),
       'active': serializer.toJson<bool>(active),
       'notes': serializer.toJson<String?>(notes),
+      'createdBy': serializer.toJson<String?>(createdBy),
     };
   }
 
@@ -7552,6 +7793,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     Value<DateTime?> lastDoneDate = const Value.absent(),
     bool? active,
     Value<String?> notes = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
   }) => Reminder(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -7576,6 +7818,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     lastDoneDate: lastDoneDate.present ? lastDoneDate.value : this.lastDoneDate,
     active: active ?? this.active,
     notes: notes.present ? notes.value : this.notes,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
   );
   Reminder copyWithCompanion(RemindersCompanion data) {
     return Reminder(
@@ -7610,6 +7853,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           : this.lastDoneDate,
       active: data.active.present ? data.active.value : this.active,
       notes: data.notes.present ? data.notes.value : this.notes,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
     );
   }
 
@@ -7634,7 +7878,8 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           ..write('lastDoneOdometer: $lastDoneOdometer, ')
           ..write('lastDoneDate: $lastDoneDate, ')
           ..write('active: $active, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy')
           ..write(')'))
         .toString();
   }
@@ -7660,6 +7905,7 @@ class Reminder extends DataClass implements Insertable<Reminder> {
     lastDoneDate,
     active,
     notes,
+    createdBy,
   );
   @override
   bool operator ==(Object other) =>
@@ -7683,7 +7929,8 @@ class Reminder extends DataClass implements Insertable<Reminder> {
           other.lastDoneOdometer == this.lastDoneOdometer &&
           other.lastDoneDate == this.lastDoneDate &&
           other.active == this.active &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.createdBy == this.createdBy);
 }
 
 class RemindersCompanion extends UpdateCompanion<Reminder> {
@@ -7706,6 +7953,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
   final Value<DateTime?> lastDoneDate;
   final Value<bool> active;
   final Value<String?> notes;
+  final Value<String?> createdBy;
   final Value<int> rowid;
   const RemindersCompanion({
     this.id = const Value.absent(),
@@ -7727,6 +7975,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     this.lastDoneDate = const Value.absent(),
     this.active = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   RemindersCompanion.insert({
@@ -7749,6 +7998,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     this.lastDoneDate = const Value.absent(),
     this.active = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : vehicleId = Value(vehicleId),
        target = Value(target),
@@ -7773,6 +8023,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     Expression<DateTime>? lastDoneDate,
     Expression<bool>? active,
     Expression<String>? notes,
+    Expression<String>? createdBy,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -7795,6 +8046,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
       if (lastDoneDate != null) 'last_done_date': lastDoneDate,
       if (active != null) 'active': active,
       if (notes != null) 'notes': notes,
+      if (createdBy != null) 'created_by': createdBy,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -7819,6 +8071,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     Value<DateTime?>? lastDoneDate,
     Value<bool>? active,
     Value<String?>? notes,
+    Value<String?>? createdBy,
     Value<int>? rowid,
   }) {
     return RemindersCompanion(
@@ -7841,6 +8094,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
       lastDoneDate: lastDoneDate ?? this.lastDoneDate,
       active: active ?? this.active,
       notes: notes ?? this.notes,
+      createdBy: createdBy ?? this.createdBy,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -7909,6 +8163,9 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -7937,6 +8194,7 @@ class RemindersCompanion extends UpdateCompanion<Reminder> {
           ..write('lastDoneDate: $lastDoneDate, ')
           ..write('active: $active, ')
           ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -9392,6 +9650,17 @@ class $ChecklistsTable extends Checklists
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -9405,6 +9674,7 @@ class $ChecklistsTable extends Checklists
     title,
     driver,
     notes,
+    createdBy,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -9487,6 +9757,12 @@ class $ChecklistsTable extends Checklists
         notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     return context;
   }
 
@@ -9540,6 +9816,10 @@ class $ChecklistsTable extends Checklists
         DriftSqlType.string,
         data['${effectivePrefix}notes'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
     );
   }
 
@@ -9563,6 +9843,9 @@ class Checklist extends DataClass implements Insertable<Checklist> {
   final String title;
   final String? driver;
   final String? notes;
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  final String? createdBy;
   const Checklist({
     required this.id,
     required this.createdAt,
@@ -9575,6 +9858,7 @@ class Checklist extends DataClass implements Insertable<Checklist> {
     required this.title,
     this.driver,
     this.notes,
+    this.createdBy,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -9599,6 +9883,9 @@ class Checklist extends DataClass implements Insertable<Checklist> {
     }
     if (!nullToAbsent || notes != null) {
       map['notes'] = Variable<String>(notes);
+    }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
     }
     return map;
   }
@@ -9626,6 +9913,9 @@ class Checklist extends DataClass implements Insertable<Checklist> {
       notes: notes == null && nullToAbsent
           ? const Value.absent()
           : Value(notes),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
     );
   }
 
@@ -9646,6 +9936,7 @@ class Checklist extends DataClass implements Insertable<Checklist> {
       title: serializer.fromJson<String>(json['title']),
       driver: serializer.fromJson<String?>(json['driver']),
       notes: serializer.fromJson<String?>(json['notes']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
     );
   }
   @override
@@ -9663,6 +9954,7 @@ class Checklist extends DataClass implements Insertable<Checklist> {
       'title': serializer.toJson<String>(title),
       'driver': serializer.toJson<String?>(driver),
       'notes': serializer.toJson<String?>(notes),
+      'createdBy': serializer.toJson<String?>(createdBy),
     };
   }
 
@@ -9678,6 +9970,7 @@ class Checklist extends DataClass implements Insertable<Checklist> {
     String? title,
     Value<String?> driver = const Value.absent(),
     Value<String?> notes = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
   }) => Checklist(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -9690,6 +9983,7 @@ class Checklist extends DataClass implements Insertable<Checklist> {
     title: title ?? this.title,
     driver: driver.present ? driver.value : this.driver,
     notes: notes.present ? notes.value : this.notes,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
   );
   Checklist copyWithCompanion(ChecklistsCompanion data) {
     return Checklist(
@@ -9704,6 +9998,7 @@ class Checklist extends DataClass implements Insertable<Checklist> {
       title: data.title.present ? data.title.value : this.title,
       driver: data.driver.present ? data.driver.value : this.driver,
       notes: data.notes.present ? data.notes.value : this.notes,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
     );
   }
 
@@ -9720,7 +10015,8 @@ class Checklist extends DataClass implements Insertable<Checklist> {
           ..write('formId: $formId, ')
           ..write('title: $title, ')
           ..write('driver: $driver, ')
-          ..write('notes: $notes')
+          ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy')
           ..write(')'))
         .toString();
   }
@@ -9738,6 +10034,7 @@ class Checklist extends DataClass implements Insertable<Checklist> {
     title,
     driver,
     notes,
+    createdBy,
   );
   @override
   bool operator ==(Object other) =>
@@ -9753,7 +10050,8 @@ class Checklist extends DataClass implements Insertable<Checklist> {
           other.formId == this.formId &&
           other.title == this.title &&
           other.driver == this.driver &&
-          other.notes == this.notes);
+          other.notes == this.notes &&
+          other.createdBy == this.createdBy);
 }
 
 class ChecklistsCompanion extends UpdateCompanion<Checklist> {
@@ -9768,6 +10066,7 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
   final Value<String> title;
   final Value<String?> driver;
   final Value<String?> notes;
+  final Value<String?> createdBy;
   final Value<int> rowid;
   const ChecklistsCompanion({
     this.id = const Value.absent(),
@@ -9781,6 +10080,7 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
     this.title = const Value.absent(),
     this.driver = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ChecklistsCompanion.insert({
@@ -9795,6 +10095,7 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
     required String title,
     this.driver = const Value.absent(),
     this.notes = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : vehicleId = Value(vehicleId),
        date = Value(date),
@@ -9811,6 +10112,7 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
     Expression<String>? title,
     Expression<String>? driver,
     Expression<String>? notes,
+    Expression<String>? createdBy,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -9825,6 +10127,7 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
       if (title != null) 'title': title,
       if (driver != null) 'driver': driver,
       if (notes != null) 'notes': notes,
+      if (createdBy != null) 'created_by': createdBy,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -9841,6 +10144,7 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
     Value<String>? title,
     Value<String?>? driver,
     Value<String?>? notes,
+    Value<String?>? createdBy,
     Value<int>? rowid,
   }) {
     return ChecklistsCompanion(
@@ -9855,6 +10159,7 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
       title: title ?? this.title,
       driver: driver ?? this.driver,
       notes: notes ?? this.notes,
+      createdBy: createdBy ?? this.createdBy,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -9895,6 +10200,9 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
     if (notes.present) {
       map['notes'] = Variable<String>(notes.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -9915,6 +10223,7 @@ class ChecklistsCompanion extends UpdateCompanion<Checklist> {
           ..write('title: $title, ')
           ..write('driver: $driver, ')
           ..write('notes: $notes, ')
+          ..write('createdBy: $createdBy, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10620,6 +10929,17 @@ class $AttachmentsTable extends Attachments
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _createdByMeta = const VerificationMeta(
+    'createdBy',
+  );
+  @override
+  late final GeneratedColumn<String> createdBy = GeneratedColumn<String>(
+    'created_by',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -10633,6 +10953,7 @@ class $AttachmentsTable extends Attachments
     mimeType,
     sizeBytes,
     storagePath,
+    createdBy,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -10725,6 +11046,12 @@ class $AttachmentsTable extends Attachments
         ),
       );
     }
+    if (data.containsKey('created_by')) {
+      context.handle(
+        _createdByMeta,
+        createdBy.isAcceptableOrUnknown(data['created_by']!, _createdByMeta),
+      );
+    }
     return context;
   }
 
@@ -10778,6 +11105,10 @@ class $AttachmentsTable extends Attachments
         DriftSqlType.string,
         data['${effectivePrefix}storage_path'],
       ),
+      createdBy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}created_by'],
+      ),
     );
   }
 
@@ -10804,6 +11135,9 @@ class Attachment extends DataClass implements Insertable<Attachment> {
 
   /// Set once the file is in cloud storage; null = local only.
   final String? storagePath;
+
+  /// Sharing (v6): who created it — see [Refuelings.createdBy].
+  final String? createdBy;
   const Attachment({
     required this.id,
     required this.createdAt,
@@ -10816,6 +11150,7 @@ class Attachment extends DataClass implements Insertable<Attachment> {
     required this.mimeType,
     required this.sizeBytes,
     this.storagePath,
+    this.createdBy,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -10836,6 +11171,9 @@ class Attachment extends DataClass implements Insertable<Attachment> {
     map['size_bytes'] = Variable<int>(sizeBytes);
     if (!nullToAbsent || storagePath != null) {
       map['storage_path'] = Variable<String>(storagePath);
+    }
+    if (!nullToAbsent || createdBy != null) {
+      map['created_by'] = Variable<String>(createdBy);
     }
     return map;
   }
@@ -10859,6 +11197,9 @@ class Attachment extends DataClass implements Insertable<Attachment> {
       storagePath: storagePath == null && nullToAbsent
           ? const Value.absent()
           : Value(storagePath),
+      createdBy: createdBy == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdBy),
     );
   }
 
@@ -10879,6 +11220,7 @@ class Attachment extends DataClass implements Insertable<Attachment> {
       mimeType: serializer.fromJson<String>(json['mimeType']),
       sizeBytes: serializer.fromJson<int>(json['sizeBytes']),
       storagePath: serializer.fromJson<String?>(json['storagePath']),
+      createdBy: serializer.fromJson<String?>(json['createdBy']),
     );
   }
   @override
@@ -10896,6 +11238,7 @@ class Attachment extends DataClass implements Insertable<Attachment> {
       'mimeType': serializer.toJson<String>(mimeType),
       'sizeBytes': serializer.toJson<int>(sizeBytes),
       'storagePath': serializer.toJson<String?>(storagePath),
+      'createdBy': serializer.toJson<String?>(createdBy),
     };
   }
 
@@ -10911,6 +11254,7 @@ class Attachment extends DataClass implements Insertable<Attachment> {
     String? mimeType,
     int? sizeBytes,
     Value<String?> storagePath = const Value.absent(),
+    Value<String?> createdBy = const Value.absent(),
   }) => Attachment(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -10923,6 +11267,7 @@ class Attachment extends DataClass implements Insertable<Attachment> {
     mimeType: mimeType ?? this.mimeType,
     sizeBytes: sizeBytes ?? this.sizeBytes,
     storagePath: storagePath.present ? storagePath.value : this.storagePath,
+    createdBy: createdBy.present ? createdBy.value : this.createdBy,
   );
   Attachment copyWithCompanion(AttachmentsCompanion data) {
     return Attachment(
@@ -10941,6 +11286,7 @@ class Attachment extends DataClass implements Insertable<Attachment> {
       storagePath: data.storagePath.present
           ? data.storagePath.value
           : this.storagePath,
+      createdBy: data.createdBy.present ? data.createdBy.value : this.createdBy,
     );
   }
 
@@ -10957,7 +11303,8 @@ class Attachment extends DataClass implements Insertable<Attachment> {
           ..write('fileName: $fileName, ')
           ..write('mimeType: $mimeType, ')
           ..write('sizeBytes: $sizeBytes, ')
-          ..write('storagePath: $storagePath')
+          ..write('storagePath: $storagePath, ')
+          ..write('createdBy: $createdBy')
           ..write(')'))
         .toString();
   }
@@ -10975,6 +11322,7 @@ class Attachment extends DataClass implements Insertable<Attachment> {
     mimeType,
     sizeBytes,
     storagePath,
+    createdBy,
   );
   @override
   bool operator ==(Object other) =>
@@ -10990,7 +11338,8 @@ class Attachment extends DataClass implements Insertable<Attachment> {
           other.fileName == this.fileName &&
           other.mimeType == this.mimeType &&
           other.sizeBytes == this.sizeBytes &&
-          other.storagePath == this.storagePath);
+          other.storagePath == this.storagePath &&
+          other.createdBy == this.createdBy);
 }
 
 class AttachmentsCompanion extends UpdateCompanion<Attachment> {
@@ -11005,6 +11354,7 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
   final Value<String> mimeType;
   final Value<int> sizeBytes;
   final Value<String?> storagePath;
+  final Value<String?> createdBy;
   final Value<int> rowid;
   const AttachmentsCompanion({
     this.id = const Value.absent(),
@@ -11018,6 +11368,7 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
     this.mimeType = const Value.absent(),
     this.sizeBytes = const Value.absent(),
     this.storagePath = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AttachmentsCompanion.insert({
@@ -11032,6 +11383,7 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
     required String mimeType,
     required int sizeBytes,
     this.storagePath = const Value.absent(),
+    this.createdBy = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : parentTable = Value(parentTable),
        parentId = Value(parentId),
@@ -11050,6 +11402,7 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
     Expression<String>? mimeType,
     Expression<int>? sizeBytes,
     Expression<String>? storagePath,
+    Expression<String>? createdBy,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -11064,6 +11417,7 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
       if (mimeType != null) 'mime_type': mimeType,
       if (sizeBytes != null) 'size_bytes': sizeBytes,
       if (storagePath != null) 'storage_path': storagePath,
+      if (createdBy != null) 'created_by': createdBy,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -11080,6 +11434,7 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
     Value<String>? mimeType,
     Value<int>? sizeBytes,
     Value<String?>? storagePath,
+    Value<String?>? createdBy,
     Value<int>? rowid,
   }) {
     return AttachmentsCompanion(
@@ -11094,6 +11449,7 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
       mimeType: mimeType ?? this.mimeType,
       sizeBytes: sizeBytes ?? this.sizeBytes,
       storagePath: storagePath ?? this.storagePath,
+      createdBy: createdBy ?? this.createdBy,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -11134,6 +11490,9 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
     if (storagePath.present) {
       map['storage_path'] = Variable<String>(storagePath.value);
     }
+    if (createdBy.present) {
+      map['created_by'] = Variable<String>(createdBy.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -11154,6 +11513,7 @@ class AttachmentsCompanion extends UpdateCompanion<Attachment> {
           ..write('mimeType: $mimeType, ')
           ..write('sizeBytes: $sizeBytes, ')
           ..write('storagePath: $storagePath, ')
+          ..write('createdBy: $createdBy, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -11384,6 +11744,1039 @@ class AttachmentFilesCompanion extends UpdateCompanion<AttachmentFile> {
   }
 }
 
+class $AccessProfilesTable extends AccessProfiles
+    with TableInfo<$AccessProfilesTable, AccessProfileRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AccessProfilesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: newId,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: () => DateTime.now(),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: () => DateTime.now(),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _permissionsMeta = const VerificationMeta(
+    'permissions',
+  );
+  @override
+  late final GeneratedColumn<String> permissions = GeneratedColumn<String>(
+    'permissions',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    name,
+    permissions,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'access_profiles';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AccessProfileRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('permissions')) {
+      context.handle(
+        _permissionsMeta,
+        permissions.isAcceptableOrUnknown(
+          data['permissions']!,
+          _permissionsMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_permissionsMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AccessProfileRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AccessProfileRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      permissions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}permissions'],
+      )!,
+    );
+  }
+
+  @override
+  $AccessProfilesTable createAlias(String alias) {
+    return $AccessProfilesTable(attachedDatabase, alias);
+  }
+}
+
+class AccessProfileRow extends DataClass
+    implements Insertable<AccessProfileRow> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+  final String name;
+
+  /// `AccessProfile.permissionsToJson()` as JSON text.
+  final String permissions;
+  const AccessProfileRow({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.name,
+    required this.permissions,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['name'] = Variable<String>(name);
+    map['permissions'] = Variable<String>(permissions);
+    return map;
+  }
+
+  AccessProfilesCompanion toCompanion(bool nullToAbsent) {
+    return AccessProfilesCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      name: Value(name),
+      permissions: Value(permissions),
+    );
+  }
+
+  factory AccessProfileRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AccessProfileRow(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      name: serializer.fromJson<String>(json['name']),
+      permissions: serializer.fromJson<String>(json['permissions']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'name': serializer.toJson<String>(name),
+      'permissions': serializer.toJson<String>(permissions),
+    };
+  }
+
+  AccessProfileRow copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? name,
+    String? permissions,
+  }) => AccessProfileRow(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    name: name ?? this.name,
+    permissions: permissions ?? this.permissions,
+  );
+  AccessProfileRow copyWithCompanion(AccessProfilesCompanion data) {
+    return AccessProfileRow(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      name: data.name.present ? data.name.value : this.name,
+      permissions: data.permissions.present
+          ? data.permissions.value
+          : this.permissions,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccessProfileRow(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('name: $name, ')
+          ..write('permissions: $permissions')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, createdAt, updatedAt, deletedAt, name, permissions);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AccessProfileRow &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.name == this.name &&
+          other.permissions == this.permissions);
+}
+
+class AccessProfilesCompanion extends UpdateCompanion<AccessProfileRow> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> name;
+  final Value<String> permissions;
+  final Value<int> rowid;
+  const AccessProfilesCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.name = const Value.absent(),
+    this.permissions = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AccessProfilesCompanion.insert({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    required String name,
+    required String permissions,
+    this.rowid = const Value.absent(),
+  }) : name = Value(name),
+       permissions = Value(permissions);
+  static Insertable<AccessProfileRow> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? name,
+    Expression<String>? permissions,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (name != null) 'name': name,
+      if (permissions != null) 'permissions': permissions,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AccessProfilesCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? name,
+    Value<String>? permissions,
+    Value<int>? rowid,
+  }) {
+    return AccessProfilesCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      name: name ?? this.name,
+      permissions: permissions ?? this.permissions,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (permissions.present) {
+      map['permissions'] = Variable<String>(permissions.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccessProfilesCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('name: $name, ')
+          ..write('permissions: $permissions, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $AccountMembersTable extends AccountMembers
+    with TableInfo<$AccountMembersTable, AccountMember> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AccountMembersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: newId,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: () => DateTime.now(),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    clientDefault: () => DateTime.now(),
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _emailMeta = const VerificationMeta('email');
+  @override
+  late final GeneratedColumn<String> email = GeneratedColumn<String>(
+    'email',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _memberIdMeta = const VerificationMeta(
+    'memberId',
+  );
+  @override
+  late final GeneratedColumn<String> memberId = GeneratedColumn<String>(
+    'member_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _memberNameMeta = const VerificationMeta(
+    'memberName',
+  );
+  @override
+  late final GeneratedColumn<String> memberName = GeneratedColumn<String>(
+    'member_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _profileIdMeta = const VerificationMeta(
+    'profileId',
+  );
+  @override
+  late final GeneratedColumn<String> profileId = GeneratedColumn<String>(
+    'profile_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<MemberStatus, String> status =
+      GeneratedColumn<String>(
+        'status',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: Constant(MemberStatus.pending.name),
+      ).withConverter<MemberStatus>($AccountMembersTable.$converterstatus);
+  static const VerificationMeta _vehicleIdsMeta = const VerificationMeta(
+    'vehicleIds',
+  );
+  @override
+  late final GeneratedColumn<String> vehicleIds = GeneratedColumn<String>(
+    'vehicle_ids',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    email,
+    memberId,
+    memberName,
+    profileId,
+    status,
+    vehicleIds,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'account_members';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AccountMember> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    if (data.containsKey('email')) {
+      context.handle(
+        _emailMeta,
+        email.isAcceptableOrUnknown(data['email']!, _emailMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_emailMeta);
+    }
+    if (data.containsKey('member_id')) {
+      context.handle(
+        _memberIdMeta,
+        memberId.isAcceptableOrUnknown(data['member_id']!, _memberIdMeta),
+      );
+    }
+    if (data.containsKey('member_name')) {
+      context.handle(
+        _memberNameMeta,
+        memberName.isAcceptableOrUnknown(data['member_name']!, _memberNameMeta),
+      );
+    }
+    if (data.containsKey('profile_id')) {
+      context.handle(
+        _profileIdMeta,
+        profileId.isAcceptableOrUnknown(data['profile_id']!, _profileIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_profileIdMeta);
+    }
+    if (data.containsKey('vehicle_ids')) {
+      context.handle(
+        _vehicleIdsMeta,
+        vehicleIds.isAcceptableOrUnknown(data['vehicle_ids']!, _vehicleIdsMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AccountMember map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AccountMember(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      ),
+      email: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}email'],
+      )!,
+      memberId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}member_id'],
+      ),
+      memberName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}member_name'],
+      ),
+      profileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}profile_id'],
+      )!,
+      status: $AccountMembersTable.$converterstatus.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}status'],
+        )!,
+      ),
+      vehicleIds: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}vehicle_ids'],
+      )!,
+    );
+  }
+
+  @override
+  $AccountMembersTable createAlias(String alias) {
+    return $AccountMembersTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<MemberStatus, String, String> $converterstatus =
+      const EnumNameConverter<MemberStatus>(MemberStatus.values);
+}
+
+class AccountMember extends DataClass implements Insertable<AccountMember> {
+  final String id;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final DateTime? deletedAt;
+
+  /// The address the invitation was sent to (matched case-insensitively
+  /// against the invited user's verified sign-in email).
+  final String email;
+
+  /// Supabase user id, once accepted.
+  final String? memberId;
+
+  /// Display name copied from the member's account on accept.
+  final String? memberName;
+
+  /// A `BuiltInProfile` id or an [AccessProfiles] id.
+  final String profileId;
+  final MemberStatus status;
+
+  /// Assigned vehicle ids (JSON array text) — used when the profile's
+  /// vehicle scope is "assigned".
+  final String vehicleIds;
+  const AccountMember({
+    required this.id,
+    required this.createdAt,
+    required this.updatedAt,
+    this.deletedAt,
+    required this.email,
+    this.memberId,
+    this.memberName,
+    required this.profileId,
+    required this.status,
+    required this.vehicleIds,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    if (!nullToAbsent || deletedAt != null) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt);
+    }
+    map['email'] = Variable<String>(email);
+    if (!nullToAbsent || memberId != null) {
+      map['member_id'] = Variable<String>(memberId);
+    }
+    if (!nullToAbsent || memberName != null) {
+      map['member_name'] = Variable<String>(memberName);
+    }
+    map['profile_id'] = Variable<String>(profileId);
+    {
+      map['status'] = Variable<String>(
+        $AccountMembersTable.$converterstatus.toSql(status),
+      );
+    }
+    map['vehicle_ids'] = Variable<String>(vehicleIds);
+    return map;
+  }
+
+  AccountMembersCompanion toCompanion(bool nullToAbsent) {
+    return AccountMembersCompanion(
+      id: Value(id),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+      deletedAt: deletedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deletedAt),
+      email: Value(email),
+      memberId: memberId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(memberId),
+      memberName: memberName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(memberName),
+      profileId: Value(profileId),
+      status: Value(status),
+      vehicleIds: Value(vehicleIds),
+    );
+  }
+
+  factory AccountMember.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AccountMember(
+      id: serializer.fromJson<String>(json['id']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      deletedAt: serializer.fromJson<DateTime?>(json['deletedAt']),
+      email: serializer.fromJson<String>(json['email']),
+      memberId: serializer.fromJson<String?>(json['memberId']),
+      memberName: serializer.fromJson<String?>(json['memberName']),
+      profileId: serializer.fromJson<String>(json['profileId']),
+      status: $AccountMembersTable.$converterstatus.fromJson(
+        serializer.fromJson<String>(json['status']),
+      ),
+      vehicleIds: serializer.fromJson<String>(json['vehicleIds']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'deletedAt': serializer.toJson<DateTime?>(deletedAt),
+      'email': serializer.toJson<String>(email),
+      'memberId': serializer.toJson<String?>(memberId),
+      'memberName': serializer.toJson<String?>(memberName),
+      'profileId': serializer.toJson<String>(profileId),
+      'status': serializer.toJson<String>(
+        $AccountMembersTable.$converterstatus.toJson(status),
+      ),
+      'vehicleIds': serializer.toJson<String>(vehicleIds),
+    };
+  }
+
+  AccountMember copyWith({
+    String? id,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    Value<DateTime?> deletedAt = const Value.absent(),
+    String? email,
+    Value<String?> memberId = const Value.absent(),
+    Value<String?> memberName = const Value.absent(),
+    String? profileId,
+    MemberStatus? status,
+    String? vehicleIds,
+  }) => AccountMember(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    deletedAt: deletedAt.present ? deletedAt.value : this.deletedAt,
+    email: email ?? this.email,
+    memberId: memberId.present ? memberId.value : this.memberId,
+    memberName: memberName.present ? memberName.value : this.memberName,
+    profileId: profileId ?? this.profileId,
+    status: status ?? this.status,
+    vehicleIds: vehicleIds ?? this.vehicleIds,
+  );
+  AccountMember copyWithCompanion(AccountMembersCompanion data) {
+    return AccountMember(
+      id: data.id.present ? data.id.value : this.id,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+      email: data.email.present ? data.email.value : this.email,
+      memberId: data.memberId.present ? data.memberId.value : this.memberId,
+      memberName: data.memberName.present
+          ? data.memberName.value
+          : this.memberName,
+      profileId: data.profileId.present ? data.profileId.value : this.profileId,
+      status: data.status.present ? data.status.value : this.status,
+      vehicleIds: data.vehicleIds.present
+          ? data.vehicleIds.value
+          : this.vehicleIds,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountMember(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('email: $email, ')
+          ..write('memberId: $memberId, ')
+          ..write('memberName: $memberName, ')
+          ..write('profileId: $profileId, ')
+          ..write('status: $status, ')
+          ..write('vehicleIds: $vehicleIds')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    email,
+    memberId,
+    memberName,
+    profileId,
+    status,
+    vehicleIds,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AccountMember &&
+          other.id == this.id &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt &&
+          other.deletedAt == this.deletedAt &&
+          other.email == this.email &&
+          other.memberId == this.memberId &&
+          other.memberName == this.memberName &&
+          other.profileId == this.profileId &&
+          other.status == this.status &&
+          other.vehicleIds == this.vehicleIds);
+}
+
+class AccountMembersCompanion extends UpdateCompanion<AccountMember> {
+  final Value<String> id;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  final Value<DateTime?> deletedAt;
+  final Value<String> email;
+  final Value<String?> memberId;
+  final Value<String?> memberName;
+  final Value<String> profileId;
+  final Value<MemberStatus> status;
+  final Value<String> vehicleIds;
+  final Value<int> rowid;
+  const AccountMembersCompanion({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.email = const Value.absent(),
+    this.memberId = const Value.absent(),
+    this.memberName = const Value.absent(),
+    this.profileId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.vehicleIds = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AccountMembersCompanion.insert({
+    this.id = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    required String email,
+    this.memberId = const Value.absent(),
+    this.memberName = const Value.absent(),
+    required String profileId,
+    this.status = const Value.absent(),
+    this.vehicleIds = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : email = Value(email),
+       profileId = Value(profileId);
+  static Insertable<AccountMember> custom({
+    Expression<String>? id,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+    Expression<DateTime>? deletedAt,
+    Expression<String>? email,
+    Expression<String>? memberId,
+    Expression<String>? memberName,
+    Expression<String>? profileId,
+    Expression<String>? status,
+    Expression<String>? vehicleIds,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (email != null) 'email': email,
+      if (memberId != null) 'member_id': memberId,
+      if (memberName != null) 'member_name': memberName,
+      if (profileId != null) 'profile_id': profileId,
+      if (status != null) 'status': status,
+      if (vehicleIds != null) 'vehicle_ids': vehicleIds,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AccountMembersCompanion copyWith({
+    Value<String>? id,
+    Value<DateTime>? createdAt,
+    Value<DateTime>? updatedAt,
+    Value<DateTime?>? deletedAt,
+    Value<String>? email,
+    Value<String?>? memberId,
+    Value<String?>? memberName,
+    Value<String>? profileId,
+    Value<MemberStatus>? status,
+    Value<String>? vehicleIds,
+    Value<int>? rowid,
+  }) {
+    return AccountMembersCompanion(
+      id: id ?? this.id,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      deletedAt: deletedAt ?? this.deletedAt,
+      email: email ?? this.email,
+      memberId: memberId ?? this.memberId,
+      memberName: memberName ?? this.memberName,
+      profileId: profileId ?? this.profileId,
+      status: status ?? this.status,
+      vehicleIds: vehicleIds ?? this.vehicleIds,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (email.present) {
+      map['email'] = Variable<String>(email.value);
+    }
+    if (memberId.present) {
+      map['member_id'] = Variable<String>(memberId.value);
+    }
+    if (memberName.present) {
+      map['member_name'] = Variable<String>(memberName.value);
+    }
+    if (profileId.present) {
+      map['profile_id'] = Variable<String>(profileId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(
+        $AccountMembersTable.$converterstatus.toSql(status.value),
+      );
+    }
+    if (vehicleIds.present) {
+      map['vehicle_ids'] = Variable<String>(vehicleIds.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountMembersCompanion(')
+          ..write('id: $id, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('email: $email, ')
+          ..write('memberId: $memberId, ')
+          ..write('memberName: $memberName, ')
+          ..write('profileId: $profileId, ')
+          ..write('status: $status, ')
+          ..write('vehicleIds: $vehicleIds, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   late final $VehiclesTable vehicles = $VehiclesTable(this);
@@ -11410,6 +12803,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $AttachmentFilesTable attachmentFiles = $AttachmentFilesTable(
     this,
   );
+  late final $AccessProfilesTable accessProfiles = $AccessProfilesTable(this);
+  late final $AccountMembersTable accountMembers = $AccountMembersTable(this);
   late final Index idxRefuelingsVehicleDate = Index(
     'idx_refuelings_vehicle_date',
     'CREATE INDEX idx_refuelings_vehicle_date ON refuelings (vehicle_id, date)',
@@ -11484,6 +12879,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     checklistAnswers,
     attachments,
     attachmentFiles,
+    accessProfiles,
+    accountMembers,
     idxRefuelingsVehicleDate,
     idxRefuelingFuelsRefueling,
     idxEntriesVehicleDate,
