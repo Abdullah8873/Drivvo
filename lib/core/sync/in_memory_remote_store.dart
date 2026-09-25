@@ -173,10 +173,7 @@ class InMemoryRemoteStore implements RemoteStore {
       if (old == null) {
         incoming['member_id'] = null;
         incoming['member_name'] = null;
-        if (incoming['status'] != 'pending' &&
-            incoming['status'] != 'removed') {
-          incoming['status'] = 'pending';
-        }
+        if (incoming['status'] == 'active') incoming['status'] = 'pending';
         return;
       }
       incoming['member_id'] = old['member_id'];
@@ -375,8 +372,18 @@ class InMemoryRemoteStore implements RemoteStore {
   ) {
     final access = accessFor(ownerId, caller);
     if (access == null) return false;
+    // The guards: a member can't change their own membership row, nor
+    // the custom profile they have.
+    if (table == 'account_members' && old?['member_id'] == caller) {
+      return false;
+    }
+    if (table == 'access_profiles' && access.profile.id == incoming['id']) {
+      return false;
+    }
     bool check(String action) =>
         _check(table, ownerId, incoming, action, access);
+    // Postgres checks the insert policy of an upsert even when it updates:
+    // for an existing row, seeing it is enough there (see the migration).
     if (old == null) {
       return _isChild(table)
           ? check('register') || check('edit')

@@ -306,4 +306,43 @@ void main() {
     server.users['someone'] = const InMemoryUser(email: 'someone@example.com');
     expect(await server.api('someone').myInvitations(), isEmpty);
   });
+
+  test('a member cannot raise their own access', () async {
+    await join(BuiltInProfile.manager.id);
+    await memberSync.sync(owner, shared: true);
+    final mine = (await memberDb.watchMembers().first).single;
+    await memberDb.updateMember(
+      mine.id,
+      profileId: BuiltInProfile.administrator.id,
+      vehicleIds: const {},
+    );
+    final report = await memberSync.sync(owner, shared: true);
+    expect(report.rejected, 1);
+    expect(
+      cloud.row('account_members', owner, mine.id)!['profile_id'],
+      BuiltInProfile.manager.id,
+    );
+  });
+
+  test('editing a declined member does not re-invite them', () async {
+    await ownerDb.inviteMember(
+      email: 'member@example.com',
+      profileId: BuiltInProfile.driver.id,
+      vehicleIds: const {},
+    );
+    await ownerSync.sync(owner);
+    final api = server.api(member);
+    await api.declineInvitation((await api.myInvitations()).single);
+    await ownerSync.sync(owner);
+    final row = (await ownerDb.watchMembers().first).single;
+    expect(row.status, MemberStatus.declined);
+    await ownerDb.updateMember(
+      row.id,
+      profileId: BuiltInProfile.manager.id,
+      vehicleIds: const {},
+    );
+    await ownerSync.sync(owner);
+    expect(cloud.row('account_members', owner, row.id)!['status'], 'declined');
+    expect(await api.myInvitations(), isEmpty);
+  });
 }

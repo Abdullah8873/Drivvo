@@ -57,8 +57,8 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
 Users, access profiles, profile editor, invite banner, account switching,
 Transfer. Design + what differs from the plan: `docs/SHARING.md` (top).
 Local schema **v6** (`created_by` on record tables, `access_profiles`,
-`account_members`). Format clean, analyze 0 issues, **549 tests pass**
-(32 new: `sharing_sync_test`, `transfer_test`, `sharing_model_test`,
+`account_members`). Format clean, analyze 0 issues, **551 tests pass**
+(34 new: `sharing_sync_test`, `transfer_test`, `sharing_model_test`,
 `sharing_screens_test`; the in-memory cloud mirrors the new RLS).
 - **SQL to apply (PC session, Supabase SQL editor via Chrome):**
   `supabase/migrations/20260926000001_sharing.sql` — **to apply**. Run it
@@ -67,8 +67,12 @@ Local schema **v6** (`created_by` on record tables, `access_profiles`,
   the owner's own access is unchanged. Then check: 17 tables × 4 policies
   (`<table>_select/_insert/_update/_delete`, no `_own` left), 4
   `attachments_*` Storage policies, table `transfers` with RLS on and no
-  policies, functions listed in section 8 of the file. **Not verified on a
-  real Postgres** (none in the cloud session) — if the editor reports an
+  policies, functions listed in section 8 of the file (the three helpers
+  `profile_permissions`, `account_display_name`, `profile_label` must NOT
+  be executable by `authenticated`). Reviewed line by line by an Opus
+  agent; its findings are fixed (decline was a no-op, upsert vs insert
+  policy, members raising their own profile, Storage read by id). **Not
+  verified on a real Postgres** (none in the cloud session) — if the editor reports an
   error, fix it in a new file or in this one before anyone uses sharing
   (nobody depends on it yet).
 - **Hands-on QA (PC, two accounts — needs the owner's 2nd test account):**
@@ -98,7 +102,9 @@ Local schema **v6** (`created_by` on record tables, `access_profiles`,
      (segmented buttons at 320 px), Transfer, banner.
 - Not done / follow-ups: invitation emails (by design: none); a shared account's emptied local DB file isn't deleted from
   disk (wiped instead); Storage download for a member relies on the new
-  `can_read_attachment_object()` policy (QA step 2).
+  `can_read_attachment_object()` policy (QA step 2). Perf idea if a big
+  shared account pulls slowly: for assigned-scope members, filter pulls by
+  `vehicle_id in (assigned)` so RLS doesn't scan the whole account.
 
 ## PAUSED 2026-09-26 (owner switching to a new session) — resume here first
 Optimization & compatibility pass (Next 2) is **merged into `develop` and

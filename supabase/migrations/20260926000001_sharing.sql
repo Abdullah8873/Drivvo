@@ -114,24 +114,34 @@ create index if not exists account_members_email_idx
 
 -- Clients (the owner, managers) may invite, re-invite, edit and remove,
 -- but only accept_invitation() can attach a user and make them active —
--- otherwise anyone with Users access could add a stranger's account.
+-- otherwise anyone with Users access could add a stranger's account. A
+-- member can't change their own row either (no raising their own
+-- profile). The RPCs below are security definer, so they run as the
+-- function owner, not as the client role, and skip these rules.
 create or replace function public.account_members_guard()
 returns trigger
 language plpgsql
 set search_path = ''
 as $$
 begin
-  if coalesce(current_setting('motolog.rpc', true), '') = 'on' then
+  if current_user not in ('authenticated', 'anon') then
     return new;
   end if;
   new.email := lower(trim(new.email));
   if tg_op = 'INSERT' then
+    -- Also runs on the insert half of an upsert that ends up updating
+    -- (EXCLUDED), so only the one forbidden value is changed here; the
+    -- update branch below compares with the stored row.
     new.member_id := null;
     new.member_name := null;
-    if new.status not in ('pending', 'removed') then
+    if new.status = 'active' then
       new.status := 'pending';
     end if;
     return new;
+  end if;
+  if old.member_id = auth.uid() and new.owner_id <> auth.uid() then
+    raise exception using
+      errcode = '42501', message = 'motolog:own_membership';
   end if;
   new.member_id := old.member_id;
   new.member_name := old.member_name;
@@ -158,6 +168,36 @@ drop trigger if exists account_members_guard on public.account_members;
 create trigger account_members_guard
   before insert or update on public.account_members
   for each row execute function public.account_members_guard();
+
+-- A member with Profiles access can't widen the profile they have
+-- themselves.
+create or replace function public.access_profiles_guard()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user not in ('authenticated', 'anon')
+     or new.owner_id = auth.uid() then
+    return new;
+  end if;
+  if exists (
+    select 1 from public.account_members m
+    where m.owner_id = new.owner_id and m.member_id = auth.uid()
+      and m.status = 'active' and m.deleted_at is null
+      and m.profile_id = new.id
+  ) then
+    raise exception using
+      errcode = '42501', message = 'motolog:own_profile';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists access_profiles_guard on public.access_profiles;
+create trigger access_profiles_guard
+  before insert or update on public.access_profiles
+  for each row execute function public.access_profiles_guard();
 
 do $$
 declare
@@ -187,8 +227,8 @@ $$;
 
 -- Effective permission JSON of a profile in an account (built-ins inlined;
 -- must match AccessProfile.administrator/manager/driver in
--- lib/core/calc/access_profile.dart — test/sharing_sql_test.dart checks
--- the area lists). Null for an unknown/deleted custom profile.
+-- lib/core/calc/access_profile.dart — test/sharing_model_test.dart
+-- checks the JSON). Null for an unknown/deleted custom profile.
 create or replace function public.profile_permissions(p_owner uuid, p_profile_id text)
 returns jsonb
 language sql
@@ -197,34 +237,12 @@ security definer
 set search_path = ''
 as $$
   select case
+    -- Constants (not built per call: this runs for every row a member
+    -- pulls). Same JSON as AccessProfile.permissionsToJson().
     when p_profile_id in ('builtin:administrator', 'builtin:manager') then
-      jsonb_build_object(
-        'vehicleScope', 'all',
-        'recordScope', 'all',
-        'areas', (
-          select jsonb_object_agg(
-            a,
-            case when a = 'report' then '["view"]'::jsonb
-                 else '["view","register","edit","delete"]'::jsonb end)
-          from unnest(array[
-            'refueling', 'expense', 'income', 'service', 'route',
-            'checklist', 'reminder', 'reading', 'report',
-            'fuel', 'gasStation', 'place', 'expenseType', 'serviceType',
-            'incomeType', 'reason', 'paymentMethod',
-            'vehicles', 'users', 'profiles', 'forms'
-          ]) as a))
+      '{"vehicleScope":"all","recordScope":"all","areas":{"refueling":["view","register","edit","delete"],"expense":["view","register","edit","delete"],"income":["view","register","edit","delete"],"service":["view","register","edit","delete"],"route":["view","register","edit","delete"],"checklist":["view","register","edit","delete"],"reminder":["view","register","edit","delete"],"reading":["view","register","edit","delete"],"report":["view"],"fuel":["view","register","edit","delete"],"gasStation":["view","register","edit","delete"],"place":["view","register","edit","delete"],"expenseType":["view","register","edit","delete"],"serviceType":["view","register","edit","delete"],"incomeType":["view","register","edit","delete"],"reason":["view","register","edit","delete"],"paymentMethod":["view","register","edit","delete"],"vehicles":["view","register","edit","delete"],"users":["view","register","edit","delete"],"profiles":["view","register","edit","delete"],"forms":["view","register","edit","delete"]}}'::jsonb
     when p_profile_id = 'builtin:driver' then
-      jsonb_build_object(
-        'vehicleScope', 'assigned',
-        'recordScope', 'own',
-        'areas', (
-          select jsonb_object_agg(a, '["view","register","edit"]'::jsonb)
-          from unnest(array[
-            'refueling', 'expense', 'income', 'service', 'route',
-            'checklist', 'reminder', 'reading',
-            'fuel', 'gasStation', 'place', 'expenseType', 'serviceType',
-            'incomeType', 'reason', 'paymentMethod'
-          ]) as a))
+      '{"vehicleScope":"assigned","recordScope":"own","areas":{"refueling":["view","register","edit"],"expense":["view","register","edit"],"income":["view","register","edit"],"service":["view","register","edit"],"route":["view","register","edit"],"checklist":["view","register","edit"],"reminder":["view","register","edit"],"reading":["view","register","edit"],"fuel":["view","register","edit"],"gasStation":["view","register","edit"],"place":["view","register","edit"],"expenseType":["view","register","edit"],"serviceType":["view","register","edit"],"incomeType":["view","register","edit"],"reason":["view","register","edit"],"paymentMethod":["view","register","edit"]}}'::jsonb
     else (
       select p.permissions::jsonb
       from public.access_profiles p
@@ -337,6 +355,10 @@ begin
       select 'reading', r.vehicle_id, coalesce(r.created_by, r.owner_id)
         into v_area, v_vehicle, v_created
       from public.readings r where r.owner_id = p_owner and r.id = p_parent_id;
+    when 'reminders' then
+      select 'reminder', r.vehicle_id, coalesce(r.created_by, r.owner_id)
+        into v_area, v_vehicle, v_created
+      from public.reminders r where r.owner_id = p_owner and r.id = p_parent_id;
     when 'checklists' then
       select 'checklist', c.vehicle_id, coalesce(c.created_by, c.owner_id)
         into v_area, v_vehicle, v_created
@@ -450,10 +472,16 @@ begin
       'create policy %I on public.%I for select to authenticated '
       'using (owner_id = (select auth.uid()) or %s)',
       r.tbl || '_select', r.tbl, r.view_expr);
+    -- The app uploads with INSERT … ON CONFLICT DO UPDATE, and Postgres
+    -- checks the insert policy on the proposed row even when it ends up
+    -- updating an existing one. For an existing row, seeing it is enough
+    -- here: the update policy then requires Edit (or Delete).
     execute format(
       'create policy %I on public.%I for insert to authenticated '
-      'with check (owner_id = (select auth.uid()) or %s)',
-      r.tbl || '_insert', r.tbl, v_insert);
+      'with check (owner_id = (select auth.uid()) or case when exists '
+      '(select 1 from public.%I x where x.owner_id = %I.owner_id '
+      'and x.id = %I.id) then %s else %s end)',
+      r.tbl || '_insert', r.tbl, r.tbl, r.tbl, r.tbl, r.view_expr, v_insert);
     execute format(
       'create policy %I on public.%I for update to authenticated '
       'using (owner_id = (select auth.uid()) or %s) '
@@ -549,7 +577,6 @@ begin
   if v_confirmed is null then
     raise exception 'motolog:email_not_verified';
   end if;
-  perform set_config('motolog.rpc', 'on', true);
   update public.account_members m
      set member_id = v_uid,
          member_name = public.account_display_name(v_uid),
@@ -563,7 +590,6 @@ begin
   if not found then
     raise exception 'motolog:invitation_not_found';
   end if;
-  perform set_config('motolog.rpc', 'off', true);
 end;
 $$;
 
@@ -579,7 +605,11 @@ begin
   if auth.uid() is null then
     raise exception 'motolog:not_signed_in';
   end if;
-  select u.email into v_email from auth.users u where u.id = auth.uid();
+  select u.email into v_email from auth.users u
+  where u.id = auth.uid() and u.email_confirmed_at is not null;
+  if v_email is null then
+    raise exception 'motolog:email_not_verified';
+  end if;
   update public.account_members m
      set status = 'declined',
          updated_at = greatest(now(), m.updated_at + interval '1 millisecond')
@@ -758,9 +788,9 @@ as $$
 begin
   execute format(
     'insert into public.%1$I '
-    'select (jsonb_populate_record(null::public.%1$I, '
-    '  to_jsonb(s) || jsonb_build_object(''owner_id'', $2::uuid))).* '
-    'from public.%1$I s '
+    'select c.* from public.%1$I s '
+    'cross join lateral jsonb_populate_record(null::public.%1$I, '
+    '  to_jsonb(s) || jsonb_build_object(''owner_id'', $2::uuid)) c '
     'where s.owner_id = $1 and (%2$s) and (%3$s or s.deleted_at is null) '
     'on conflict (owner_id, id) do nothing',
     p_table, p_where, p_include_deleted)
@@ -829,13 +859,15 @@ begin
     'select reason_id from public.refuelings where %1$s union '
     'select f.fuel_id from public.refueling_fuels f join public.refuelings r '
     '  on r.owner_id = f.owner_id and r.id = f.refueling_id '
-    '  where f.owner_id = s.owner_id and r.vehicle_id = %2$s and f.deleted_at is null union '
+    '  where f.owner_id = s.owner_id and r.vehicle_id = %2$s '
+    '  and r.deleted_at is null and f.deleted_at is null union '
     'select place_id from public.entries where %1$s union '
     'select payment_method_id from public.entries where %1$s union '
     'select reason_id from public.entries where %1$s union '
     'select i.type_id from public.entry_items i join public.entries e '
     '  on e.owner_id = i.owner_id and e.id = i.entry_id '
-    '  where i.owner_id = s.owner_id and e.vehicle_id = %2$s and i.deleted_at is null union '
+    '  where i.owner_id = s.owner_id and e.vehicle_id = %2$s '
+    '  and e.deleted_at is null and i.deleted_at is null union '
     'select reason_id from public.routes where %1$s union '
     'select type_id from public.reminders where %1$s)',
     v_records, v), true);
@@ -886,6 +918,7 @@ set search_path = ''
 as $$
 declare
   v_owner uuid;
+  v_id text;
 begin
   if auth.uid() is null then
     return false;
@@ -898,22 +931,29 @@ begin
   if v_owner = auth.uid() then
     return true;
   end if;
+  -- Matched by the attachment id in the key, not by storage_path alone
+  -- (a client can write any storage_path into a row it may edit).
+  v_id := (storage.foldername(p_name))[2];
   -- A member who can see the record the file is attached to.
   if exists (
     select 1 from public.attachments a
-    where a.owner_id = v_owner and a.storage_path = p_name
+    where a.owner_id = v_owner and a.id = v_id and a.storage_path = p_name
       and public.can_access_parent(v_owner, a.parent_table, a.parent_id, 'view')
   ) then
     return true;
   end if;
-  -- The buyer of a vehicle transferred from the folder's owner.
+  -- The buyer of a vehicle transferred from the folder's owner: only the
+  -- files whose attachment rows were copied to them.
   return exists (
     select 1
     from public.transfers t
     join public.attachments s
       on s.owner_id = t.owner_id and s.vehicle_id = t.vehicle_id
     where t.owner_id = v_owner and t.redeemed_by = auth.uid()
-      and s.storage_path = p_name
+      and s.id = v_id and s.storage_path = p_name
+      and exists (
+        select 1 from public.attachments b
+        where b.owner_id = auth.uid() and b.id = v_id)
   );
 end;
 $$;
@@ -1009,11 +1049,8 @@ declare
   f text;
 begin
   foreach f in array array[
-    'public.profile_permissions(uuid, text)',
     'public.can_access(uuid, text, text, text, uuid)',
     'public.can_access_parent(uuid, text, text, text)',
-    'public.account_display_name(uuid)',
-    'public.profile_label(uuid, text)',
     'public.my_invitations()',
     'public.accept_invitation(uuid, text)',
     'public.decline_invitation(uuid, text)',
@@ -1029,6 +1066,17 @@ begin
   loop
     execute format('revoke all on function %s from public, anon', f);
     execute format('grant execute on function %s to authenticated', f);
+  end loop;
+  -- Internal helpers (called only from the security definer functions
+  -- above): not callable by clients, or anyone could look up any user's
+  -- name/email by id.
+  foreach f in array array[
+    'public.profile_permissions(uuid, text)',
+    'public.account_display_name(uuid)',
+    'public.profile_label(uuid, text)'
+  ]
+  loop
+    execute format('revoke all on function %s from public, anon, authenticated', f);
   end loop;
 end;
 $$;

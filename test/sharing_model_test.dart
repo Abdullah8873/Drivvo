@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNull, isNotNull;
@@ -209,27 +210,27 @@ void main() {
     final sql = File('supabase/migrations/20260926000001_sharing.sql')
         .readAsStringSync();
 
-    /// The quoted names in the unnest(array[...]) that follows [marker].
-    Set<String> areasAfter(String marker) {
+    /// The `'{...}'::jsonb` constant that follows [marker].
+    Map<String, Object?> jsonAfter(String marker) {
       final start = sql.indexOf(marker);
-      final list = RegExp(r'unnest\(array\[([^\]]*)\]')
+      expect(start, isNot(-1), reason: marker);
+      final literal = RegExp(r"'(\{[^']*\})'::jsonb")
           .firstMatch(sql.substring(start))!
           .group(1)!;
-      return {
-        for (final m in RegExp("'([A-Za-z]+)'").allMatches(list)) m.group(1)!,
-      };
+      return (jsonDecode(literal) as Map).cast<String, Object?>();
     }
 
-    test('administrator/manager list every permission area', () {
-      expect(areasAfter("('builtin:administrator', 'builtin:manager')"), {
-        for (final a in AccessArea.values) a.name,
-      });
+    test('administrator/manager JSON matches AccessProfile', () {
+      final json = jsonAfter("('builtin:administrator', 'builtin:manager')");
+      expect(json, AccessProfile.administrator().permissionsToJson());
+      expect(json, AccessProfile.manager().permissionsToJson());
     });
 
-    test('driver areas match AccessProfile.driver()', () {
-      expect(areasAfter("p_profile_id = 'builtin:driver'"), {
-        for (final a in AccessProfile.driver().permissions.keys) a.name,
-      });
+    test('driver JSON matches AccessProfile.driver()', () {
+      expect(
+        jsonAfter("p_profile_id = 'builtin:driver'"),
+        AccessProfile.driver().permissionsToJson(),
+      );
     });
 
     test('transfer code alphabet matches', () {
