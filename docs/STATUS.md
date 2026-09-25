@@ -79,9 +79,15 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
 6. [ ] Hands-on QA: Sharing checklist (needs owner's 2nd test account),
    dark theme, one live sync, email link on Android, animations vs Drivvo
    (BlueStacks, view only) — fix what's found.
-7. [ ] **CI part: cloud session #3**; merge to main + tag: PC session. Release: re-enable CI (`.github/workflows-disabled/` →
-   `.github/workflows/`, make it green), bump version to 1.0.0, merge
-   `develop` → `main`, tag `v1.0.0`, push.
+7. [x] **CI part (cloud session #3): done.** Re-enabled CI — moved
+   `.github/workflows-disabled/*` to `.github/workflows/`, added
+   `--timeout 45s` to the test step (perf tests already skip by default via
+   `dart_test.yaml`'s `perf` tag). PR
+   [#1](https://github.com/Abdullah8873/Drivvo/pull/1) merged into
+   `develop` at `b76f98e`, all 3 jobs green (format/analyze/test, build
+   web, build debug APK).
+   [ ] Remaining (PC session): bump version to 1.0.0, merge `develop` →
+   `main`, tag `v1.0.0`, push.
 8. [ ] Final STATUS.md: done / owner-only leftovers (Google sign-in setup,
    Play Store signing key, iOS later, web hosting later).
 
