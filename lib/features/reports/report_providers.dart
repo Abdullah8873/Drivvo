@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/providers.dart';
+import '../../core/theme/record_module.dart';
 import '../history/history_providers.dart';
 import 'report_period.dart';
 import 'report_scope.dart';
@@ -117,7 +118,12 @@ final reportScopeProvider = Provider.autoDispose<AsyncValue<ReportScope?>>((
           vehicle: vehicle,
           period: period,
           range: period.rangeAt(now),
-          timeline: timeline,
+          // Checklists are inspections, not costs or odometer data: reports
+          // never count them.
+          timeline: [
+            for (final r in timeline)
+              if (r.module != RecordModule.checklist) r,
+          ],
           now: now,
         ),
       );

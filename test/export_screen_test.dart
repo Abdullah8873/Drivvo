@@ -128,9 +128,13 @@ void main() {
       'Income',
       'Route',
       'Reading',
+      'Checklist',
       'Reminder',
     ]) {
-      await tester.tap(find.widgetWithText(CheckboxListTile, label));
+      final tile = find.widgetWithText(CheckboxListTile, label);
+      await tester.ensureVisible(tile);
+      await tester.pumpAndSettle();
+      await tester.tap(tile);
       await tester.pump();
     }
 

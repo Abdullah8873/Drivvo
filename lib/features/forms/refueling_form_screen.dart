@@ -10,6 +10,7 @@ import '../../core/settings/app_settings.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
 import '../../core/widgets/select_list_screen.dart';
+import '../attachments/attachments_field.dart';
 import '../refueling/catalog_picker.dart';
 import '../refueling/refueling_queries.dart';
 import '../routes/record_form_parts.dart' show parseNumber;
@@ -69,6 +70,8 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
 
   bool get _isEdit => widget.id != null;
 
+  final _attachments = AttachmentsController('refuelings');
+
   @override
   void initState() {
     super.initState();
@@ -88,13 +91,15 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
     for (final l in _lines) {
       l.dispose();
     }
+    _attachments.dispose();
     super.dispose();
   }
 
   // ---- Loading & defaults ---------------------------------------------------
 
   Future<void> _load(String id) async {
-    final details = await ref.read(databaseProvider).getRefueling(id);
+    final db = ref.read(databaseProvider);
+    final details = await db.getRefueling(id);
     if (!mounted) return;
     if (details == null) {
       setState(() {
@@ -103,6 +108,8 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       });
       return;
     }
+    await _attachments.load(db, id);
+    if (!mounted) return;
     final r = details.refueling;
     setState(() {
       _vehicleId = r.vehicleId;
@@ -138,7 +145,8 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
           r.discount != null ||
           r.paymentMethodId != null ||
           r.reasonId != null ||
-          (r.notes?.isNotEmpty ?? false);
+          (r.notes?.isNotEmpty ?? false) ||
+          _attachments.items.isNotEmpty;
       _loading = false;
     });
   }
@@ -369,7 +377,10 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
       notes: _text(_notes),
     );
     try {
-      await db.saveRefueling(draft, id: widget.id);
+      await db.transaction(() async {
+        final id = await db.saveRefueling(draft, id: widget.id);
+        await _attachments.save(db, parentId: id, vehicleId: vehicle.id);
+      });
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -699,8 +710,7 @@ class _RefuelingFormScreenState extends ConsumerState<RefuelingFormScreen> {
               },
             ),
           ),
-          // TODO(milestone-6): enable once attachments (Supabase Storage) exist.
-          _AddButton(label: 'Attach file', onPressed: null),
+          AttachmentsField(controller: _attachments, onChanged: _touch),
           FieldRow(
             icon: Icons.notes,
             child: TextField(
@@ -736,7 +746,7 @@ class _NoVehicleCard extends StatelessWidget {
 }
 
 /// Left-aligned "+ Label" text button used for optional form sections.
-/// A null [onPressed] renders it disabled (e.g. "Attach file" for now).
+/// A null [onPressed] renders it disabled.
 class _AddButton extends StatelessWidget {
   const _AddButton({required this.label, required this.onPressed});
 

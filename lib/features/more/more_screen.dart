@@ -13,7 +13,7 @@ class MoreScreen extends StatelessWidget {
     [
       (Icons.person, 'My account', '/account'),
       (Icons.cloud_sync, 'Synchronize data', '/sync'),
-      (Icons.storage, 'Storage', null),
+      (Icons.storage, 'Storage', '/storage'),
       (Icons.swap_horiz, 'Transfer', null),
     ],
     [
@@ -34,7 +34,7 @@ class MoreScreen extends StatelessWidget {
       (Icons.trending_up, 'Types of income', _catalog(CatalogKind.incomeType)),
       (Icons.work, 'Reasons', _catalog(CatalogKind.reason)),
       (Icons.payments, 'Payment methods', _catalog(CatalogKind.paymentMethod)),
-      (Icons.description, 'Forms', null),
+      (Icons.description, 'Forms', '/forms'),
     ],
     [
       (Icons.map, 'My places', null),

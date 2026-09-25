@@ -24,7 +24,7 @@ class ModuleFormScaffold extends StatelessWidget {
   /// When provided, pressing the app bar back arrow or the system back
   /// gesture while this returns true shows a "Discard changes?" dialog
   /// instead of leaving straight away. Null (the default) skips the guard —
-  /// use it for forms with nothing to lose (e.g. [PlaceholderFormScreen]).
+  /// use it for forms with nothing to lose.
   final bool Function()? isDirty;
 
   @override

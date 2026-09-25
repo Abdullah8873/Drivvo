@@ -1,5 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:motolog/core/sync/remote_file_store.dart';
 import 'package:motolog/features/account/auth_service.dart';
 import 'package:motolog/features/account/fake_auth_service.dart';
 
@@ -69,6 +72,72 @@ void main() {
     await tester.tap(find.text('SIGN OUT'));
     await tester.pumpAndSettle();
     expect(auth.signOutCalled, isTrue);
+    await closeAccountApp(tester, db);
+  });
+
+  /// Opens the delete dialog and confirms it.
+  Future<void> confirmDeleteAccount(WidgetTester tester) async {
+    await tester.tap(find.text('Delete account'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.ancestor(
+        of: find.text('Type DELETE'),
+        matching: find.byType(TextField),
+      ),
+      'DELETE',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'DELETE ACCOUNT'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('delete account removes the user\'s stored files first', (
+    tester,
+  ) async {
+    final auth = FakeAuthService()..signedIn = true;
+    final files = InMemoryRemoteFileStore()
+      ..objects['u1/a1/photo.jpg'] = Uint8List(3)
+      ..objects['u1/a2/bill.pdf'] = Uint8List(3)
+      ..objects['u2/a3/other.jpg'] = Uint8List(3);
+    bool? accountDeletedBeforeFiles;
+    files.beforeRemove = (_) =>
+        accountDeletedBeforeFiles = auth.deleteAccountCalled;
+    final db = await openAccountScreen(
+      tester,
+      auth: auth,
+      userId: 'u1',
+      files: files,
+    );
+
+    await confirmDeleteAccount(tester);
+
+    expect(files.removedUsers, ['u1']);
+    expect(files.objects.keys, ['u2/a3/other.jpg']);
+    expect(accountDeletedBeforeFiles, isFalse);
+    expect(auth.deleteAccountCalled, isTrue);
+    await closeAccountApp(tester, db);
+  });
+
+  testWidgets('delete account stops when the files cannot be removed', (
+    tester,
+  ) async {
+    final auth = FakeAuthService()..signedIn = true;
+    final files = InMemoryRemoteFileStore()
+      ..beforeRemove = (_) => throw Exception('offline');
+    final db = await openAccountScreen(
+      tester,
+      auth: auth,
+      userId: 'u1',
+      files: files,
+    );
+
+    await confirmDeleteAccount(tester);
+
+    expect(auth.deleteAccountCalled, isFalse);
+    expect(
+      find.textContaining("Couldn't delete your attached files"),
+      findsOneWidget,
+    );
     await closeAccountApp(tester, db);
   });
 

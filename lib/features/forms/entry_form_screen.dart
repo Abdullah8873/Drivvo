@@ -8,6 +8,7 @@ import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
 import '../../core/widgets/select_list_screen.dart';
+import '../attachments/attachments_field.dart';
 import '../entries/catalog_picker.dart';
 import '../entries/entry_queries.dart';
 import '../entries/installments.dart';
@@ -71,6 +72,9 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
   _Ref? _paymentMethod;
   _Ref? _reason;
   InstallmentInterval _interval = InstallmentInterval.monthly;
+
+  /// Attachments belong to the installment group's parent (installment 1).
+  final _attachments = AttachmentsController('entries');
 
   /// Edit mode: true until the existing entry has loaded.
   late bool _loading = widget.id != null;
@@ -148,12 +152,15 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     for (final l in _lines) {
       l.amount.dispose();
     }
+    _attachments.dispose();
     super.dispose();
   }
 
   /// Edit mode: fill the fields from the saved installment group.
   Future<void> _load(String id) async {
-    final loaded = await ref.read(databaseProvider).loadEditableEntry(id);
+    final db = ref.read(databaseProvider);
+    final loaded = await db.loadEditableEntry(id);
+    if (loaded != null) await _attachments.load(db, loaded.groupId);
     if (!mounted) return;
     setState(() {
       _loading = false;
@@ -384,7 +391,10 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       installments: count,
       interval: _interval,
     );
-    await _db.saveEntry(draft, id: widget.id);
+    await _db.transaction(() async {
+      final id = await _db.saveEntry(draft, id: widget.id);
+      await _attachments.save(_db, parentId: id, vehicleId: vehicleId);
+    });
     if (!mounted) return;
     ScaffoldMessenger.of(context)
         .showSnackBar(SnackBar(content: Text('${_module.label} saved')));
@@ -533,10 +543,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
               ),
             ),
         ],
-        _addButton(
-          'Attach file',
-          null, // TODO(attachments): enable once file storage exists.
-        ),
+        AttachmentsField(controller: _attachments, onChanged: _touch),
         FieldRow(
           icon: Icons.notes,
           child: TextField(

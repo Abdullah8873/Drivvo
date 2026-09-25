@@ -27,6 +27,12 @@ part 'app_database.g.dart';
     Reminders,
     SettingsEntries,
     SyncOutbox,
+    ChecklistForms,
+    ChecklistFormItems,
+    Checklists,
+    ChecklistAnswers,
+    Attachments,
+    AttachmentFiles,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -48,8 +54,11 @@ class AppDatabase extends _$AppDatabase {
   /// v2: deterministic seed ids + de-duplication of double-seeded catalogs.
   /// v3: cloud sync — `sync_outbox` table + change-tracking triggers, and
   ///     untouched seed rows get the fixed [seedTimestamp].
+  /// v4: attachments (+ local `attachment_files` bytes), checklist
+  ///     templates ("Forms") and checklist records; the default
+  ///     "Pre-trip inspection" template is seeded.
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   /// `settings_entries` key written once the default catalogs are seeded.
   static const seedMarkerKey = 'catalog_seed_version';
@@ -72,6 +81,21 @@ class AppDatabase extends _$AppDatabase {
     'reminders',
     'refueling_fuels',
     'entry_items',
+    'checklist_forms',
+    'checklists',
+    'checklist_form_items',
+    'checklist_answers',
+    // Last: an attachment may belong to any record above.
+    'attachments',
+  ];
+
+  /// Tables whose records can carry attachments (`attachments.parent_table`).
+  static const attachmentParentTables = [
+    'refuelings',
+    'entries',
+    'routes',
+    'readings',
+    'checklists',
   ];
 
   @override
@@ -79,6 +103,7 @@ class AppDatabase extends _$AppDatabase {
     onCreate: (m) async {
       await m.createAll();
       await createSyncTriggers();
+      await createAttachmentTriggers();
       await seedCatalogs();
     },
     onUpgrade: (m, from, to) async {
@@ -95,6 +120,21 @@ class AppDatabase extends _$AppDatabase {
           await _resetSeedTimestamps();
           await m.createTable(syncOutbox);
           await createSyncTriggers();
+        });
+      }
+      if (from < 4) {
+        await transaction(() async {
+          await m.createTable(checklistForms);
+          await m.createTable(checklistFormItems);
+          await m.createTable(checklists);
+          await m.createTable(checklistAnswers);
+          await m.createTable(attachments);
+          await m.createTable(attachmentFiles);
+          await createSyncTriggers();
+          await createAttachmentTriggers();
+          // Existing installs are already marked seeded, so the default
+          // template has to be added here.
+          await _seedChecklistForms();
         });
       }
     },
@@ -145,8 +185,52 @@ class AppDatabase extends _$AppDatabase {
         }
       }
     });
+    await _seedChecklistForms();
     await _markSeeded();
   });
+
+  /// Inserts the default checklist templates ([SeedData.checklistForms]),
+  /// with the same idempotency rules as the catalogs: deterministic ids,
+  /// `insertOrIgnore`, and a template is skipped when one with the same
+  /// name already exists (even a deleted one). Seeded rows get the fixed
+  /// [seedTimestamp] so a real edit on any device wins the sync.
+  Future<void> _seedChecklistForms() async {
+    final rows = await customSelect(
+      'SELECT lower(trim(name)) AS n FROM checklist_forms',
+      readsFrom: {checklistForms},
+    ).get();
+    final existing = {for (final r in rows) r.read<String>('n')};
+    final stamp = Value(seedTimestamp.toLocal());
+    await batch((b) {
+      for (final (name, items) in SeedData.checklistForms) {
+        if (existing.contains(name.trim().toLowerCase())) continue;
+        b.insert(
+          checklistForms,
+          ChecklistFormsCompanion.insert(
+            id: Value(SeedData.formIdFor(name)),
+            name: name,
+            createdAt: stamp,
+            updatedAt: stamp,
+          ),
+          mode: InsertMode.insertOrIgnore,
+        );
+        for (final (i, label) in items.indexed) {
+          b.insert(
+            checklistFormItems,
+            ChecklistFormItemsCompanion.insert(
+              id: Value(SeedData.formItemIdFor(name, label)),
+              formId: SeedData.formIdFor(name),
+              position: i,
+              label: label,
+              createdAt: stamp,
+              updatedAt: stamp,
+            ),
+            mode: InsertMode.insertOrIgnore,
+          );
+        }
+      }
+    });
+  }
 
   Future<void> _markSeeded() => into(settingsEntries).insert(
     SettingsEntriesCompanion.insert(key: seedMarkerKey, value: '1'),
@@ -176,6 +260,38 @@ class AppDatabase extends _$AppDatabase {
         ''');
       }
     }
+  }
+
+  /// Installs the triggers that keep attachments consistent with their
+  /// records, whichever code path (a form, History, a sync pull, a
+  /// restore) made the change — like `ON DELETE CASCADE`, but for soft
+  /// deletes:
+  /// - soft-deleting a record soft-deletes its live attachments, stamped
+  ///   with the record's own `deleted_at` (so every device computes the
+  ///   same row and the sync converges instead of ping-ponging);
+  /// - soft-deleting an attachment drops its local bytes.
+  Future<void> createAttachmentTriggers() async {
+    for (final table in attachmentParentTables) {
+      await customStatement('''
+        CREATE TRIGGER IF NOT EXISTS attachments_cascade_$table
+        AFTER UPDATE OF deleted_at ON $table
+        WHEN NEW.deleted_at IS NOT NULL AND OLD.deleted_at IS NULL
+        BEGIN
+          UPDATE attachments
+            SET deleted_at = NEW.deleted_at, updated_at = NEW.deleted_at
+            WHERE parent_table = '$table' AND parent_id = NEW.id
+              AND deleted_at IS NULL;
+        END
+      ''');
+    }
+    await customStatement('''
+      CREATE TRIGGER IF NOT EXISTS attachment_files_drop_deleted
+      AFTER UPDATE OF deleted_at ON attachments
+      WHEN NEW.deleted_at IS NOT NULL
+      BEGIN
+        DELETE FROM attachment_files WHERE attachment_id = NEW.id;
+      END
+    ''');
   }
 
   /// v2 -> v3: seed rows the user never edited (updated within a second of

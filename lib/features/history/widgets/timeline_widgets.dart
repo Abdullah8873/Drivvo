@@ -252,6 +252,8 @@ class TimelineRow extends ConsumerWidget {
             fmt.distance(r.endOdometer! - r.startOdometer, distanceUnit),
           );
         }
+      case RecordModule.checklist:
+        parts.add(record.checklistCounts.summary);
       default:
         parts.add(record.place);
     }
@@ -265,7 +267,10 @@ class TimelineRow extends ConsumerWidget {
     final grey = theme.textTheme.bodySmall?.copyWith(
       color: Colors.grey.shade600,
     );
-    final showAmount = record.module != RecordModule.reading;
+    // Readings and checklists carry no money.
+    final showAmount =
+        record.module != RecordModule.reading &&
+        record.module != RecordModule.checklist;
     // Efficiency comes from the shared consumption engine (per tank,
     // position-aware, respecting "missed previous refueling").
     final tanks = record.module == RecordModule.refueling
@@ -297,11 +302,27 @@ class TimelineRow extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            record.title,
-                            style: theme.textTheme.titleSmall,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  record.title,
+                                  style: theme.textTheme.titleSmall,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (record.hasAttachments)
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Icon(
+                                    Icons.attach_file,
+                                    key: Key('clip-${record.id}'),
+                                    size: 14,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                            ],
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -405,6 +426,11 @@ class _RowDetails extends ConsumerWidget {
         if (r.endDate != null) {
           line('End', '${fmt.date(r.endDate!)} ${fmt.time(r.endDate!)}');
         }
+      case RecordModule.checklist:
+        for (final a in record.answers) {
+          if (a.status != ChecklistStatus.problem) continue;
+          lines.add(_ProblemLine(label: a.label, note: a.note));
+        }
       default:
         break;
     }
@@ -449,6 +475,44 @@ class _RowDetails extends ConsumerWidget {
                     context.push('/record/${record.module.name}/${record.id}'),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A checklist item marked "Problem", with its note.
+class _ProblemLine extends StatelessWidget {
+  const _ProblemLine({required this.label, this.note});
+
+  final String label;
+  final String? note;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodyMedium;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.priority_high, size: 16, color: Color(0xFFD32F2F)),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                text: label,
+                children: [
+                  if (note != null && note!.trim().isNotEmpty)
+                    TextSpan(
+                      text: ' — $note',
+                      style: TextStyle(color: Colors.grey.shade700),
+                    ),
+                ],
+              ),
+              style: style,
+            ),
           ),
         ],
       ),

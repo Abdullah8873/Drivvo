@@ -6,6 +6,8 @@ import 'package:motolog/core/cloud/auth_state.dart';
 import 'package:motolog/core/cloud/cloud_config.dart';
 import 'package:motolog/core/db/app_database.dart';
 import 'package:motolog/core/providers.dart';
+import 'package:motolog/core/sync/remote_file_store.dart';
+import 'package:motolog/core/sync/sync_controller.dart';
 import 'package:motolog/features/account/auth_service.dart';
 import 'package:motolog/features/account/fake_auth_service.dart';
 
@@ -35,9 +37,14 @@ Widget accountTestApp(
   String? userId,
   bool configured = true,
   bool withGoogle = true,
+  InMemoryRemoteFileStore? files,
 }) => ProviderScope(
   overrides: [
     databaseProvider.overrideWithValue(db),
+    // Stands in for Supabase Storage (delete account removes files first).
+    remoteFileStoreProvider.overrideWithValue(
+      configured ? files ?? InMemoryRemoteFileStore() : null,
+    ),
     cloudConfigProvider.overrideWithValue(
       !configured
           ? const CloudConfig()
@@ -63,6 +70,7 @@ Future<AppDatabase> openAccountScreen(
   String? userId,
   bool configured = true,
   bool withGoogle = true,
+  InMemoryRemoteFileStore? files,
 }) async {
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1;
@@ -76,6 +84,7 @@ Future<AppDatabase> openAccountScreen(
       userId: userId,
       configured: configured,
       withGoogle: withGoogle,
+      files: files,
     ),
   );
   await tester.pumpAndSettle();

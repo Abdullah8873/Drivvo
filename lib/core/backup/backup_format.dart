@@ -17,6 +17,10 @@
 ///     "routes": [ ... ],
 ///     "readings": [ ... ],
 ///     "reminders": [ ... ],
+///     "checklist_forms": [ ... ], "checklist_form_items": [ ... ],
+///     "checklists": [ ... ], "checklist_answers": [ ... ],
+///     "attachments": [ ... ],
+///     "attachment_files": [ { "attachmentId": "...", "bytes": "<base64>" } ],
 ///     "settings": [ { "key": "app_settings", "value": "{...}" }, ... ]
 ///   }
 /// }
@@ -28,11 +32,15 @@
 /// nothing is summarized or reshaped, so `Vehicle.fromJson(row)` on restore
 /// reconstructs the row byte-for-byte (like `JSON.parse(JSON.stringify(x))`
 /// round-tripping a Prisma record). `settings` rows are the app's own
-/// `settings_entries` key/value table (no sync columns).
+/// `settings_entries` key/value table (no sync columns). `attachment_files`
+/// rows are the local attachment bytes, base64-encoded, so a restore brings
+/// photos back even on a device that never synced.
 ///
 /// **Compatibility rule**: `format` is the shape of *this JSON file itself*
-/// (bumped only if the top-level structure above changes — a new table key,
-/// a renamed field); `schemaVersion` is `AppDatabase.schemaVersion` at
+/// (bumped only if the top-level structure above changes — a renamed or
+/// reshaped key; NEW table keys are additive and don't bump it: an older
+/// file simply lacks them and restores as "no rows" for those tables, e.g.
+/// a v3 backup without attachments); `schemaVersion` is `AppDatabase.schemaVersion` at
 /// export time. A restore is refused when the file's `schemaVersion` is
 /// *newer* than the running app's, because an older app has no migration
 /// for columns/tables it doesn't know about yet. An equal or older
@@ -58,6 +66,14 @@ class BackupFormat {
   static const tableRoutes = 'routes';
   static const tableReadings = 'readings';
   static const tableReminders = 'reminders';
+  static const tableChecklistForms = 'checklist_forms';
+  static const tableChecklistFormItems = 'checklist_form_items';
+  static const tableChecklists = 'checklists';
+  static const tableChecklistAnswers = 'checklist_answers';
+  static const tableAttachments = 'attachments';
+
+  /// Local attachment bytes (not a synced table): see the file doc comment.
+  static const tableAttachmentFiles = 'attachment_files';
   static const tableSettings = 'settings';
 
   /// The synced tables (id/createdAt/updatedAt/deletedAt), parents before
@@ -74,6 +90,11 @@ class BackupFormat {
     tableRoutes,
     tableReadings,
     tableReminders,
+    tableChecklistForms,
+    tableChecklistFormItems,
+    tableChecklists,
+    tableChecklistAnswers,
+    tableAttachments,
   ];
 }
 
@@ -104,6 +125,7 @@ class BackupSummary {
   /// Non-deleted vehicles in the file.
   final int vehicleCount;
 
-  /// Non-deleted refuelings + entries + routes + readings + reminders.
+  /// Non-deleted refuelings + entries + routes + readings + reminders +
+  /// checklists.
   final int recordCount;
 }

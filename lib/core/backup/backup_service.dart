@@ -64,6 +64,30 @@ class BackupService {
         for (final r in await db.select(db.reminders).get())
           r.toJson(serializer: _serializer),
       ],
+      BackupFormat.tableChecklistForms: [
+        for (final r in await db.select(db.checklistForms).get())
+          r.toJson(serializer: _serializer),
+      ],
+      BackupFormat.tableChecklistFormItems: [
+        for (final r in await db.select(db.checklistFormItems).get())
+          r.toJson(serializer: _serializer),
+      ],
+      BackupFormat.tableChecklists: [
+        for (final r in await db.select(db.checklists).get())
+          r.toJson(serializer: _serializer),
+      ],
+      BackupFormat.tableChecklistAnswers: [
+        for (final r in await db.select(db.checklistAnswers).get())
+          r.toJson(serializer: _serializer),
+      ],
+      BackupFormat.tableAttachments: [
+        for (final r in await db.select(db.attachments).get())
+          r.toJson(serializer: _serializer),
+      ],
+      BackupFormat.tableAttachmentFiles: [
+        for (final r in await db.select(db.attachmentFiles).get())
+          {'attachmentId': r.attachmentId, 'bytes': base64Encode(r.bytes)},
+      ],
       BackupFormat.tableSettings: [
         for (final r in await db.select(db.settingsEntries).get())
           // Sync progress is device state, not a user setting.
@@ -149,7 +173,8 @@ class BackupService {
           liveCount(BackupFormat.tableEntries) +
           liveCount(BackupFormat.tableRoutes) +
           liveCount(BackupFormat.tableReadings) +
-          liveCount(BackupFormat.tableReminders),
+          liveCount(BackupFormat.tableReminders) +
+          liveCount(BackupFormat.tableChecklists),
     );
   }
 
@@ -243,6 +268,75 @@ class BackupService {
         now,
       );
 
+      final formIds = await _restoreTable(
+        db,
+        db.checklistForms,
+        _rowsOf(tables, BackupFormat.tableChecklistForms),
+        (j) => ChecklistForm.fromJson(j, serializer: _serializer),
+        (r) => r.id,
+        now,
+      );
+      final formItemIds = await _restoreTable(
+        db,
+        db.checklistFormItems,
+        _rowsOf(tables, BackupFormat.tableChecklistFormItems),
+        (j) => ChecklistFormItem.fromJson(j, serializer: _serializer),
+        (r) => r.id,
+        now,
+      );
+      final checklistIds = await _restoreTable(
+        db,
+        db.checklists,
+        _rowsOf(tables, BackupFormat.tableChecklists),
+        (j) => Checklist.fromJson(j, serializer: _serializer),
+        (r) => r.id,
+        now,
+      );
+      final answerIds = await _restoreTable(
+        db,
+        db.checklistAnswers,
+        _rowsOf(tables, BackupFormat.tableChecklistAnswers),
+        (j) => ChecklistAnswer.fromJson(j, serializer: _serializer),
+        (r) => r.id,
+        now,
+      );
+      // Attachments whose bytes are in the file lose their storage path so
+      // the next sync uploads them again under the signed-in account (the
+      // backup may come from another account, whose folder we can't read).
+      final fileRows = _rowsOf(tables, BackupFormat.tableAttachmentFiles);
+      final withBytes = {
+        for (final f in fileRows)
+          if (f['attachmentId'] is String) f['attachmentId'] as String,
+      };
+      final attachmentIds = await _restoreTable(
+        db,
+        db.attachments,
+        _rowsOf(tables, BackupFormat.tableAttachments),
+        (j) {
+          final a = Attachment.fromJson(j, serializer: _serializer);
+          return withBytes.contains(a.id)
+              ? a.copyWith(storagePath: const Value(null))
+              : a;
+        },
+        (r) => r.id,
+        now,
+      );
+      for (final f in fileRows) {
+        final id = f['attachmentId'];
+        final data = f['bytes'];
+        if (id is! String || data is! String) continue;
+        if (!attachmentIds.contains(id)) continue;
+        await db
+            .into(db.attachmentFiles)
+            .insert(
+              AttachmentFilesCompanion.insert(
+                attachmentId: id,
+                bytes: base64Decode(data),
+              ),
+              mode: InsertMode.insertOrReplace,
+            );
+      }
+
       // Rows on the device that aren't in the backup: soft-delete, never
       // hard-delete (see the doc comment above).
       await _softDeleteMissing(db, db.vehicles, vehicleIds, now);
@@ -254,6 +348,51 @@ class BackupService {
       await _softDeleteMissing(db, db.routes, routeIds, now);
       await _softDeleteMissing(db, db.readings, readingIds, now);
       await _softDeleteMissing(db, db.reminders, reminderIds, now);
+      // Tables added in schema v4 are only reconciled when the file has
+      // them: an older backup (no key at all) says nothing about them, and
+      // must not delete e.g. the default checklist template.
+      Future<void> softDeleteMissingIfPresent<
+        D extends Object,
+        T extends Table
+      >(String key, TableInfo<T, D> table, Set<String> ids) async {
+        if (tables.containsKey(key)) {
+          await _softDeleteMissing(db, table, ids, now);
+        }
+      }
+
+      await softDeleteMissingIfPresent(
+        BackupFormat.tableChecklistForms,
+        db.checklistForms,
+        formIds,
+      );
+      await softDeleteMissingIfPresent(
+        BackupFormat.tableChecklistFormItems,
+        db.checklistFormItems,
+        formItemIds,
+      );
+      await softDeleteMissingIfPresent(
+        BackupFormat.tableChecklists,
+        db.checklists,
+        checklistIds,
+      );
+      await softDeleteMissingIfPresent(
+        BackupFormat.tableChecklistAnswers,
+        db.checklistAnswers,
+        answerIds,
+      );
+      await softDeleteMissingIfPresent(
+        BackupFormat.tableAttachments,
+        db.attachments,
+        attachmentIds,
+      );
+      // Local bytes only for live attachments (deleted rows restored as
+      // deleted keep none).
+      await db.customUpdate(
+        'DELETE FROM attachment_files WHERE attachment_id NOT IN '
+        '(SELECT id FROM attachments WHERE deleted_at IS NULL)',
+        updates: {db.attachmentFiles},
+        updateKind: UpdateKind.delete,
+      );
 
       // Settings have no sync columns: just replace them wholesale — except
       // this device's sync progress, which stays as it is (restored rows

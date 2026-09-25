@@ -7,6 +7,7 @@ import '../../core/format/formatters.dart';
 import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
+import '../attachments/attachments_field.dart';
 import '../readings/reading_queries.dart';
 import '../routes/record_form_parts.dart';
 
@@ -37,6 +38,7 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
   final _odometer = TextEditingController();
   final _driver = TextEditingController();
   final _notes = TextEditingController();
+  final _attachments = AttachmentsController('readings');
 
   static DateTime _nowToMinute() {
     final n = DateTime.now();
@@ -67,12 +69,15 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
   }
 
   Future<void> _load() async {
-    final r = await ref.read(databaseProvider).getReading(widget.id!);
+    final db = ref.read(databaseProvider);
+    final r = await db.getReading(widget.id!);
     if (!mounted) return;
     if (r == null) {
       Navigator.of(context).pop();
       return;
     }
+    await _attachments.load(db, r.id);
+    if (!mounted) return;
     setState(() {
       _vehicleId = r.vehicleId;
       _date = r.date;
@@ -88,6 +93,7 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
     _odometer.dispose();
     _driver.dispose();
     _notes.dispose();
+    _attachments.dispose();
     super.dispose();
   }
 
@@ -99,18 +105,21 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
     if (vehicleId == null) return _snack('Choose a vehicle');
     if (odometer == null) return _snack('Enter the odometer');
 
-    await ref
-        .read(databaseProvider)
-        .saveReading(
-          ReadingsCompanion(
-            vehicleId: Value(vehicleId),
-            date: Value(_date),
-            odometer: Value(odometer),
-            driver: Value(textOrNull(_driver)),
-            notes: Value(textOrNull(_notes)),
-          ),
-          id: widget.id,
-        );
+    final db = ref.read(databaseProvider);
+    // One transaction: the reading and its attachments save together.
+    await db.transaction(() async {
+      final id = await db.saveReading(
+        ReadingsCompanion(
+          vehicleId: Value(vehicleId),
+          date: Value(_date),
+          odometer: Value(odometer),
+          driver: Value(textOrNull(_driver)),
+          notes: Value(textOrNull(_notes)),
+        ),
+        id: widget.id,
+      );
+      await _attachments.save(db, parentId: id, vehicleId: vehicleId);
+    });
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop();
@@ -208,7 +217,7 @@ class _ReadingFormScreenState extends ConsumerState<ReadingFormScreen> {
             onChanged: (_) => _touch(),
           ),
         ),
-        const AttachFilePlaceholder(),
+        AttachmentsField(controller: _attachments, onChanged: _touch),
         FieldRow(
           icon: Icons.notes,
           child: TextField(

@@ -245,6 +245,96 @@ class Reminders extends Table with SyncColumns {
 }
 
 // ---------------------------------------------------------------------------
+// Checklists (templates = "Forms", plus one filled-in record per run)
+// ---------------------------------------------------------------------------
+
+/// A checklist template — what Drivvo calls a "Form" (e.g. "Pre-trip
+/// inspection"). Its items live in [ChecklistFormItems].
+class ChecklistForms extends Table with SyncColumns {
+  TextColumn get name => text()();
+  TextColumn get notes => text().nullable()();
+}
+
+/// One line of a template, in [position] order.
+class ChecklistFormItems extends Table with SyncColumns {
+  TextColumn get formId => text().references(ChecklistForms, #id)();
+  IntColumn get position => integer()();
+  TextColumn get label => text()();
+}
+
+/// A filled-in checklist (one inspection run of one vehicle).
+///
+/// [formId] is only a hint (the template may be deleted later) and [title]
+/// is a copy of the template's name at the time, so the record still reads
+/// the same after the template is renamed or removed.
+class Checklists extends Table with SyncColumns {
+  TextColumn get vehicleId => text().references(Vehicles, #id)();
+  DateTimeColumn get date => dateTime()();
+
+  /// Optional, like an expense's odometer. Never used for consumption.
+  RealColumn get odometer => real().nullable()();
+  TextColumn get formId => text().nullable()();
+  TextColumn get title => text()();
+  TextColumn get driver => text().nullable()();
+  TextColumn get notes => text().nullable()();
+}
+
+/// Result of one checklist line: `ok`, `problem` or `na` (null = not
+/// checked yet).
+enum ChecklistStatus { ok, problem, na }
+
+/// One answered line of a [Checklists] run. [label] is copied from the
+/// template item so later template edits never change past records.
+class ChecklistAnswers extends Table with SyncColumns {
+  TextColumn get checklistId => text().references(Checklists, #id)();
+  IntColumn get position => integer()();
+  TextColumn get label => text()();
+  TextColumn get status => textEnum<ChecklistStatus>().nullable()();
+  TextColumn get note => text().nullable()();
+}
+
+// ---------------------------------------------------------------------------
+// Attachments (photos / PDFs on any record)
+// ---------------------------------------------------------------------------
+
+/// Metadata of a file attached to a record — synced like any other row.
+///
+/// The record is referenced loosely by ([parentTable], [parentId]) (one
+/// attachments table for every module, like a polymorphic relation), so
+/// there is no SQL foreign key to the parent. The bytes live in
+/// [AttachmentFiles] on this device and, once uploaded, in the Supabase
+/// Storage bucket `attachments` at [storagePath]
+/// (`<userId>/<attachmentId>/<fileName>`).
+class Attachments extends Table with SyncColumns {
+  TextColumn get vehicleId => text().nullable().references(Vehicles, #id)();
+
+  /// SQL name of the parent's table: `refuelings`, `entries`, `routes`,
+  /// `readings` or `checklists`.
+  TextColumn get parentTable => text()();
+  TextColumn get parentId => text()();
+  TextColumn get fileName => text()();
+  TextColumn get mimeType => text()();
+  IntColumn get sizeBytes => integer()();
+
+  /// Set once the file is in cloud storage; null = local only.
+  TextColumn get storagePath => text().nullable()();
+}
+
+/// The on-device copy of an attachment's bytes (LOCAL ONLY, never synced).
+///
+/// A BLOB in SQLite rather than a file on disk, so it works the same on
+/// the web (drift's wasm SQLite) and on native, with no filesystem code.
+/// Deliberately no `ON DELETE CASCADE`: backup restore rewrites attachment
+/// rows with `INSERT OR REPLACE`, which would wipe the bytes.
+class AttachmentFiles extends Table {
+  TextColumn get attachmentId => text().references(Attachments, #id)();
+  BlobColumn get bytes => blob()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {attachmentId};
+}
+
+// ---------------------------------------------------------------------------
 // App settings (local only, key/value like localStorage)
 // ---------------------------------------------------------------------------
 

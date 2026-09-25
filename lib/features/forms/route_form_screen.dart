@@ -10,6 +10,7 @@ import '../../core/format/formatters.dart';
 import '../../core/providers.dart';
 import '../../core/theme/record_module.dart';
 import '../../core/widgets/module_form_scaffold.dart';
+import '../attachments/attachments_field.dart';
 import '../routes/record_form_parts.dart';
 import '../routes/route_math.dart';
 import '../routes/route_queries.dart';
@@ -62,6 +63,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
   final _installments = TextEditingController(text: '1');
   final _driver = TextEditingController();
   final _notes = TextEditingController();
+  final _attachments = AttachmentsController('routes');
 
   List<TextEditingController> get _controllers => [
     _origin,
@@ -132,6 +134,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
         : await (db.select(
             db.catalogItems,
           )..where((c) => c.id.equals(r.reasonId!))).getSingleOrNull();
+    await _attachments.load(db, r.id);
     if (!mounted) return;
     setState(() {
       _vehicleId = r.vehicleId;
@@ -171,6 +174,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
     for (final c in _controllers) {
       c.dispose();
     }
+    _attachments.dispose();
     super.dispose();
   }
 
@@ -229,7 +233,11 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
       reasonId: Value(_reasonId),
       notes: Value(textOrNull(_notes)),
     );
-    await ref.read(databaseProvider).saveRoute(data, id: widget.id);
+    final db = ref.read(databaseProvider);
+    await db.transaction(() async {
+      final id = await db.saveRoute(data, id: widget.id);
+      await _attachments.save(db, parentId: id, vehicleId: vehicleId);
+    });
     if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pop();
@@ -502,7 +510,7 @@ class _RouteFormScreenState extends ConsumerState<RouteFormScreen> {
             onTap: _pickReason,
           ),
         ),
-        const AttachFilePlaceholder(),
+        AttachmentsField(controller: _attachments, onChanged: _touch),
         FieldRow(
           icon: Icons.notes,
           child: TextField(

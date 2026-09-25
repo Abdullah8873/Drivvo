@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../db/app_database.dart';
+import 'remote_file_store.dart';
 import 'remote_store.dart';
 
 /// How the signed-in user relates to the data already on this device.
@@ -45,9 +46,20 @@ class SyncReport {
   /// Rows uploaded.
   int pushed = 0;
 
+  /// Attachment files uploaded to Storage.
+  int filesUploaded = 0;
+
+  /// Attachment files that failed to upload (retried next run).
+  int fileUploadFailures = 0;
+
+  /// Storage objects of deleted attachments removed.
+  int filesRemoved = 0;
+
   @override
   String toString() =>
-      'SyncReport(pulled: $pulled, applied: $applied, pushed: $pushed)';
+      'SyncReport(pulled: $pulled, applied: $applied, pushed: $pushed, '
+      'filesUploaded: $filesUploaded, fileUploadFailures: '
+      '$fileUploadFailures, filesRemoved: $filesRemoved)';
 }
 
 /// Two-way sync between the local drift database and a [RemoteStore]
@@ -96,6 +108,7 @@ class SyncEngine {
     this.pushBatchSize = RemoteStore.maxPushBatch,
     this.pullPageSize = RemoteStore.maxPullPage,
     this.pullOverlap = const Duration(seconds: 30),
+    this.files,
     DateTime Function()? clock,
   }) : assert(pushBatchSize > 0 && pushBatchSize <= RemoteStore.maxPushBatch),
        assert(pullPageSize > 0 && pullPageSize <= RemoteStore.maxPullPage),
@@ -106,6 +119,10 @@ class SyncEngine {
   final int pushBatchSize;
   final int pullPageSize;
   final Duration pullOverlap;
+
+  /// Attachment file storage; null = attachments stay local-only (rows
+  /// still sync, the files don't).
+  final RemoteFileStore? files;
   final DateTime Function() _clock;
 
   /// `settings_entries` key holding the sync state as JSON.
@@ -188,6 +205,12 @@ class SyncEngine {
     for (final table in tables) {
       await _pushTable(userId, table, report);
     }
+    if (files case final store?) {
+      await _syncFiles(store, userId, report);
+      // Rows the file step changed (storage_path set/cleared) go up now
+      // rather than on the next run.
+      await _pushTable(userId, _attachmentsTable, report);
+    }
     state.user(userId).lastSyncedAt = _clock();
     await _saveState(state);
     return report;
@@ -202,6 +225,14 @@ class SyncEngine {
   }) async {
     if (keepLocalData) {
       await db.transaction(() async {
+        // Files uploaded under another account's folder can't be read by
+        // this one: re-upload the ones this device still has.
+        await db.customStatement(
+          'UPDATE attachments SET storage_path = NULL '
+          'WHERE storage_path IS NOT NULL AND substr(storage_path, 1, ?) != ? '
+          'AND id IN (SELECT attachment_id FROM attachment_files)',
+          [userId.length + 1, '$userId/'],
+        );
         await db.customStatement('DELETE FROM sync_outbox');
         for (final name in AppDatabase.syncedTableNames) {
           await db.customStatement(
@@ -217,6 +248,12 @@ class SyncEngine {
     }
     await _withoutForeignKeys(
       () => db.transaction(() async {
+        // Local-only bytes of the attachments being wiped.
+        await db.customUpdate(
+          'DELETE FROM attachment_files',
+          updates: {db.attachmentFiles},
+          updateKind: UpdateKind.delete,
+        );
         for (final table in tables.reversed) {
           await db.customUpdate(
             'DELETE FROM ${table.actualTableName}',
@@ -365,6 +402,89 @@ class SyncEngine {
       report.pushed += payload.length;
       if (queued.length < pushBatchSize) return;
     }
+  }
+
+  // ---- Attachment files -------------------------------------------------------
+
+  TableInfo get _attachmentsTable =>
+      tables.firstWhere((t) => t.actualTableName == 'attachments');
+
+  /// The file step, run after the row push:
+  /// - every live attachment that has local bytes but no `storage_path` is
+  ///   uploaded to `<userId>/<attachmentId>/<fileName>`, then its
+  ///   `storage_path` is set (a normal row edit, so it syncs and other
+  ///   devices can download the file on demand);
+  /// - every deleted attachment that still has a `storage_path` gets its
+  ///   object removed and the path cleared.
+  ///
+  /// Best effort: a failed file never fails the sync (the rows are already
+  /// safe); it is simply retried on the next run.
+  Future<void> _syncFiles(
+    RemoteFileStore store,
+    String userId,
+    SyncReport report,
+  ) async {
+    final pending = await db
+        .customSelect(
+          'SELECT a.id, a.file_name, a.mime_type FROM attachments a '
+          'JOIN attachment_files f ON f.attachment_id = a.id '
+          'WHERE a.deleted_at IS NULL AND a.storage_path IS NULL',
+          readsFrom: {db.attachments, db.attachmentFiles},
+        )
+        .get();
+    for (final row in pending) {
+      final id = row.read<String>('id');
+      final bytes = await (db.select(
+        db.attachmentFiles,
+      )..where((f) => f.attachmentId.equals(id))).getSingleOrNull();
+      if (bytes == null) continue; // deleted meanwhile
+      final path = RemoteFileStore.pathFor(
+        userId,
+        id,
+        row.read<String>('file_name'),
+      );
+      try {
+        await store.upload(
+          path,
+          bytes.bytes,
+          mimeType: row.read<String>('mime_type'),
+        );
+      } catch (_) {
+        report.fileUploadFailures++;
+        continue;
+      }
+      await (db.update(
+        db.attachments,
+      )..where((a) => a.id.equals(id) & a.storagePath.isNull())).write(
+        AttachmentsCompanion(
+          storagePath: Value(path),
+          updatedAt: Value(_clock()),
+        ),
+      );
+      report.filesUploaded++;
+    }
+
+    final deleted = await (db.select(
+      db.attachments,
+    )..where((a) => a.deletedAt.isNotNull() & a.storagePath.isNotNull())).get();
+    if (deleted.isEmpty) return;
+    try {
+      await store.remove([for (final a in deleted) a.storagePath!]);
+    } catch (_) {
+      return; // retried next run
+    }
+    for (final a in deleted) {
+      await (db.update(db.attachments)..where(
+            (r) => r.id.equals(a.id) & r.storagePath.equals(a.storagePath!),
+          ))
+          .write(
+            AttachmentsCompanion(
+              storagePath: const Value(null),
+              updatedAt: Value(_clock()),
+            ),
+          );
+    }
+    report.filesRemoved += deleted.length;
   }
 
   // ---- Outbox helpers --------------------------------------------------------
