@@ -159,6 +159,14 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
    - Test data in Supabase: the owner's account has a "honda" vehicle with
      a QA Battery service + a refueling made by the test member
      (abdullahworks337, currently Manager) — delete or keep as you like.
+   - **Drivvo data imported (2026-09-26):** all 17 Drivvo records of "Honda
+     Moto 18" (10 refuelings = PKR 23,171 incl. the Petrol + High Octane
+     fill; 7 services = PKR 23,510 with all 34 items, workshops as places,
+     gas station Aramco Moon Market) were read from BlueStacks (view only),
+     written as a MotoLog CSV zip and imported into the owner's "Honda
+     125" via Export → IMPORT CSV; server totals verified. Times weren't
+     copied except 2025-06-11 11:50 (others 12:00; the 2026-07-29 service
+     11:00 so it sorts before that day's fill). Drivvo had no reminders.
 
 ## HANDOFF 2026-09-26 evening (PC session hit 88% of the 5-hour limit)
 Owner wants the app complete today (Android + web features; English only;
