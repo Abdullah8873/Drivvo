@@ -72,7 +72,40 @@ Future<void> initCloud(CloudConfig config) async {
   await Supabase.initialize(
     url: config.supabaseUrl,
     publishableKey: config.supabasePublishableKey,
+    authOptions: const FlutterAuthClientOptions(
+      authFlowType: AuthFlowType.pkce,
+      detectSessionInUriPredicate: isPkceAuthCallback,
+    ),
   );
+}
+
+/// Whether an incoming link (Android/iOS deep link, or the web page's own
+/// URL at start-up) may be turned into a session by supabase_flutter.
+///
+/// Only PKCE callbacks (`?code=…`, which gotrue can swap for a session only
+/// with the code verifier this app stored when it asked for the link) and
+/// error callbacks pass. Links carrying `access_token`/`refresh_token` are
+/// refused: gotrue would store such a session as-is, even in PKCE mode, so
+/// anyone could send a `com.abdullah8873.motolog://login-callback#access_token=…`
+/// link that signs the app into THEIR account — and a device that never
+/// synced would then upload its local records to it (login CSRF). The app
+/// never asks Supabase for token links (every flow here is PKCE), so nothing
+/// legitimate is lost.
+bool isPkceAuthCallback(Uri uri) {
+  final Map<String, String> query;
+  final Map<String, String> fragment;
+  try {
+    query = uri.queryParameters;
+    fragment = Uri.splitQueryString(uri.fragment);
+  } catch (_) {
+    return false; // malformed %-encoding: not ours
+  }
+  bool has(String key) => query.containsKey(key) || fragment.containsKey(key);
+  if (has('access_token') || has('refresh_token')) return false;
+  return has('code') ||
+      has('error') ||
+      has('error_code') ||
+      has('error_description');
 }
 
 /// The custom-scheme link that reopens the Android/iOS app after an emailed

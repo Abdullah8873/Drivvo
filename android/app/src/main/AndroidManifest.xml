@@ -9,10 +9,17 @@
     <!-- geolocator: "my location" on the My places map and location picker. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- usesCleartextTraffic="false": plain http is refused on every
+         Android version (the default only since Android 9; minSdk is 24).
+         Everything the app talks to - Supabase, OpenStreetMap tiles - is
+         https. allowBackup stays on (the default) on purpose: Android's
+         encrypted auto-backup is the only safety net for records of people
+         who never sign in; see docs/SECURITY.md. -->
     <application
         android:label="MotoLog"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="false">
         <activity
             android:name=".MainActivity"
             android:exported="true"

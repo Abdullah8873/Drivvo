@@ -102,6 +102,11 @@ class _BackupRestoreSectionState extends ConsumerState<BackupRestoreSection> {
 
     setState(() => _busy = true);
     try {
+      final size = picked.lengthSync() ?? await picked.length();
+      if (size != null && size > BackupFormat.maxFileBytes) {
+        _showMessage('This file is too large to be a MotoLog backup.');
+        return;
+      }
       final bytes = await picked.readAsBytes();
       final db = ref.read(databaseProvider);
       final Map<String, dynamic> json;

@@ -4,6 +4,7 @@ import 'package:archive/archive.dart';
 import 'package:csv/csv.dart' as csv;
 
 import '../../core/db/tables.dart';
+import '../export/csv_writer.dart';
 import '../export/export_columns.dart';
 
 /// Parsing half of CSV import: turns the bytes of a MotoLog CSV export (one
@@ -305,6 +306,21 @@ class CsvImportBatch {
   };
 }
 
+/// Largest file (a .csv, or a .zip) the import accepts, and the largest
+/// CSV inside a .zip. A real export of years of records is a few MB; the
+/// cap keeps a wrong pick (a video, a disk image) from being read into
+/// memory — the UI checks it before reading the file.
+const maxImportFileBytes = 20 * 1024 * 1024;
+
+/// Zip-bomb guards: at most this many entries, and this many bytes once
+/// unpacked (checked against the sizes the .zip declares before anything
+/// is inflated, then against what inflating actually produced).
+const _maxZipEntries = 100;
+const _maxUnzippedBytes = 50 * 1024 * 1024;
+
+const _tooLarge =
+    'The file is too large to import (a MotoLog export is a few MB at most).';
+
 /// Reads a picked file (bytes, so it works on the web too). [fileName]
 /// decides whether an Expense/Service/Income table is which; pass
 /// [entryKind] to override that for a single CSV (the UI's choice).
@@ -314,6 +330,10 @@ CsvImportBatch parseImportFile(
   EntryKind? entryKind,
 }) {
   final batch = CsvImportBatch();
+  if (bytes.length > maxImportFileBytes) {
+    batch.issues.add(ImportIssue(fileName, 1, _tooLarge));
+    return batch;
+  }
   if (_isZip(bytes)) {
     final Archive archive;
     try {
@@ -322,7 +342,14 @@ CsvImportBatch parseImportFile(
       batch.issues.add(ImportIssue(fileName, 1, 'The .zip file is damaged.'));
       return batch;
     }
+    if (archive.files.length > _maxZipEntries) {
+      batch.issues.add(
+        ImportIssue(fileName, 1, 'The .zip has too many files in it.'),
+      );
+      return batch;
+    }
     var found = false;
+    var unzipped = 0;
     for (final file in archive.files) {
       final name = file.name.split('/').last;
       if (!file.isFile ||
@@ -331,12 +358,25 @@ CsvImportBatch parseImportFile(
         continue;
       }
       found = true;
-      _parseTable(
-        batch,
-        List<int>.from(file.content as List<int>),
-        name,
-        _entryKindFromName(name),
-      );
+      // Declared size first (nothing inflated yet), then the real one.
+      if (file.size > maxImportFileBytes ||
+          unzipped + file.size > _maxUnzippedBytes) {
+        batch.issues.add(ImportIssue(fileName, 1, _tooLarge));
+        return batch;
+      }
+      final List<int> content;
+      try {
+        content = List<int>.from(file.content as List<int>);
+      } catch (_) {
+        batch.issues.add(ImportIssue(fileName, 1, 'The .zip file is damaged.'));
+        return batch;
+      }
+      unzipped += content.length;
+      if (content.length > maxImportFileBytes || unzipped > _maxUnzippedBytes) {
+        batch.issues.add(ImportIssue(fileName, 1, _tooLarge));
+        return batch;
+      }
+      _parseTable(batch, content, name, _entryKindFromName(name));
     }
     if (!found) {
       batch.issues.add(
@@ -384,7 +424,8 @@ void _parseTable(
   final List<List<String>> rows;
   try {
     rows = [
-      for (final r in _decoder.decode(text)) [for (final c in r) '${c ?? ''}'],
+      for (final r in _decoder.decode(text))
+        [for (final c in r) csvUnescapeCell('${c ?? ''}')],
     ];
   } catch (e) {
     batch.issues.add(ImportIssue(file, 1, 'Could not read the CSV ($e).'));

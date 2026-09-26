@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:archive/archive.dart';
 import 'package:drift/drift.dart' hide isNull;
 import 'package:flutter/material.dart' hide Route;
 import 'package:flutter_test/flutter_test.dart';
@@ -951,6 +952,63 @@ void main() {
       expect(
         await target.select(target.catalogItems).get(),
         hasLength(catalogBefore.length),
+      );
+    });
+  });
+
+  group('limits', () {
+    test('formula escapes from the export are undone on import', () {
+      final text = _csv([
+        'Vehicle,Date,Time,Odometer,Driver,Notes',
+        "Honda,2024-01-01,08:00,100,,'=HYPERLINK(x)",
+        "Honda,2024-01-02,08:00,200,,''@kept",
+        "Honda,2024-01-03,08:00,300,,'plain",
+      ]);
+      final batch = parseImportFile(_bytes(text), fileName: 'Reading.csv');
+      expect(batch.issues, isEmpty);
+      expect(batch.readings.map((r) => r.notes), [
+        '=HYPERLINK(x)',
+        "'@kept",
+        "'plain",
+      ]);
+    });
+
+    test('an oversized file is refused before parsing', () {
+      final batch = parseImportFile(
+        List<int>.filled(maxImportFileBytes + 1, 0x41),
+        fileName: 'Reading.csv',
+      );
+      expect(batch.issues.single.message, contains('too large'));
+    });
+
+    test('zip bombs and zips with too many files are refused', () {
+      // 21 MB of one letter compresses to a few KB.
+      final bomb = Archive()
+        ..addFile(
+          ArchiveFile(
+            'Reading.csv',
+            maxImportFileBytes + 1024 * 1024,
+            List<int>.filled(maxImportFileBytes + 1024 * 1024, 0x41),
+          ),
+        );
+      final bombBytes = ZipEncoder().encode(bomb)!;
+      expect(bombBytes.length, lessThan(1024 * 1024));
+      expect(
+        parseImportFile(bombBytes, fileName: 'x.zip').issues.single.message,
+        contains('too large'),
+      );
+
+      final many = Archive();
+      for (var i = 0; i < 101; i++) {
+        final csv = utf8.encode('a');
+        many.addFile(ArchiveFile('f$i.csv', csv.length, csv));
+      }
+      expect(
+        parseImportFile(
+          ZipEncoder().encode(many)!,
+          fileName: 'x.zip',
+        ).issues.single.message,
+        contains('too many files'),
       );
     });
   });

@@ -123,6 +123,11 @@ class BackupService {
     Uint8List bytes,
     int currentSchemaVersion,
   ) {
+    if (bytes.length > BackupFormat.maxFileBytes) {
+      throw const BackupFormatException(
+        'This file is too large to be a MotoLog backup.',
+      );
+    }
     Object? decoded;
     try {
       decoded = jsonDecode(utf8.decode(bytes));

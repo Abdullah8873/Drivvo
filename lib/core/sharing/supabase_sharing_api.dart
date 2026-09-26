@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../sync/remote_store.dart' show cloudFullMessage;
 import 'sharing_api.dart';
 
 /// [SharingApi] over the Postgres functions of
@@ -95,8 +96,10 @@ class SupabaseSharingApi implements SharingApi {
   @override
   Future<RedeemedTransfer> redeemTransfer(String code) async {
     final rows = _rows(await _call('redeem_transfer', {'p_code': code}));
+    // The server answers an unknown code with no rows rather than an
+    // error, so that it can count the failed try (rate limit).
     if (rows.isEmpty) {
-      throw const SharingException("Couldn't redeem this code.");
+      throw SharingException(sharingErrorMessage('motolog:transfer_not_found'));
     }
     return RedeemedTransfer(
       vehicleId: rows.first['vehicle_id']! as String,
@@ -139,6 +142,8 @@ String sharingErrorMessage(String raw) {
     'transfer_expired' =>
       'This code has expired. Ask the seller for a new one.',
     'vehicle_exists' => 'You already have this vehicle.',
+    'transfer_rate_limited' => 'Too many tries with codes that don\'t exist. Wait an hour and try again.',
+    'quota_exceeded' => cloudFullMessage,
     _ => 'Something went wrong: $raw',
   };
 }

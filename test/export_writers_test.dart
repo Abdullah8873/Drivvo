@@ -121,4 +121,56 @@ void main() {
       expect(utf8.decode(bytes.take(4).toList()), '%PDF');
     });
   });
+
+  group('CSV formula injection', () {
+    test('formula-like cells get a leading quote, numbers do not', () {
+      expect(csvSafeCell('=HYPERLINK("http://x")'), '\'=HYPERLINK("http://x")');
+      expect(csvSafeCell('+1+cmd|calc'), "'+1+cmd|calc");
+      expect(csvSafeCell('-2+3'), "'-2+3");
+      expect(csvSafeCell('@SUM(A1)'), "'@SUM(A1)");
+      expect(csvSafeCell('\tx'), "'\tx");
+      expect(csvSafeCell('\r=x'), "'\r=x");
+      expect(csvSafeCell("'=x"), "''=x");
+      for (final safe in [
+        '-12.5',
+        '-3',
+        '1e-7',
+        '-1.5e+21',
+        'Oil change',
+        '',
+        "'quoted",
+      ]) {
+        expect(csvSafeCell(safe), safe, reason: safe);
+      }
+    });
+
+    test('unescaping restores every original exactly', () {
+      for (final original in [
+        '=1+1',
+        "'=1+1",
+        "''@x",
+        '-5',
+        '-5+1',
+        "'plain",
+        'plain',
+        '',
+      ]) {
+        expect(
+          csvUnescapeCell(csvSafeCell(original)),
+          original,
+          reason: original,
+        );
+      }
+    });
+
+    test('the CSV writer escapes cells but not headers', () {
+      final section = _section('Reading', RecordModule.reading, [
+        ['=cmd|" /C calc"!A0', '-7'],
+      ]);
+      final text = utf8.decode(sectionToCsvBytes(section).skip(3).toList());
+      expect(text, startsWith('A,B'));
+      expect(text, contains("'=cmd|"));
+      expect(text, contains(',-7'));
+    });
+  });
 }

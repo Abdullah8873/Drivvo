@@ -1,6 +1,6 @@
 # MotoLog — current status / session handoff
 
-_Last updated: 2026-09-26 — **v1.0.0 released** (see FINISH LINE). **Cloud session? Read docs/CLOUD-SESSION.md
+_Last updated: 2026-09-26 — **v1.0.0 released** (see FINISH LINE); **security review done — see SECURITY REVIEW + Owner actions**. **Cloud session? Read docs/CLOUD-SESSION.md
 first.** Read this first when starting a new
 session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
 
@@ -52,6 +52,55 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   **dark theme** sweep (`test/dark_theme_test.dart`). Hands-on QA'd at
   360×640 in light + dark (brand picker, checklist save/expand, Storage,
   Reports, map tiles + attribution).
+
+## SECURITY REVIEW 2026-09-26 (cloud session, branch `security/review`)
+Full report: **`docs/SECURITY.md`** (findings S1–S23 with severity and fix).
+Fixed in code: login-CSRF via token links (S1), CSV formula injection
+(S10), import/restore/attachment size limits (S11), attachment content
+sniffing + 3 MB limit (S4, S13), Android cleartext off (S14), web security
+headers `web/_headers` (S15), GitHub Actions permissions (S16). Fixed in
+new SQL (**not applied**): member self-escalation (S2), database quota
+(S3), Storage quota (S4), row-id probing (S5), transfer rate limits (S6),
+future timestamps (S9), profile lengths (S12). SQL verified with
+`bash tool/sql_test.sh` (local Postgres + 83 checks, never the live
+project). No secrets in the repo or its history. Format/analyze clean,
+**611 tests pass**.
+
+### Owner actions (security) — do these before sharing with friends
+1. **Apply `supabase/migrations/20260928000001_security_hardening.sql`**
+   (PC session, SQL editor): first paste it between `begin;` and
+   `rollback;` (dry run) — it must finish without errors — then run it for
+   real. Then check: `select file_size_limit from storage.buckets where id =
+   'attachments'` → 3145728; `select * from public.sync_usage order by
+   row_bytes desc` has one row per account that synced; the app still syncs
+   (add a refueling, sync), a photo still uploads, a wrong transfer code says
+   "No transfer with this code".
+2. **Auth → Sign In / Providers → Email:** "Confirm email" **ON** (critical:
+   invitations trust confirmed emails — S7), "Secure email change" ON,
+   minimum password length **8** (the app asks for 8).
+3. **Auth → Sign In / Providers:** "Allow anonymous sign-ins" **OFF**.
+4. **Auth → Rate Limits:** keep the defaults (or lower sign-ups per hour).
+   **Don't turn on CAPTCHA** — the app doesn't send a CAPTCHA token yet,
+   so every sign-in/sign-up/reset would fail. Leaked-password protection
+   needs the Pro plan (skip on Free).
+5. **Share a new build** (APK + web) made from `develop` after this merge:
+   S1 is a client fix, 1.0.0 builds stay affected.
+6. **Web hosting:** use a host that serves `build/web/_headers`
+   (Cloudflare Pages or Netlify) — GitHub Pages can't send headers. After
+   the first deploy, open the browser console on the hosted site, sign in,
+   sync and open My places: there must be no "Content Security Policy"
+   errors. Then add the hosted URL to Auth → URL Configuration.
+7. Optional: Integrations/Data API → turn off GraphQL if unused (it only
+   exposes the schema shape; RLS still applies). Once hosted, remove
+   redirect URLs you no longer use.
+8. Now and then (SQL editor): account sizes
+   `select * from public.sync_usage order by row_bytes desc;` and Storage
+   per account (query in `docs/SECURITY.md` S4); orphaned files after
+   account deletions (S21). Limits: 25 MB rows + 50 MB files per account —
+   change with `sync_row_quota_bytes()` / `attachment_quota_bytes()`.
+9. Give Users/Profiles rights only to people you'd make Administrator (S19).
+10. Before the Play Store: real upload key (release APKs use the PC's debug
+    key — keep `~/.android/debug.keystore` private meanwhile, S22).
 
 ## FINISH LINE — owner wants the app COMPLETE in the next PC session
 Scope (owner decisions): Android + web, English only, no web hosting yet,

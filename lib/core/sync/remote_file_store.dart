@@ -13,8 +13,14 @@ abstract interface class RemoteFileStore {
   /// Name of the Storage bucket.
   static const bucket = 'attachments';
 
-  /// Largest file the app accepts (and the bucket's `file_size_limit`).
-  static const maxBytes = 10 * 1024 * 1024;
+  /// Largest file the app accepts — also the bucket's `file_size_limit`
+  /// (`supabase/migrations/20260928000001_security_hardening.sql`), part of
+  /// keeping the free Storage plan (1 GB) from filling up. Photos are
+  /// downscaled to 1920 px / JPEG 80 on pick, typically well under 1 MB.
+  static const maxBytes = 3 * 1024 * 1024;
+
+  /// [maxBytes] for messages ("3 MB").
+  static String get maxSizeLabel => '${maxBytes ~/ (1024 * 1024)} MB';
 
   /// Object key of an attachment. The file name is reduced to characters
   /// every storage backend accepts in a key; the original name stays in the

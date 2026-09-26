@@ -112,6 +112,14 @@ void main() {
         sharingErrorMessage('ERROR: motolog:transfer_expired'),
         contains('expired'),
       );
+      expect(
+        sharingErrorMessage('motolog:transfer_rate_limited'),
+        contains('Too many tries'),
+      );
+      expect(
+        sharingErrorMessage('motolog:quota_exceeded'),
+        contains('cloud space is full'),
+      );
       expect(sharingErrorMessage('boom'), contains('boom'));
     });
   });

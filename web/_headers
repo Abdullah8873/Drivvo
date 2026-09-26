@@ -1,0 +1,20 @@
+# Security headers for the hosted web app. Netlify and Cloudflare Pages
+# read this file from the site root (flutter build web copies it into
+# build/web); for another host, set the same headers in its config — see
+# docs/SECURITY.md "Web hosting headers". GitHub Pages can't set headers.
+#
+# The CSP allows exactly what MotoLog loads: its own files, CanvasKit from
+# www.gstatic.com (drop it when building with --no-web-resources-cdn),
+# fallback fonts from fonts.gstatic.com, the Supabase project (REST +
+# realtime websocket), OpenStreetMap tiles, and Google Identity Services
+# (accounts.google.com/gsi/, loaded by the google_sign_in web plugin).
+# 'wasm-unsafe-eval' lets CanvasKit and sqlite3.wasm compile; no
+# 'unsafe-eval'. Tested against a
+# release build in Chromium (see docs/SECURITY.md).
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob: https://tile.openstreetmap.org; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://ibizgqnhurgvhyclfqza.supabase.co wss://ibizgqnhurgvhyclfqza.supabase.co https://www.gstatic.com https://fonts.gstatic.com https://tile.openstreetmap.org https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), payment=(), usb=(), geolocation=(self)
+  Strict-Transport-Security: max-age=31536000
