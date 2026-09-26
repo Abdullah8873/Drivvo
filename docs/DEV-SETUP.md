@@ -115,7 +115,15 @@ Cloud (Linux) sessions don't need any of this: `docs/CLOUD-SESSION.md` +
 - 2026-09-26 evening: Android Studio, the AVDs, `%USERPROFILE%\.android`
   (incl. debug.keystore) and the VS Code Dart/Flutter extensions were
   already gone when the cleanup session started (removed outside Claude).
-- 2026-09-26 ~22:00, cleanup session (owner confirmed): deleted  (Flutter) and its user PATH entry,  (11.6 GB),  (4.7 GB),  (0.5 GB), the Android Studio settings folder in , and the repo's regenerable  +  (3 GB). ~22 GB freed.
-- Kept on purpose: GitHub CLI (owner's choice), the repo with , BlueStacks + Drivvo.
-- Left behind (need admin / a reboot): empty  (admin to delete) and  holding one stale Android Studio socket file  (Windows error 1920 — deletable after a reboot). Both are a few bytes.
+- 2026-09-26 ~22:00, cleanup session (owner confirmed): deleted `C:\dev`
+  (Flutter) and its user PATH entry, `%LOCALAPPDATA%\Android\Sdk`
+  (11.6 GB), `%USERPROFILE%\.gradle` (4.7 GB), `%LOCALAPPDATA%\Pub`
+  (0.5 GB), the Android Studio settings folder in `%APPDATA%\Google`, and
+  the repo's regenerable `build/` + `.dart_tool/` (3 GB). ~22 GB freed.
+- Kept on purpose: GitHub CLI (owner's choice), the repo with
+  `env/cloud.json`, BlueStacks + Drivvo.
+- Left behind (need admin / a reboot): the empty `C:\Program Files\Android`
+  (admin to delete) and `%LOCALAPPDATA%\Google\AndroidStudio2026.1.4`
+  holding one stale Android Studio socket file `.port` (Windows error 1920
+  — deletable after a reboot). Both are a few bytes.
 - Owner to do: turn Windows Developer Mode off if not needed (Settings → System → For developers).
