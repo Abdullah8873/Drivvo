@@ -1,0 +1,8 @@
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          # We write queries with the core API; skip the generated "manager" API.
+          generate_manager: false
+          store_date_time_values_as_text: true

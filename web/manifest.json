@@ -1,11 +1,11 @@
 {
-    "name": "motolog",
-    "short_name": "motolog",
+    "name": "MotoLog",
+    "short_name": "MotoLog",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "Personal vehicle expense & maintenance tracker",
+    "background_color": "#0B97A5",
+    "theme_color": "#0B97A5",
+    "description": "Personal vehicle expense & maintenance tracker: fuel, expenses, services, income, routes, reminders and reports.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

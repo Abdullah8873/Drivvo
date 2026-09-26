@@ -18,19 +18,35 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="Personal vehicle expense & maintenance tracker">
+  <meta name="description" content="Personal vehicle expense & maintenance tracker: fuel, expenses, services, income, routes, reminders and reports.">
+  <meta name="theme-color" content="#0B97A5">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="motolog">
+  <meta name="apple-mobile-web-app-title" content="MotoLog">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>motolog</title>
+  <title>MotoLog</title>
   <link rel="manifest" href="manifest.json">
+
+  <!--
+    Deliberately NOT serving Cross-Origin-Opener-Policy /
+    Cross-Origin-Embedder-Policy headers on the deployed site. Those would
+    unlock SharedArrayBuffer, which drift (core/db/app_database.dart) could
+    use for its faster OPFS web worker — but COOP/COEP also block loading
+    cross-origin resources that don't opt in, which breaks the OSM map
+    tiles (My places / location picker, served from tile.openstreetmap.org)
+    and the Google OAuth sign-in popup; Safari also doesn't support the
+    `credentialless` COEP mode that would otherwise let those through.
+    drift falls back to its IndexedDB (sharedIndexedDb) worker instead,
+    which works everywhere without extra server config. Revisit if drift
+    adds an OPFS mode that tolerates `credentialless`, or if the map/OAuth
+    dependencies change.
+  -->
 </head>
 <body>
   <!--

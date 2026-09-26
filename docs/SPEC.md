@@ -1,0 +1,148 @@
+# MotoLog feature & UI spec
+
+Gathered from a live walkthrough of Drivvo (2026-09-23). This is the source of truth for how screens look and behave.
+
+### Global UI language
+- Material Design (Android). **Each module has its own color**, used in its app bar, icons, save button and chart accents:
+  Refueling = orange, Expense = red-orange, Income = green, Service = brown, Route = slate blue-grey,
+  Reading = magenta, Checklist = blue, Reminder = purple. General screens use a teal primary color.
+- Top bar: a **vehicle switcher chip** (logo, name, "model · odometer km", ▾), plus action icons (Export ⬇, Search 🔍).
+  The Reports bar has Share instead of Export.
+- **Bottom nav**: History · Reports · (**center round FAB +**) · Reminders · More.
+- The FAB opens a **speed-dial menu** of colored round icons: Reminder, Checklist, Reading, Route, Service, Income, Expense, Refueling.
+- Forms: full-screen, colored app bar with back arrow; **underlined text fields with a grey leading icon**;
+  segmented toggles (e.g. TRIP | FREIGHT); a "+ More options" expander; a full-width rounded **SAVE** button in the module color.
+- **Pickers** are full-screen "Select" lists with a search field in the app bar, checkboxes for multi-select, a ✓ confirm,
+  and a FAB + to add a new item. Settings choices open **radio-list dialogs**.
+
+### History (home)
+- **Predicted reminders** strip at the top: e.g. a "Next refueling" card showing "57132 km · 02 oct" and "in 197 km · in 9 days"
+  (predicted from average km/day and refuel frequency).
+- A **vertical timeline track** on the left, with a colored circular icon per record.
+- A **monthly summary card** for each month: total spent, km driven, average efficiency, and "Expenses X% below/above {prev month}".
+  Drivvo blurs the X% for free users; we show it. Tapping the card opens that month's cost-comparison donut chart.
+- Record row: title (fuel name, or first service type **+N more**), subtitle "odometer · efficiency · volume" or "odometer · place",
+  amount on the right, date below.
+- **Tapping a row expands it in place**: line items (fuel detail, or each service type with its price), efficiency,
+  full-tank yes/no, station, and 🗑 delete · ✏ edit · 👁 view.
+- **Detail view**: colored header with ‹ date › arrows to step through records of the same type. Cards show Odometer, Distance
+  since last, Total cost, fuel line (price/L, total, volume), Complete tank, Efficiency, Cost/km, a **"% of tank" gauge**,
+  then Details (station, payment method, driver) and Notes.
+- **Achievement events** appear in the timeline (e.g. "Completed 1 year of tracking this vehicle").
+
+### Reports (scrollable tabs, all with a period filter: current month, previous month, last month, last 3 or 6 months, last year, all time, custom)
+- **General**: Balance (total, by day, by km), Distance (total, daily avg), Cost (total, by day, by km), Income (total, by day, by km);
+  stacked monthly bar chart "Expenses and income" (refueling/expense/service/income); cost comparison donut; **Odometer line chart**
+  with colored points by record type.
+- **Refueling**: Cost, Volume (per refuel, per day), Average price (lowest/highest), Fuel efficiency (average, lowest, highest);
+  "Refueling routine" card (km between refuels, frequency in days, estimated range, monthly projection, % of refuels with full tank);
+  monthly cost bars; a **Fuel card with fuel-type chips** and range sliders showing the last value against the lowest/highest/average for efficiency and cost/km;
+  gas stations list (avg price, records, liters); Fuels donut; Gas stations donut; efficiency line by odometer; fuel price line.
+- **Expense / Income / Service**: totals (by day, by km), monthly bars, breakdown-by-type donut.
+- **Route**: value, distance, time. **Reading**: distance, daily average, days between readings.
+
+### Forms (the fields in each form)
+- **Refueling**: vehicle, date, time, odometer ("Last odometer: N km" hint), fuel, price/L · total cost · liters (enter any 2 and the third is calculated),
+  "Are you filling up the tank?" toggle, **+ Fuel** (a second fuel in the same entry), gas station, driver, payment method,
+  discount, reason, "Missed previous refueling?" toggle, attach file, notes.
+- **Expense**: vehicle, date/time, odometer, title, type of expense, discount, installments, place, driver, payment method, reason, attach, notes.
+- **Service**: same as Expense, with **multiple service types**, each with its own price and ×, and a total cost row —
+  but with **no Reason field** (Drivvo's Service form omits it; Expense keeps it).
+- **Income**: vehicle, date/time, odometer, value, installments, type of income, driver, attach, notes.
+- **Route**: origin, start date/time, initial odometer, destination, end date/time, final odometer. TRIP mode: value per km (optional) and a total.
+  **FREIGHT** mode: cargo type, contractor, unit, amount, weight, volume (m³), freight value, installments. Plus driver, reason, attach, notes.
+- **Reading**: vehicle, date/time, odometer, driver, attach, notes.
+- **Reminder**: vehicle, EXPENSE | SERVICE, type, JUST ONE TIME | REPEAT EVERY, then either a ☑ km trigger (odometer, or every N km)
+  and/or a ☑ date trigger (a date, or every N days/months/years), notes.
+- **Checklist**: templates ("Forms") plus a filled-in record per run. Drivvo locks this behind the Fleet plan, so we design it ourselves.
+- **Vehicle**: type (car, motorcycle, …), name, manufacturer (brand logo), model, plate, year, ONE TANK | TWO TANKS, fuel type
+  (liquids/CNG/electric…) with capacity, distance unit (km/mi/hours), VIN, registration ID, purchase price, sale price, active, notes.
+
+### More menu
+Plans (removed) · My account (first/last name, email, driver's license number, category, expiry) · Synchronize data ·
+**Storage** (attachment usage by module) · **Transfer** (send a vehicle's history to its buyer, or receive it from the seller) ·
+Vehicles · Users (invite drivers or managers) · Profiles (Administrator, Manager, Driver, and custom permission profiles) ·
+Fuel · Gas stations (name, address) · Places (name, address) · Types of service · Types of expense (Financing, Fine, Parking,
+Payment, Registration, Reimbursement, Tax, Tolls) · Types of income (Freight, Refund, Ride, Transport app, Vehicle sale) ·
+Reasons (Trip, Work) · Payment methods (Credit card, Debit card, Money, Online) · Forms (checklist templates) ·
+**My places** (list + map tab) · **Flex calculator** (ethanol vs gas cost comparison) · **Achievements** (badge grid: first record,
+anniversaries, 1/25/50/75/100/250/500/1000 refuels, distance milestones) · Settings · Translation · Contact · About · Share app.
+
+### Settings
+- Formats: theme (light/dark/system), language, date format, **currency format** (full ISO list), display decimals, 3-decimal volumes.
+- Units: distance unit (set per vehicle), liquid unit (L/gal), gas unit (kg/m³), **fuel efficiency format** (km/L, km/gal US,
+  km/gal Imp, L/100km, gal US/100km, gal Imp/100km, mi/L, mpg US, mpg Imp, L/100mi, gal US/100mi, gal Imp/100mi),
+  where fuel economy is shown (start or end of the refuel cycle).
+- Reminders: warn N km ahead (500), warn N days ahead (30), best time for notifications (10:30), toggles for refueling / tire pressure /
+  gas station notifications, vibrate.
+
+### Paywalled in Drivvo, free in ours
+No ads, cloud backup and sync, CSV/Excel export (+ PDF), attachments, dark theme, search, unlimited income, unlimited vehicles (Drivvo's free limit is 2),
+users/drivers and sharing, profiles and permissions, checklists/forms, the month-over-month % insight.
+
+### Not observable (locked or empty): designed from Drivvo docs plus our own judgment
+Checklist and Form builder, custom profile permissions screen, user invite flow, search screen, attachment viewer, Transfer flow.
+
+
+### Details verified hands-on in Drivvo (2026-09-24)
+- **Service / Expense type picker:** multi-select list; ticking a type reveals an inline
+  underlined **"Value"** field on the right of that same row — the price is typed right
+  there, then ✓. The form then shows rows "Belts ....... PKR750 ✕" and "Total cost PKR750";
+  types without a value show PKR0. (Fuel picker has no value field — just ticks.)
+- **Expense / Service / Income forms show every field flat** — no "+ More options" expander.
+- **Refueling:** "+ Fuel" appears only after "+ More options" (below the full-tank toggle).
+  Adding one shows a **"SECOND FUEL"** section header (orange caps) with ✕, then its own
+  Fuel field and Price / Total cost / Liters row, then "+ Fuel" again.
+- **Back on a half-filled form discards silently in Drivvo.** MotoLog improves on this with a
+  "Discard changes?" confirmation (users complain about lost entries in reviews).
+- History contains ad cards between records (Drivvo free tier) — MotoLog has no ads.
+
+### Verified hands-on in Drivvo (2026-09-24, afternoon)
+- **Flex calculator** (More → Flex calculator, teal app bar): row 1 = gauge icon, "Autonomy
+  difference" slider with a numeric field on the right, default **70 %**; row 2 = money icon,
+  "Gas price" and "Ethanol price" side by side; full-width teal **CALCULATE** button. Result:
+  a full-width banner — orange **"We recommend using ethanol"** when ethanol price / gas price
+  < autonomy % (e.g. 190 / 280 = 67.9 % < 70 %), otherwise recommend gasoline — then a bar
+  chart with two bars, **Gasoline 100.0 %** (cyan) and **Ethanol 67.9 %** (orange), y axis
+  0–100 % on both sides, value labels above the bars.
+- **Achievements** (More → Achievements, per vehicle): a 4-column grid of round scalloped
+  badges; earned = colored, locked = grey. Tapping one opens a small dialog: badge, text, and
+  the date earned or "Not achieved". The 20 badges, row by row:
+  1. First record ("Started monitoring your vehicle expenses", teal ✓) · Refueled at 10
+     different gas stations · Refueled 15 times at the same station · Refueled 50 times at
+     the same station
+  2. Completed 1 / 2 / 3 / 4 years of tracking this vehicle (orange cake)
+  3. First refueling ("1", pink drop) · 25 · 50 · 75 refuelings
+  4. 100 · 250 · 500 · 1000 refuelings
+  5. Completed 15 / 45 / 90 / 150 full tanks (hexagon gauge)
+- **Export** (⬇ on History) is behind Drivvo's paywall ("To export data, upgrade your plan";
+  PRO lists "Data export (CSV/Excel)") — MotoLog designs its own export screen.
+
+### Verified hands-on in Drivvo (2026-09-25): Users, Profiles, Transfer
+- **Users** (More → Users, teal app bar): an "Invite drivers and managers" info card (paywall
+  in Drivvo — we drop the upsell), then one row per member: **name** (bold), **email**, **profile
+  name** (e.g. "Administrator" for the owner); teal "+" FAB to invite. Tapping a row/"+" is
+  paywalled in Drivvo, so the invite/edit-member form is our own design.
+- **Profiles** (More → Profiles): section "Drivvo profiles" (we say "Built-in profiles") with
+  **Administrator · Manager · Driver** (fixed, read-only, lock banner "… profiles are fixed and
+  can't be edited"), section "Custom profiles" with "Add your first profile" + "+" FAB.
+- **Profile screen:** "Profile name" field; segmented toggle **ALL VEHICLES | ASSIGNED VEHICLES**
+  (helper "Can see all vehicles in the fleet." / "Can only see vehicles they have access to.");
+  toggle **ALL RECORDS | OWN RECORDS** ("Can see records from everyone in the account." /
+  "Can only see records they created or are linked to."). Then permission rows, each with a
+  module-colored dot, a row of up to 4 small dots showing how many permissions are on, and
+  an expand chevron; expanded = 4 switches **View · Register · Edit · Delete**:
+  - **Modules:** Refueling, Expense, Income, Service, Route, Checklist, Reminder, Reading;
+    **Report** (View only).
+  - **Types and categories** (teal dots): Fuel, Gas stations, Places, Types of expense, Types of
+    service, Types of income, Reasons, Payment methods.
+  - **Administration · Admin and Manager only** (grey dots): Vehicles, Users, Profiles, Forms.
+  - Defaults: **Administrator** and **Manager** = all vehicles, all records, all 4 everywhere
+    (Manager differs only in not being the account owner: can't delete/transfer the account
+    or remove the owner). **Driver** = assigned vehicles, own records, View+Register+Edit
+    (no Delete) on modules and types, nothing on Report and Administration.
+- **Transfer** (More → Transfer): empty state with a car-with-arrows icon, "Did you sell your
+  vehicle? Send a copy of the history to the buyer!" / "Did you buy a new vehicle? Receive a
+  copy of the vehicle's history from the seller!"; "+" FAB speed dial: **Generate transfer
+  code** · **Redeem transfer code** (both paywalled — flow is our design). Note: it is a
+  **copy**; the seller keeps their history.

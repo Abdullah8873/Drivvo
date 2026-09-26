@@ -12,6 +12,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // flutter_local_notifications needs this for scheduled notifications
+        // to work on older Android versions (see its README's Gradle setup).
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -19,7 +22,13 @@ android {
         applicationId = "com.abdullah8873.motolog"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
+        // Pinned (not flutter.minSdkVersion) because flutter_local_notifications
+        // 22.x requires API 24 — the highest floor of any plugin we use (checked
+        // each plugin's android/build.gradle in the pub cache: geolocator_android
+        // has no floor, image_picker_android/google_sign_in_android/app_links are
+        // also 24, share_plus/android_file_picker are 21). Unverified on a real
+        // device — no Android SDK on this PC yet.
+        minSdk = 24
         targetSdk = flutter.targetSdkVersion
         // Uses the version code from pubspec.yaml. When using split APKs, 1000 * ABI_VERSION
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
@@ -34,6 +43,16 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // Shrink + obfuscate the release build (R8) and strip unused
+            // resources. See proguard-rules.pro for the one custom keep rule
+            // needed — flutter_local_notifications >= 19 ships its own Gson
+            // consumer ProGuard rules, so nothing extra is needed for it.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
@@ -42,6 +61,11 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
+}
+
+dependencies {
+    // Required alongside isCoreLibraryDesugaringEnabled above.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {
