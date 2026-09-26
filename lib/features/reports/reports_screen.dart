@@ -153,6 +153,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen>
   Future<void> _showShareSheet(BuildContext context) async {
     final action = await showModalBottomSheet<_ShareAs>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(
