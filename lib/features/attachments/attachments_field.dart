@@ -91,6 +91,7 @@ class AttachmentsField extends ConsumerWidget {
     final picker = ref.read(attachmentPickerProvider);
     final source = await showModalBottomSheet<_Source>(
       context: context,
+      useRootNavigator: true,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
         child: Column(

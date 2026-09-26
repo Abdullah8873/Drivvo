@@ -21,6 +21,7 @@ Future<void> showContactSheet(
   final hasEmail = AppInfo.contactEmail.isNotEmpty;
   await showModalBottomSheet<void>(
     context: context,
+    useRootNavigator: true,
     showDragHandle: true,
     builder: (ctx) => SafeArea(
       child: Column(

@@ -84,6 +84,10 @@ GoRouter createRouter() {
 
 GoRouter _buildRouter() => GoRouter(
   initialLocation: '/history',
+  // A mistyped or stale web URL gets a themed screen instead of go_router's
+  // bare debug page.
+  errorPageBuilder: (context, state) =>
+      _materialPage(state, const _NotFoundScreen()),
   routes: [
     StatefulShellRoute.indexedStack(
       pageBuilder: (context, state, shell) =>
@@ -222,3 +226,35 @@ Widget _form(RecordModule module, String? id) => switch (module) {
   RecordModule.reminder => ReminderFormScreen(id: id),
   RecordModule.checklist => ChecklistFormScreen(id: id),
 };
+
+/// Shown for a URL that matches no route (web address bar, old bookmark).
+class _NotFoundScreen extends StatelessWidget {
+  const _NotFoundScreen();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Page not found')),
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.explore_off_outlined,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 16),
+            const Text("This page doesn't exist.", textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: () => context.go('/history'),
+              child: const Text('GO TO HISTORY'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}

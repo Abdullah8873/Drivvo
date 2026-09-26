@@ -56,6 +56,7 @@ class _PlacesMapTabState extends ConsumerState<PlacesMapTab> {
   void _showItem(CatalogItem item) {
     showModalBottomSheet<void>(
       context: context,
+      useRootNavigator: true,
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),

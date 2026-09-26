@@ -92,26 +92,74 @@ void main() {
     expect(queued.map((q) => q.rowId), contains('ei1'));
   });
 
-  test('the migration is idempotent (interrupted upgrade)', () async {
+  test('addMissingColumns is idempotent (interrupted upgrade)', () async {
     final db = testDatabase();
     addTearDown(db.close);
-    // Re-running the v7 block against an already-migrated database (e.g. a
-    // migration interrupted after the ALTER but before the version write)
-    // must not throw.
-    await db.transaction(() async {
-      final columns = await db
-          .customSelect('PRAGMA table_info(entry_items)')
-          .get();
-      if (!columns.any((c) => c.read<String>('name') == 'part_number')) {
-        await db.customStatement(
-          'ALTER TABLE entry_items ADD COLUMN part_number TEXT NULL',
-        );
-      }
-    });
+    // Re-running it against a fully migrated database must not throw or
+    // add anything twice.
+    await db.addMissingColumns();
+    await db.transaction(db.addMissingColumns);
     final cols = await db.customSelect('PRAGMA table_info(entry_items)').get();
     expect(
       cols.where((c) => c.read<String>('name') == 'part_number'),
       hasLength(1),
     );
+  });
+
+  test('a v7 database missing its columns heals on open', () async {
+    // Seen on the web: schema version 7 recorded, but entry_items has no
+    // part_number (and, worst case, no created_by either) — History then
+    // failed with "no such column: part_number".
+    final fresh = testDatabase();
+    final rows = await fresh
+        .customSelect(
+          "SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT "
+          "LIKE 'sqlite_%' ORDER BY CASE type WHEN 'table' THEN 0 "
+          "WHEN 'index' THEN 1 ELSE 2 END",
+        )
+        .get();
+    await fresh.close();
+    final schema = [
+      for (final r in rows)
+        r
+            .read<String>('sql')
+            .replaceAll(RegExp(r',\s*"part_number" TEXT NULL'), '')
+            .replaceAll(RegExp(r',\s*"created_by" TEXT NULL'), ''),
+    ];
+    // Indexes/triggers that mention a removed column can't be created.
+    final usable = schema
+        .where((s) => !s.contains('created_by') && !s.contains('part_number'))
+        .toList();
+
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+    final db = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(
+          setup: (raw) {
+            for (final sql in usable) {
+              raw.execute(sql);
+            }
+            raw.execute(
+              'INSERT INTO settings_entries VALUES '
+              "('catalog_seed_version', '1')",
+            );
+            raw.execute('PRAGMA user_version = 7');
+          },
+        ),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    addTearDown(db.close);
+
+    Future<Set<String>> columnsOf(String table) async => {
+      for (final c in await db.customSelect('PRAGMA table_info($table)').get())
+        c.read<String>('name'),
+    };
+    expect(await columnsOf('entry_items'), contains('part_number'));
+    for (final table in AppDatabase.createdByTables) {
+      expect(await columnsOf(table), contains('created_by'), reason: table);
+    }
+    // And the query History runs works.
+    expect(await db.select(db.entryItems).get(), isEmpty);
   });
 }

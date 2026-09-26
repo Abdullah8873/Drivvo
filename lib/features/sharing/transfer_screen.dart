@@ -64,6 +64,7 @@ class TransferScreen extends ConsumerWidget {
   static Future<void> _openMenu(BuildContext context, WidgetRef ref) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -99,6 +100,7 @@ class TransferScreen extends ConsumerWidget {
     }
     final vehicle = await showModalBottomSheet<Vehicle>(
       context: context,
+      useRootNavigator: true,
       builder: (ctx) => SafeArea(
         child: ListView(
           shrinkWrap: true,

@@ -207,39 +207,23 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 6) {
         await transaction(() async {
-          for (final table in createdByTables) {
-            // Idempotent (an interrupted upgrade, or tests that build an
-            // "old" database from today's schema).
-            final columns = await customSelect('PRAGMA table_info($table)')
-                .get();
-            if (columns.any((c) => c.read<String>('name') == 'created_by')) {
-              continue;
-            }
-            await customStatement(
-              'ALTER TABLE $table ADD COLUMN created_by TEXT NULL',
-            );
-          }
+          await addMissingColumns();
           await m.createTable(accessProfiles);
           await m.createTable(accountMembers);
           await createSyncTriggers();
         });
       }
       if (from < 7) {
-        await transaction(() async {
-          // Idempotent (an interrupted upgrade, or tests that build an
-          // "old" database from today's schema).
-          final columns = await customSelect('PRAGMA table_info(entry_items)')
-              .get();
-          if (!columns.any((c) => c.read<String>('name') == 'part_number')) {
-            await customStatement(
-              'ALTER TABLE entry_items ADD COLUMN part_number TEXT NULL',
-            );
-          }
-        });
+        await transaction(addMissingColumns);
       }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
+      // Self-heal a database whose schema version was recorded without the
+      // columns its upgrade added — seen once in QA on the web (IndexedDB
+      // backend), where History then failed with "no such column:
+      // part_number". A few PRAGMAs; nothing to do on a healthy database.
+      if (!details.wasCreated) await addMissingColumns();
       // Self-heal a first launch that was interrupted mid-seed.
       final marker = await (select(
         settingsEntries,
@@ -330,6 +314,29 @@ class AppDatabase extends _$AppDatabase {
         }
       }
     });
+  }
+
+  /// Adds the nullable columns later schema versions put on existing tables
+  /// (v6 `created_by`, v7 `entry_items.part_number`) when they're missing.
+  /// Idempotent, so the upgrades, the `beforeOpen` self-heal and tests that
+  /// build an "old" database from today's schema can all call it.
+  Future<void> addMissingColumns() async {
+    final wanted = {
+      for (final table in createdByTables) table: ['created_by'],
+    };
+    wanted['entry_items'] = ['part_number'];
+    for (final MapEntry(key: table, value: columns) in wanted.entries) {
+      final existing = {
+        for (final row in await customSelect('PRAGMA table_info($table)').get())
+          row.read<String>('name'),
+      };
+      for (final column in columns) {
+        if (existing.contains(column)) continue;
+        await customStatement(
+          'ALTER TABLE $table ADD COLUMN $column TEXT NULL',
+        );
+      }
+    }
   }
 
   Future<void> _markSeeded() => into(settingsEntries).insert(
