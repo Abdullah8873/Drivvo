@@ -122,6 +122,58 @@ void main() {
     expect(find.text('day 100'), findsOneWidget);
   });
 
+  testWidgets('LineChartCard date axis: calendar ticks with the year, no '
+      'overlap on a 320px phone', (tester) async {
+    useNarrowScreen(tester);
+    // 15 months of records, like the owner's imported Drivvo history.
+    final dates = [
+      DateTime(2025, 6, 11, 11, 50),
+      DateTime(2025, 10, 18, 14, 55),
+      DateTime(2026, 2, 17, 13, 38),
+      DateTime(2026, 6, 21, 21, 18),
+      DateTime(2026, 9, 17, 16, 43),
+    ];
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(24),
+            child: LineChartCard(
+              points: [
+                for (final (i, d) in dates.indexed)
+                  LinePoint.date(d, 51000 + i * 1500.0),
+              ],
+              dateAxis: true,
+              color: Colors.orange,
+              formatX: (x) => '$x',
+              formatY: (y) => '$y',
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+
+    final labels = find.textContaining(RegExp(r'^\d{4}-\d{2}$'));
+    expect(labels, findsAtLeastNWidgets(2));
+    final texts = [for (final e in labels.evaluate()) (e.widget as Text).data!];
+    // Month starts only: none of the old "dd mmm" evenly spaced dates.
+    expect(texts.toSet().length, texts.length);
+    for (final t in texts) {
+      expect(['01', '04', '07', '10'], contains(t.substring(5)), reason: t);
+    }
+    // Rendered text boxes don't overlap and stay on screen.
+    final rects = [
+      for (var i = 0; i < texts.length; i++)
+        tester.getRect(find.text(texts[i])),
+    ]..sort((a, b) => a.left.compareTo(b.left));
+    for (var i = 1; i < rects.length; i++) {
+      expect(rects[i].left, greaterThanOrEqualTo(rects[i - 1].right));
+    }
+    expect(rects.first.left, greaterThanOrEqualTo(0));
+    expect(rects.last.right, lessThanOrEqualTo(320));
+  });
+
   group('ChartStyle.compact', () {
     test('picks decimals from the axis step so labels never repeat', () {
       final labels = [
