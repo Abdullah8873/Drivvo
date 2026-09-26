@@ -54,6 +54,39 @@ void main() {
     );
   });
 
+  test('a part number survives save, reload and installments', () async {
+    final withPartNumber = EntryDraft(
+      vehicleId: vehicleId,
+      kind: EntryKind.service,
+      date: DateTime(2026, 9, 1, 9),
+      installments: 3,
+      interval: InstallmentInterval.weekly,
+      items: [
+        EntryItemDraft(
+          typeId: types['Oil Change']!,
+          amount: 1200,
+          partNumber: 'Bosch WS10130',
+        ),
+        EntryItemDraft(typeId: types['Air Filter']!, amount: 800),
+      ],
+    );
+    final parentId = await db.saveEntry(withPartNumber);
+    final e = (await db.getEntry(parentId))!;
+    expect(e.items.map((l) => l.partNumber), ['Bosch WS10130', null]);
+
+    // Not split across installments like the amount: every row carries the
+    // same value.
+    for (final r in await db.watchEntries(vehicleId).first) {
+      expect(r.items.first.partNumber, 'Bosch WS10130');
+    }
+
+    final loaded = (await db.loadEditableEntry(parentId))!;
+    expect(loaded.draft.items.map((i) => i.partNumber), [
+      'Bosch WS10130',
+      null,
+    ]);
+  });
+
   test('installments create a linked group', () async {
     final parentId = await db.saveEntry(draft(installments: 3));
     final rows = (await db.watchEntries(vehicleId).first).reversed.toList();

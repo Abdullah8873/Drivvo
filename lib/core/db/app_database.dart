@@ -86,8 +86,10 @@ class AppDatabase extends _$AppDatabase {
   ///     and the outbox push order. Data is unchanged.
   /// v6: sharing — `created_by` on the record tables, `access_profiles`
   ///     (custom profiles) and `account_members` (users of the account).
+  /// v7: `part_number` on `entry_items` (service items: replaced part's
+  ///     number or brand).
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   /// `settings_entries` key written once the default catalogs are seeded.
   static const seedMarkerKey = 'catalog_seed_version';
@@ -220,6 +222,19 @@ class AppDatabase extends _$AppDatabase {
           await m.createTable(accessProfiles);
           await m.createTable(accountMembers);
           await createSyncTriggers();
+        });
+      }
+      if (from < 7) {
+        await transaction(() async {
+          // Idempotent (an interrupted upgrade, or tests that build an
+          // "old" database from today's schema).
+          final columns = await customSelect('PRAGMA table_info(entry_items)')
+              .get();
+          if (!columns.any((c) => c.read<String>('name') == 'part_number')) {
+            await customStatement(
+              'ALTER TABLE entry_items ADD COLUMN part_number TEXT NULL',
+            );
+          }
         });
       }
     },

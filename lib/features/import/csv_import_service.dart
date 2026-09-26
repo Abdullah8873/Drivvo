@@ -773,6 +773,7 @@ class _Plan {
                 entryId: row.id,
                 typeId: await _catalogId(db, _typeKind(e.kind), item.type),
                 amount: item.amount,
+                partNumber: Value(item.partNumber),
                 createdAt: Value(now.add(Duration(microseconds: i))),
               ),
             );

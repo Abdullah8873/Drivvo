@@ -4643,6 +4643,17 @@ class $EntryItemsTable extends EntryItems
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _partNumberMeta = const VerificationMeta(
+    'partNumber',
+  );
+  @override
+  late final GeneratedColumn<String> partNumber = GeneratedColumn<String>(
+    'part_number',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4652,6 +4663,7 @@ class $EntryItemsTable extends EntryItems
     entryId,
     typeId,
     amount,
+    partNumber,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4710,6 +4722,12 @@ class $EntryItemsTable extends EntryItems
     } else if (isInserting) {
       context.missing(_amountMeta);
     }
+    if (data.containsKey('part_number')) {
+      context.handle(
+        _partNumberMeta,
+        partNumber.isAcceptableOrUnknown(data['part_number']!, _partNumberMeta),
+      );
+    }
     return context;
   }
 
@@ -4747,6 +4765,10 @@ class $EntryItemsTable extends EntryItems
         DriftSqlType.double,
         data['${effectivePrefix}amount'],
       )!,
+      partNumber: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}part_number'],
+      ),
     );
   }
 
@@ -4764,6 +4786,11 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
   final String entryId;
   final String typeId;
   final double amount;
+
+  /// Service items only (v7): the replaced part's number or brand, e.g.
+  /// "Bosch WS10130" — free text, shown next to the type in the picker,
+  /// record detail and exports.
+  final String? partNumber;
   const EntryItem({
     required this.id,
     required this.createdAt,
@@ -4772,6 +4799,7 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
     required this.entryId,
     required this.typeId,
     required this.amount,
+    this.partNumber,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4785,6 +4813,9 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
     map['entry_id'] = Variable<String>(entryId);
     map['type_id'] = Variable<String>(typeId);
     map['amount'] = Variable<double>(amount);
+    if (!nullToAbsent || partNumber != null) {
+      map['part_number'] = Variable<String>(partNumber);
+    }
     return map;
   }
 
@@ -4799,6 +4830,9 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
       entryId: Value(entryId),
       typeId: Value(typeId),
       amount: Value(amount),
+      partNumber: partNumber == null && nullToAbsent
+          ? const Value.absent()
+          : Value(partNumber),
     );
   }
 
@@ -4815,6 +4849,7 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
       entryId: serializer.fromJson<String>(json['entryId']),
       typeId: serializer.fromJson<String>(json['typeId']),
       amount: serializer.fromJson<double>(json['amount']),
+      partNumber: serializer.fromJson<String?>(json['partNumber']),
     );
   }
   @override
@@ -4828,6 +4863,7 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
       'entryId': serializer.toJson<String>(entryId),
       'typeId': serializer.toJson<String>(typeId),
       'amount': serializer.toJson<double>(amount),
+      'partNumber': serializer.toJson<String?>(partNumber),
     };
   }
 
@@ -4839,6 +4875,7 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
     String? entryId,
     String? typeId,
     double? amount,
+    Value<String?> partNumber = const Value.absent(),
   }) => EntryItem(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -4847,6 +4884,7 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
     entryId: entryId ?? this.entryId,
     typeId: typeId ?? this.typeId,
     amount: amount ?? this.amount,
+    partNumber: partNumber.present ? partNumber.value : this.partNumber,
   );
   EntryItem copyWithCompanion(EntryItemsCompanion data) {
     return EntryItem(
@@ -4857,6 +4895,9 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
       entryId: data.entryId.present ? data.entryId.value : this.entryId,
       typeId: data.typeId.present ? data.typeId.value : this.typeId,
       amount: data.amount.present ? data.amount.value : this.amount,
+      partNumber: data.partNumber.present
+          ? data.partNumber.value
+          : this.partNumber,
     );
   }
 
@@ -4869,14 +4910,23 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
           ..write('deletedAt: $deletedAt, ')
           ..write('entryId: $entryId, ')
           ..write('typeId: $typeId, ')
-          ..write('amount: $amount')
+          ..write('amount: $amount, ')
+          ..write('partNumber: $partNumber')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, createdAt, updatedAt, deletedAt, entryId, typeId, amount);
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    updatedAt,
+    deletedAt,
+    entryId,
+    typeId,
+    amount,
+    partNumber,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4887,7 +4937,8 @@ class EntryItem extends DataClass implements Insertable<EntryItem> {
           other.deletedAt == this.deletedAt &&
           other.entryId == this.entryId &&
           other.typeId == this.typeId &&
-          other.amount == this.amount);
+          other.amount == this.amount &&
+          other.partNumber == this.partNumber);
 }
 
 class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
@@ -4898,6 +4949,7 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
   final Value<String> entryId;
   final Value<String> typeId;
   final Value<double> amount;
+  final Value<String?> partNumber;
   final Value<int> rowid;
   const EntryItemsCompanion({
     this.id = const Value.absent(),
@@ -4907,6 +4959,7 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
     this.entryId = const Value.absent(),
     this.typeId = const Value.absent(),
     this.amount = const Value.absent(),
+    this.partNumber = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   EntryItemsCompanion.insert({
@@ -4917,6 +4970,7 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
     required String entryId,
     required String typeId,
     required double amount,
+    this.partNumber = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : entryId = Value(entryId),
        typeId = Value(typeId),
@@ -4929,6 +4983,7 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
     Expression<String>? entryId,
     Expression<String>? typeId,
     Expression<double>? amount,
+    Expression<String>? partNumber,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4939,6 +4994,7 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
       if (entryId != null) 'entry_id': entryId,
       if (typeId != null) 'type_id': typeId,
       if (amount != null) 'amount': amount,
+      if (partNumber != null) 'part_number': partNumber,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4951,6 +5007,7 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
     Value<String>? entryId,
     Value<String>? typeId,
     Value<double>? amount,
+    Value<String?>? partNumber,
     Value<int>? rowid,
   }) {
     return EntryItemsCompanion(
@@ -4961,6 +5018,7 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
       entryId: entryId ?? this.entryId,
       typeId: typeId ?? this.typeId,
       amount: amount ?? this.amount,
+      partNumber: partNumber ?? this.partNumber,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4989,6 +5047,9 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
     if (amount.present) {
       map['amount'] = Variable<double>(amount.value);
     }
+    if (partNumber.present) {
+      map['part_number'] = Variable<String>(partNumber.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5005,6 +5066,7 @@ class EntryItemsCompanion extends UpdateCompanion<EntryItem> {
           ..write('entryId: $entryId, ')
           ..write('typeId: $typeId, ')
           ..write('amount: $amount, ')
+          ..write('partNumber: $partNumber, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();

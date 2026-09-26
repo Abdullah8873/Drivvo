@@ -100,10 +100,13 @@ class ImportedRefueling {
 }
 
 class ImportedEntryItem {
-  const ImportedEntryItem(this.type, this.amount);
+  const ImportedEntryItem(this.type, this.amount, {this.partNumber});
 
   final String type;
   final double amount;
+
+  /// Service items only: the replaced part's number or brand.
+  final String? partNumber;
 }
 
 /// One expense / service / income row of the `entries` table (for an
@@ -393,8 +396,10 @@ void _parseTable(
   }
 
   final header = {for (final (i, h) in rows.first.indexed) _norm(h): i};
+  // Currency and Part Number are optional so an export from before either
+  // column existed still imports.
   bool has(List<String> headers) => headers
-      .where((h) => h != 'Currency')
+      .where((h) => h != 'Currency' && h != 'Part Number')
       .every((h) => header.containsKey(_norm(h)));
 
   final table = _Table(file, header, rows);
@@ -560,7 +565,7 @@ const _refuelingLineColumns = {
   'Line Total',
 };
 
-const _entryLineColumns = {'Type', 'Item Amount'};
+const _entryLineColumns = {'Type', 'Item Amount', 'Part Number'};
 
 ImportedRefueling _refueling(List<_Row> group) {
   final first = group.first;
@@ -633,7 +638,11 @@ ImportedEntry _entry(List<_Row> group, EntryKind kind) {
 ImportedEntryItem _entryItem(_Row row) {
   final type = _name(row['Type']);
   if (type == null) throw _CellError('Type is missing.');
-  return ImportedEntryItem(type, _requiredNum(row, 'Item Amount'));
+  return ImportedEntryItem(
+    type,
+    _requiredNum(row, 'Item Amount'),
+    partNumber: _text(row['Part Number']),
+  );
 }
 
 ImportedRoute _route(_Row row) {

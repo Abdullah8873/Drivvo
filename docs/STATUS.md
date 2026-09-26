@@ -68,10 +68,26 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
    below — hands-on QA list there).
 3. [x] (done 2026-09-26 by the PC session via Chrome; list now has 3 URLs) Supabase → Auth → Redirect URLs: add
    `com.abdullah8873.motolog://login-callback`.
-4. [ ] **Cloud session #3 (Sonnet)** — part number / brand field on service items (schema v6: nullable
-   column on `entry_items` + Supabase migration + sync + service type
-   picker/detail/export). Only after sharing SQL is applied (avoid two
-   schema changes in flight).
+4. [x] **Cloud session #3 (Sonnet): done.** Part number / brand field on
+   service items — nullable `part_number` column on `entry_items`, local
+   schema **v7** (v6 was already sharing's — see the "Done" section above,
+   so this bumped the version instead of reusing it), migration +
+   `test/schema_v7_test.dart`. Sync needs no mapping changes: push/pull is
+   generic over `TableInfo.$columns` (`lib/core/sync/sync_engine.dart`), so
+   the new column flows through automatically — covered by the migration
+   test's outbox-trigger check. Service type picker row (a "Part number /
+   brand" field under a service line, service only), record detail
+   (`record_detail_screen.dart`), CSV/Excel/PDF export (`Part Number`
+   column in `entryExportHeaders`) and CSV import (backward compatible:
+   optional header, like `Currency`) all updated, with tests. Branch
+   `feature/part-number`, merged into `develop` after `feature/import-links`
+   landed there.
+   - **SQL to apply (PC session, Supabase SQL editor via Chrome):**
+     `supabase/migrations/20260927000001_part_number.sql` — **to apply**.
+     Adds `part_number text` to `public.entry_items` (idempotent, no RLS
+     change — existing entry_items policies already cover every column).
+     Run after `20260926000001_sharing.sql`. Not verified on a real
+     Postgres.
 5. [ ] New release APK with sync: `flutter build apk --release
    --split-per-abi --dart-define-from-file=env/cloud.json`; send
    `app-arm64-v8a-release.apk` to the owner (SendUserFile); emulator

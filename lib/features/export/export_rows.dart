@@ -258,6 +258,7 @@ List<String> _entryRow(
   _text(e.title),
   item == null ? '' : _text(data.catalogNames[item.typeId]),
   item == null ? '' : _num(item.amount),
+  item == null ? '' : _text(item.partNumber),
   _text(data.catalogNames[e.placeId]),
   _text(data.catalogNames[e.paymentMethodId]),
   _text(data.catalogNames[e.reasonId]),

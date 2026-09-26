@@ -29,10 +29,13 @@ class FuelLine {
 
 /// One typed line of an expense/service/income ("Oil Change — 1200").
 class ItemLine {
-  const ItemLine({required this.name, required this.amount});
+  const ItemLine({required this.name, required this.amount, this.partNumber});
 
   final String name;
   final double amount;
+
+  /// Service items only: the replaced part's number or brand.
+  final String? partNumber;
 }
 
 /// A record of any module flattened into one shape for the timeline — like a
@@ -216,7 +219,7 @@ extension HistoryQueries on AppDatabase {
             .get();
     final itemsOf = _groupBy(
       await customSelect(
-        'SELECT entry_id, type_id, amount FROM entry_items '
+        'SELECT entry_id, type_id, amount, part_number FROM entry_items '
         'WHERE deleted_at IS NULL AND entry_id IN '
         '(SELECT id FROM entries WHERE vehicle_id = ?1 '
         'AND deleted_at IS NULL) ORDER BY rowid',
@@ -307,6 +310,7 @@ extension HistoryQueries on AppDatabase {
               ItemLine(
                 name: nameOf(i.read<String>('type_id')) ?? 'Item',
                 amount: i.read<double>('amount'),
+                partNumber: i.readNullable<String>('part_number'),
               ),
           ],
           place: nameOf(e.placeId),

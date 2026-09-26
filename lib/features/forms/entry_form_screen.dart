@@ -36,13 +36,16 @@ class EntryFormScreen extends ConsumerStatefulWidget {
 /// A catalog reference the form holds (id to save, name to show).
 typedef _Ref = ({String id, String name});
 
-/// One "type + amount" line (expense/service can have several).
+/// One "type + amount" line (expense/service can have several). [partNumber]
+/// is only shown/edited for services ("Part number / brand").
 class _TypeLine {
-  _TypeLine(this.type, [double? amount])
-    : amount = TextEditingController(text: _plain(amount));
+  _TypeLine(this.type, [double? amount, String? partNumber])
+    : amount = TextEditingController(text: _plain(amount)),
+      partNumber = TextEditingController(text: partNumber ?? '');
 
   final _Ref type;
   final TextEditingController amount;
+  final TextEditingController partNumber;
 }
 
 /// Number → text field value without a trailing ".0" ("1200", "12.5").
@@ -151,6 +154,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     }
     for (final l in _lines) {
       l.amount.dispose();
+      l.partNumber.dispose();
     }
     _attachments.dispose();
     super.dispose();
@@ -192,7 +196,11 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       } else {
         _lines.addAll([
           for (final i in d.items)
-            _TypeLine((id: i.typeId, name: i.typeName ?? ''), i.amount),
+            _TypeLine(
+              (id: i.typeId, name: i.typeName ?? ''),
+              i.amount,
+              i.partNumber,
+            ),
         ]);
       }
     });
@@ -231,15 +239,25 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     );
     if (picked == null || !mounted) return;
     _touch();
+    // Picking types again replaces `_lines` wholesale, so carry over any
+    // part number already typed for a line that's still selected.
+    final oldPartNumbers = {
+      for (final l in _lines) l.type.id: l.partNumber.text,
+    };
     setState(() {
       for (final l in _lines) {
         _disposeLater(l.amount);
+        _disposeLater(l.partNumber);
       }
       _lines
         ..clear()
         ..addAll([
           for (final (item, amount) in picked)
-            _TypeLine((id: item.id, name: item.name), amount),
+            _TypeLine(
+              (id: item.id, name: item.name),
+              amount,
+              oldPartNumbers[item.id],
+            ),
         ]);
     });
   }
@@ -284,6 +302,7 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
     _touch();
     setState(() => _lines.remove(line));
     _disposeLater(line.amount);
+    _disposeLater(line.partNumber);
   }
 
   /// The removed TextField still uses its controller until the next frame
@@ -367,7 +386,13 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
       }
       items = [
         for (final (i, l) in _lines.indexed)
-          EntryItemDraft(typeId: l.type.id, amount: amounts[i]!),
+          EntryItemDraft(
+            typeId: l.type.id,
+            amount: amounts[i]!,
+            partNumber: _kind == EntryKind.service
+                ? _textOrNull(l.partNumber)
+                : null,
+          ),
       ];
       discount = _parse(_discount.text) ?? 0;
       if (discount < 0 || discount > _linesTotal) {
@@ -594,24 +619,39 @@ class _EntryFormScreenState extends ConsumerState<EntryFormScreen> {
         FieldRow(
           key: ObjectKey(line),
           icon: i == 0 ? _module.icon : null,
-          child: InkWell(
-            key: Key('type-line-${line.type.name}'),
-            onTap: () => _askPrice(line),
-            child: Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Row(
-                children: [
-                  Expanded(child: Text(line.type.name)),
-                  _priceLabel(fmt, line),
-                  IconButton(
-                    tooltip: 'Remove',
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => _removeLine(line),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              InkWell(
+                key: Key('type-line-${line.type.name}'),
+                onTap: () => _askPrice(line),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      Expanded(child: Text(line.type.name)),
+                      _priceLabel(fmt, line),
+                      IconButton(
+                        tooltip: 'Remove',
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => _removeLine(line),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
-            ),
+              if (_kind == EntryKind.service)
+                TextField(
+                  key: Key('part-number-${line.type.name}'),
+                  controller: line.partNumber,
+                  decoration: const InputDecoration(
+                    labelText: 'Part number / brand',
+                    isDense: true,
+                  ),
+                  onChanged: (_) => _touch(),
+                ),
+            ],
           ),
         ),
       _addButton(_typeLabel, _pickTypes),

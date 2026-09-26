@@ -344,7 +344,13 @@ class _DetailBody extends StatelessWidget {
       _InfoCard(
         title: e.title?.trim().isNotEmpty == true ? e.title! : 'Items',
         rows: [
-          for (final i in record.items) (i.name, fmt.money(i.amount)),
+          for (final i in record.items)
+            (
+              i.partNumber == null || i.partNumber!.trim().isEmpty
+                  ? i.name
+                  : '${i.name} (${i.partNumber})',
+              fmt.money(i.amount),
+            ),
           if (e.discount != null && e.discount! > 0)
             ('Discount', fmt.money(e.discount!)),
           if (e.installmentCount > 1)
