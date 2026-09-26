@@ -58,11 +58,21 @@ Scope (owner decisions): Android + web, English only, no web hosting yet,
 no iOS (needs a Mac). Work through this list top to bottom; tick items here
 as they land. Code items may use helper agents (worktrees, rules in memory)
 if the cloud session "Extras, Import & Animations" hasn't done them.
-1. [ ] Sharing SQL: review then apply
-   `supabase/migrations/20260926000001_sharing.sql` in the Supabase SQL
-   editor via Claude in Chrome; run the checks in "Sharing batch" below.
-   (Sharing is merged on develop `2839e13`, 551 tests; never run on real
-   Postgres — fix errors on a branch if the editor reports any.)
+1. [x] Sharing SQL **applied 2026-09-26** (PC session via Chrome). Review
+   found a blocker: the `_insert` policies queried their own table, so
+   Postgres raised `42P17 infinite recursion detected in policy` on
+   **every** upload (owner included). Proven with a rolled-back dry run on
+   the real project, fixed (`public.sync_row_exists()` security definer
+   helper, `fix/sharing-sql-recursion`, merged), then a 13-step
+   rolled-back harness passed (owner upserts; simulated Driver: assigned
+   vehicle OK, other vehicle / soft delete / overwrite owner row / add
+   profile / call helpers / read `transfers` all denied; visibility and
+   `created_by` stamping correct). Applied; checks: 16 synced tables × 4
+   policies, 0 `_own`, 4 Storage policies, `transfers` RLS on + 0
+   policies, 4 internal helpers not executable, 14 RPCs authenticated
+   only, no public table without RLS. Tip: to test SQL safely, wrap it in
+   `begin; … ` and end with a `do` block that raises the results (forces
+   rollback, shows them in the error).
 2. [x] Cloud session merged `feature/extras-ui`, `feature/import-links`,
    `feature/animations` (2026-09-26, see "Extras, Import & Animations"
    below — hands-on QA list there).
@@ -83,7 +93,7 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
    `feature/part-number`, merged into `develop` after `feature/import-links`
    landed there.
    - **SQL to apply (PC session, Supabase SQL editor via Chrome):**
-     `supabase/migrations/20260927000001_part_number.sql` — **to apply**.
+     `supabase/migrations/20260927000001_part_number.sql` — **applied 2026-09-26** (column verified: `text`).
      Adds `part_number text` to `public.entry_items` (idempotent, no RLS
      change — existing entry_items policies already cover every column).
      Run after `20260926000001_sharing.sql`. Not verified on a real
@@ -199,7 +209,7 @@ Local schema **v6** (`created_by` on record tables, `access_profiles`,
 (34 new: `sharing_sync_test`, `transfer_test`, `sharing_model_test`,
 `sharing_screens_test`; the in-memory cloud mirrors the new RLS).
 - **SQL to apply (PC session, Supabase SQL editor via Chrome):**
-  `supabase/migrations/20260926000001_sharing.sql` — **to apply**. Run it
+  `supabase/migrations/20260926000001_sharing.sql` — **applied 2026-09-26** (see FINISH LINE 1). Ran it
   once after the three existing files (idempotent). It replaces the
   owner-only table + Storage policies with owner-or-`can_access()` ones;
   the owner's own access is unchanged. Then check: 17 tables × 4 policies
