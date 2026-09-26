@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -176,7 +177,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     const SizedBox(height: 16),
     Text(
       'Check your email — we sent a sign-in link to ${_email.text}. Open '
-      'it in this browser.',
+      'it in this ${kIsWeb ? 'browser' : 'device'}.',
       textAlign: TextAlign.center,
     ),
     AuthErrorText(_error),

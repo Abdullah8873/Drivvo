@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -95,7 +96,8 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     ),
     const SizedBox(height: 16),
     Text(
-      'Check your email for a reset link. Open it in this browser to '
+      'Check your email for a reset link. Open it in this '
+      '${kIsWeb ? 'browser' : 'device'} to '
       'choose a new password.',
       textAlign: TextAlign.center,
     ),
