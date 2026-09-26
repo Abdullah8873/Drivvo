@@ -376,6 +376,43 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 4. Row-level security: owner, or a member allowed by can_access()
 -- ---------------------------------------------------------------------------
+
+-- Whether row (p_owner, p_id) already exists in synced table p_table,
+-- whoever can see it. The insert policies below need this, and it must be a
+-- function: a policy that queries its own table directly makes Postgres
+-- expand that table's policies again inside it and fail with "infinite
+-- recursion detected in policy" (42P17) on every insert — found by a
+-- rolled-back dry run on the real project before this file was applied.
+create or replace function public.sync_row_exists(
+  p_table text,
+  p_owner uuid,
+  p_id text
+)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_found boolean;
+begin
+  if p_table not in (
+    'vehicles', 'catalog_items', 'refuelings', 'refueling_fuels', 'entries',
+    'entry_items', 'routes', 'readings', 'reminders', 'checklist_forms',
+    'checklist_form_items', 'checklists', 'checklist_answers', 'attachments',
+    'access_profiles', 'account_members'
+  ) then
+    return false;
+  end if;
+  execute format(
+    'select exists (select 1 from public.%I where owner_id = $1 and id = $2)',
+    p_table)
+    into v_found
+    using p_owner, p_id;
+  return v_found;
+end;
+$$;
 --
 -- Per table: a "view" expression and a "write" template ({a} = the
 -- action). select = view; insert = register; update = view the old row,
@@ -478,10 +515,9 @@ begin
     -- here: the update policy then requires Edit (or Delete).
     execute format(
       'create policy %I on public.%I for insert to authenticated '
-      'with check (owner_id = (select auth.uid()) or case when exists '
-      '(select 1 from public.%I x where x.owner_id = %I.owner_id '
-      'and x.id = %I.id) then %s else %s end)',
-      r.tbl || '_insert', r.tbl, r.tbl, r.tbl, r.tbl, r.view_expr, v_insert);
+      'with check (owner_id = (select auth.uid()) or case when '
+      'public.sync_row_exists(%L, owner_id, id) then %s else %s end)',
+      r.tbl || '_insert', r.tbl, r.tbl, r.view_expr, v_insert);
     execute format(
       'create policy %I on public.%I for update to authenticated '
       'using (owner_id = (select auth.uid()) or %s) '
@@ -1051,6 +1087,8 @@ begin
   foreach f in array array[
     'public.can_access(uuid, text, text, text, uuid)',
     'public.can_access_parent(uuid, text, text, text)',
+    -- Evaluated as the client inside the insert policies, so executable.
+    'public.sync_row_exists(text, uuid, text)',
     'public.my_invitations()',
     'public.accept_invitation(uuid, text)',
     'public.decline_invitation(uuid, text)',
