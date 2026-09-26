@@ -9,11 +9,12 @@ import 'package:flutter/material.dart';
 /// (`MediaQuery.disableAnimations`, ≈ `prefers-reduced-motion`) turns all
 /// of them off.
 abstract final class Motion {
-  /// Small UI changes: tab fade, FAB icon, speed dial.
-  static const short = Duration(milliseconds: 200);
+  /// Small UI changes: tab fade, FAB icon, speed dial. Kept short: Drivvo
+  /// shows these instantly (compared in BlueStacks), so ours only soften.
+  static const short = Duration(milliseconds: 150);
 
   /// Screens and cards entering.
-  static const medium = Duration(milliseconds: 280);
+  static const medium = Duration(milliseconds: 250);
 
   /// Standard "decelerate into place" curve.
   static const curve = Curves.easeOutCubic;
