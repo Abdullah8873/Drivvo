@@ -1,6 +1,6 @@
 # MotoLog — current status / session handoff
 
-_Last updated: 2026-09-26. **Cloud session? Read docs/CLOUD-SESSION.md
+_Last updated: 2026-09-26 — **v1.0.0 released** (see FINISH LINE). **Cloud session? Read docs/CLOUD-SESSION.md
 first.** Read this first when starting a new
 session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
 
@@ -98,13 +98,45 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
      change — existing entry_items policies already cover every column).
      Run after `20260926000001_sharing.sql`. Not verified on a real
      Postgres.
-5. [ ] New release APK with sync: `flutter build apk --release
-   --split-per-abi --dart-define-from-file=env/cloud.json`; send
-   `app-arm64-v8a-release.apk` to the owner (SendUserFile); emulator
-   `motolog_api36` smoke test (close other heavy apps first).
-6. [ ] Hands-on QA: Sharing checklist (needs owner's 2nd test account),
-   dark theme, one live sync, email link on Android, animations vs Drivvo
-   (BlueStacks, view only) — fix what's found.
+5. [x] Release APK with sync — **1.0.0 build 3** (`versionCode` 2003 on
+   arm64) sent to the owner; smoke-tested on `motolog_api36` (vehicle,
+   service with part number, detail, Reports share image + PDF, About,
+   Contact, sheets). Build 2 went out earlier the same day; build 3 adds
+   the QA fixes below and installs over it.
+6. [x] Hands-on QA (2026-09-26) — found and fixed (branch
+   `fix/qa-release`, merged):
+   - **Transfer never worked:** `transfer_copy()` put its boolean into
+     the SQL with `format('%s')` → `column "f" does not exist` on every
+     redeem. Fixed + `20260926000002_transfer_copy_fix.sql` **applied**;
+     rolled-back live harness with both real accounts passes (buyer gets
+     vehicle/records/items/catalog; own/used/unknown/cancelled codes
+     rejected).
+   - Web DB recorded as v7 without `part_number`/`created_by` (History:
+     "no such column") in the Claude browser pane after stale builds →
+     `addMissingColumns()` now runs in `beforeOpen` (self-heal) + tests.
+     The owner's Chrome DB was fine. Root cause not pinned down; the pane
+     DB was wiped. Watch for it if web is ever deployed.
+   - Bottom sheets (Reports share, Contact) opened under the bottom bar →
+     root navigator. App label "motolog" → "MotoLog" (Android/iOS/
+     Windows). "Open it in this browser" → "on this device" off the web.
+     Unknown web URL → themed "Page not found" (was go_router's raw page).
+   - Animations vs Drivvo (BlueStacks): Drivvo's speed dial and tab
+     switches are instant, so `Motion.short` 200 → 150 ms and
+     `Motion.medium` 280 → 250 ms.
+   - Verified OK: sharing steps 1–5 (invite as Driver → banner → accept →
+     owner's account with only own records, pick lists, no Reports, More
+     hides admin rows, member refueling syncs with `created_by` = member
+     and the owner sees it; Driver → Manager brings in all records;
+     Account switcher + Leave shown); live sync with part number; Android
+     deep link (`login-callback` error callback opens the app and shows
+     the expired-link message; Supabase issues links with the Android
+     redirect); web persistent-storage request (Chrome decides:
+     `persisted()` false on localhost, as expected).
+   - Not done hands-on (owner can, optional): sharing steps 6 (custom
+     profile), 3 (denied write via another route); photo attachment by a
+     member; Transfer through the UI (SQL path verified); real email link
+     opened from the phone's mail app; dark theme on the sharing screens
+     (covered by `test/dark_theme_test.dart`).
 7. [x] **CI part (cloud session #3): done.** Re-enabled CI — moved
    `.github/workflows-disabled/*` to `.github/workflows/`, added
    `--timeout 45s` to the test step (perf tests already skip by default via
@@ -112,10 +144,21 @@ if the cloud session "Extras, Import & Animations" hasn't done them.
    [#1](https://github.com/Abdullah8873/Drivvo/pull/1) merged into
    `develop` at `b76f98e`, all 3 jobs green (format/analyze/test, build
    web, build debug APK).
-   [ ] Remaining (PC session): bump version to 1.0.0, merge `develop` →
-   `main`, tag `v1.0.0`, push.
-8. [ ] Final STATUS.md: done / owner-only leftovers (Google sign-in setup,
-   Play Store signing key, iOS later, web hosting later).
+   [x] PC session: version 1.0.0+3, `develop` merged into `main`, tagged
+   `v1.0.0`, pushed (2026-09-26).
+8. [x] **MotoLog 1.0.0 is released** (Android + web, English). 598 tests.
+   Owner-only leftovers:
+   - Google sign-in: `docs/SETUP-CLOUD.md` steps 4 (web) and 5 (Android).
+   - Play Store: create an upload/signing key (release APKs are signed
+     with the debug key today — fine for sideloading, not for the Store).
+   - Web hosting (COOP/COEP notes in `web/index.html`), then add the
+     hosted URL to Supabase → Auth → Redirect URLs and Site URL.
+   - iOS: needs a Mac (Xcode) — code already supports it.
+   - Optional QA listed under item 6; password-reset and delete-account
+     live tests (see Next 1).
+   - Test data in Supabase: the owner's account has a "honda" vehicle with
+     a QA Battery service + a refueling made by the test member
+     (abdullahworks337, currently Manager) — delete or keep as you like.
 
 ## HANDOFF 2026-09-26 evening (PC session hit 88% of the 5-hour limit)
 Owner wants the app complete today (Android + web features; English only;
