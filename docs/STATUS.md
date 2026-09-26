@@ -104,6 +104,8 @@ session, then CLAUDE.md, docs/PLAN.md and docs/SPEC.md._
   launcher icon). The emulator is **not signed in** (Claude can't enter
   the owner's password), so its upload path was tested on web instead.
   624 tests pass; format/analyze clean.
+- **Released:** `main` merged + tagged `v1.0.1` (CI green on develop first). The release workflow skips the APK without a keystore secret, so the GitHub release [v1.0.1](https://github.com/Abdullah8873/Drivvo/releases/tag/v1.0.1) was created by hand with the PC-built `MotoLog-1.0.1-arm64.apk` (same debug-key signature as 1.0.0, so it installs over it). Remote Control can't deliver files this big (30 s upload timeout).
+- A personal skill **app-builder** (`~/.claude/skills/app-builder`) now captures how this project was built, for the next app.
 - Owner questions answered: password change = Sign in → "Forgot
   password?" (emailed link → Set new password); no in-app "Change
   password" row yet. New records already default to the current time.
