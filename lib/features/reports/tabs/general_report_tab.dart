@@ -158,7 +158,7 @@ class GeneralReportTab extends StatelessWidget {
                   LinePoint.date(p.date, p.odometer, color: p.module.color),
               ],
               formatX: (x) => fmt.date(LinePoint.xToDate(x)),
-              formatAxisX: (x) => fmt.shortDate(LinePoint.xToDate(x)),
+              dateAxis: true,
               formatY: (y) => fmt.distance(y, unit),
               legend: [
                 for (final m in RecordModule.values)

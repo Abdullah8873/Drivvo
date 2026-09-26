@@ -36,6 +36,15 @@ class InMemorySharingServer {
   final transfers =
       <String, ({String ownerId, TransferInfo info, String? redeemedBy})>{};
 
+  /// user id → times of their failed redeems (unknown code), like the
+  /// server's `transfer_attempts` table: after
+  /// [maxFailedRedeemsPerHour] in an hour, redeeming is refused.
+  final failedRedeems = <String, List<DateTime>>{};
+
+  /// Mirrors `redeem_transfer()` in
+  /// `supabase/migrations/20260928000001_security_hardening.sql`.
+  static const maxFailedRedeemsPerHour = 10;
+
   /// Throw from it to simulate a network error on any call.
   void Function(String fn)? beforeCall;
 
@@ -238,7 +247,17 @@ class _InMemorySharingApi implements SharingApi {
   Future<RedeemedTransfer> redeemTransfer(String code) async {
     _enter('redeem_transfer');
     final key = TransferCode.normalize(code);
-    final t = server.transfers[key] ?? _fail('transfer_not_found');
+    final hourAgo = server._clock().subtract(const Duration(hours: 1));
+    final failed = server.failedRedeems.putIfAbsent(uid, () => [])
+      ..removeWhere((t) => t.isBefore(hourAgo));
+    if (failed.length >= InMemorySharingServer.maxFailedRedeemsPerHour) {
+      _fail('transfer_rate_limited');
+    }
+    final t = server.transfers[key];
+    if (t == null) {
+      failed.add(server._clock());
+      _fail('transfer_not_found');
+    }
     final seller = t.ownerId;
     final v = t.info.vehicleId;
     if (seller == uid) _fail('transfer_own');

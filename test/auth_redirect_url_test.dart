@@ -48,4 +48,46 @@ void main() {
       }
     });
   });
+
+  group('isPkceAuthCallback', () {
+    bool check(String link) => isPkceAuthCallback(Uri.parse(link));
+
+    test('PKCE code and error callbacks are handled', () {
+      expect(
+        check('com.abdullah8873.motolog://login-callback?code=abc'),
+        isTrue,
+      );
+      expect(check('http://localhost:8085/?code=abc'), isTrue);
+      expect(
+        check(
+          'com.abdullah8873.motolog://login-callback'
+          '#error=access_denied&error_code=otp_expired',
+        ),
+        isTrue,
+      );
+      expect(check('http://localhost:8085/?error_description=Expired'), isTrue);
+    });
+
+    test("token links are refused (they'd be someone else's session)", () {
+      expect(
+        check(
+          'com.abdullah8873.motolog://login-callback'
+          '#access_token=x&refresh_token=y&expires_in=3600&token_type=bearer',
+        ),
+        isFalse,
+      );
+      expect(
+        check('http://localhost:8085/?access_token=x&refresh_token=y'),
+        isFalse,
+      );
+      // Even next to a code: nothing token-shaped gets in.
+      expect(check('http://localhost:8085/?code=a#access_token=x'), isFalse);
+    });
+
+    test('ordinary links and malformed ones are ignored', () {
+      expect(check('com.abdullah8873.motolog://login-callback'), isFalse);
+      expect(check('http://localhost:8085/history?tab=1'), isFalse);
+      expect(check('http://localhost:8085/?code=%E0%A4%A'), isFalse);
+    });
+  });
 }

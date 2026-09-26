@@ -245,6 +245,12 @@ class SyncController extends Notifier<SyncStatus> {
 
   static String _describe(Object e) {
     final text = e.toString();
+    // Limits from supabase/migrations/20260928000001_security_hardening.sql.
+    if (text.contains('motolog:quota_exceeded')) return cloudFullMessage;
+    if (text.contains('motolog:row_too_large')) {
+      return 'A record is too large to upload (usually a very long note). '
+          'Shorten it, then sync again.';
+    }
     return text.startsWith('Exception: ') ? text.substring(11) : text;
   }
 

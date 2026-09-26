@@ -28,6 +28,18 @@ Future<void> runCsvImport(BuildContext context, WidgetRef ref) async {
   final currentVehicleId = ref.read(currentVehicleProvider).value?.id;
   final Uint8List bytes;
   try {
+    final size = picked.lengthSync() ?? await picked.length();
+    if (size != null && size > maxImportFileBytes) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This file is too large to import (a MotoLog export is a few MB '
+            'at most).',
+          ),
+        ),
+      );
+      return;
+    }
     bytes = await picked.readAsBytes();
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('Could not read file: $e')));

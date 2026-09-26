@@ -1,0 +1,20 @@
+# App icon for every platform, generated from assets/icon/ (sources: the
+# .svg files next to the PNGs, rendered at 1024 px). Regenerate with:
+#   dart run flutter_launcher_icons
+flutter_launcher_icons:
+  image_path: "assets/icon/icon.png"
+  android: true
+  adaptive_icon_background: "#0B97A5"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+  min_sdk_android: 24
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/icon/icon.png"
+    background_color: "#0B97A5"
+    theme_color: "#0B97A5"
+  windows:
+    generate: true
+    image_path: "assets/icon/icon.png"
+    icon_size: 256
