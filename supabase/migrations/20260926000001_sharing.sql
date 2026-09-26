@@ -827,10 +827,12 @@ begin
     'select c.* from public.%1$I s '
     'cross join lateral jsonb_populate_record(null::public.%1$I, '
     '  to_jsonb(s) || jsonb_build_object(''owner_id'', $2::uuid)) c '
-    'where s.owner_id = $1 and (%2$s) and (%3$s or s.deleted_at is null) '
+    'where s.owner_id = $1 and (%2$s) and ($3 or s.deleted_at is null) '
     'on conflict (owner_id, id) do nothing',
-    p_table, p_where, p_include_deleted)
-  using p_from, p_to;
+    p_table, p_where)
+  -- The flag is a bound parameter: format('%s') renders false as the bare
+  -- word f ("column f does not exist" — found in live QA 2026-09-26).
+  using p_from, p_to, p_include_deleted;
 end;
 $$;
 
