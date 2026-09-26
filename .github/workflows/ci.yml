@@ -7,6 +7,12 @@ on:
   push:
     branches: [develop, main]
 
+# Read-only token: CI only checks out and builds. Runs on `pull_request`
+# (never `pull_request_target`), so a fork's PR gets no secrets and no
+# write access.
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true

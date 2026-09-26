@@ -54,7 +54,9 @@ Browser QA, BlueStacks/Drivvo checks, Supabase dashboard and Android
 builds stay with the owner's PC session, which can run at the same time:
 push a branch per chunk and list in STATUS.md what needs hands-on QA.
 
-What a cloud session **can** do: write code + tests, merge, push, build web
+What a cloud session **can** do: write code + tests, merge, push, test SQL
+on a throwaway local Postgres (`bash tool/sql_test.sh`, see
+`docs/SECURITY.md`), build web
 (`flutter build web --release`, `--wasm`), run the benchmark
 (`flutter test --run-skipped -t perf test/perf -r expanded > perf.txt`).
 

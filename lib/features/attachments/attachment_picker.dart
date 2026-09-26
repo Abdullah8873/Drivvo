@@ -3,7 +3,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../core/sync/remote_file_store.dart';
 import 'attachment_queries.dart';
+
+/// Thrown by an [AttachmentPicker] when the picked file is bigger than
+/// [RemoteFileStore.maxBytes] — checked from the file's size before its
+/// bytes are read, so a huge PDF never has to fit in memory.
+class AttachmentTooLargeException implements Exception {
+  const AttachmentTooLargeException();
+}
 
 /// Where attachments come from: the camera, the photo gallery or a PDF
 /// file. Behind an interface (like [FileSharer]) so forms can be
@@ -64,6 +72,10 @@ class DeviceAttachmentPicker implements AttachmentPicker {
       allowedExtensions: ['pdf'],
     );
     if (file == null) return null;
+    final size = file.lengthSync() ?? await file.length();
+    if (size != null && size > RemoteFileStore.maxBytes) {
+      throw const AttachmentTooLargeException();
+    }
     return PendingAttachment(
       fileName: file.name,
       mimeType: 'application/pdf',

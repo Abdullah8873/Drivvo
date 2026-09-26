@@ -12,11 +12,42 @@ import 'export_rows.dart';
 /// hands `Blob(['﻿', csvText])` to `<a download>`.
 final _csvCodec = csv.Csv(addBom: true);
 
+/// Cells a spreadsheet would treat as a formula when the CSV is opened:
+/// starting with `=`, `+`, `-`, `@`, a tab or a carriage return (after any
+/// number of `'`, so escaping stays reversible).
+final _formulaStart = RegExp(r"^'*[=+\-@\t\r]");
+
+/// A number exactly as `num.toString()` writes it (`-12.5`, `1e-7`), which
+/// is safe to leave alone even though it may start with `-`.
+final _plainNumber = RegExp(r'^-?\d+(\.\d+)?([eE][+-]?\d+)?$');
+
+/// [cell] made safe for a spreadsheet ("CSV/formula injection"): text a
+/// user typed — a note, a place name, a shared member's record — that
+/// starts like a formula (`=HYPERLINK("http://evil…")`, `@SUM(…)`,
+/// `=cmd|…`) gets a leading `'`, which Excel/LibreOffice/Sheets show as
+/// text instead of running it. Plain numbers are left as they are.
+/// [csvUnescapeCell] undoes it exactly when MotoLog imports the file.
+String csvSafeCell(String cell) =>
+    _formulaStart.hasMatch(cell) && !_plainNumber.hasMatch(cell)
+    ? "'$cell"
+    : cell;
+
+/// Reverses [csvSafeCell] (one leading `'` before a formula character).
+String csvUnescapeCell(String cell) =>
+    cell.startsWith("'") && _formulaStart.hasMatch(cell)
+    ? cell.substring(1)
+    : cell;
+
 /// One [section] as CSV bytes (UTF-8 with a BOM). Commas, quotes and
 /// newlines inside a cell (e.g. multi-line notes) are escaped by the `csv`
-/// package the same way a spreadsheet app expects.
+/// package the same way a spreadsheet app expects, and formula-like cells
+/// by [csvSafeCell]. (The Excel export needs neither: its cells are typed
+/// as text, which spreadsheets never evaluate.)
 Uint8List sectionToCsvBytes(ExportSection section) {
-  final text = _csvCodec.encode([section.headers, ...section.rows]);
+  final text = _csvCodec.encode([
+    section.headers,
+    for (final row in section.rows) [for (final cell in row) csvSafeCell(cell)],
+  ]);
   return Uint8List.fromList(utf8.encode(text));
 }
 

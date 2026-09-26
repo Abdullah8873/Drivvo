@@ -202,4 +202,31 @@ void main() {
       contains('cloud yet'),
     );
   });
+
+  test('unknown codes are rate limited per buyer for an hour', () async {
+    final buyerApi = server.api(buyer);
+    Future<String> error(Future<Object?> call) async {
+      try {
+        await call;
+      } on SharingException catch (e) {
+        return e.message;
+      }
+      fail('no error');
+    }
+
+    for (var i = 0; i < InMemorySharingServer.maxFailedRedeemsPerHour; i++) {
+      expect(
+        await error(buyerApi.redeemTransfer('ZZZZ-ZZZ$i')),
+        contains('No transfer'),
+      );
+    }
+    final real = await server.api(seller).createTransfer(car);
+    expect(
+      await error(buyerApi.redeemTransfer(real.code)),
+      contains('Too many tries'),
+    );
+    now = now.add(const Duration(minutes: 61));
+    final got = await buyerApi.redeemTransfer(real.code);
+    expect(got.vehicleId, car);
+  });
 }

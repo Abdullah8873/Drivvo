@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,12 @@ import '../../core/sync/sync_controller.dart';
 import '../sharing/account_switcher.dart';
 import 'account_widgets.dart';
 import 'auth_service.dart';
+
+/// Field lengths the server accepts (`profiles_field_lengths` in
+/// `supabase/migrations/20260928000001_security_hardening.sql`): your name
+/// is shown to the people you invite, so it stays a name.
+const _nameMax = 100;
+const _licenseMax = 50;
 
 /// More → My account. Cloud login is optional (see CLAUDE.md): offline
 /// users never need this screen. Branches like a React page reading
@@ -298,6 +305,7 @@ class _SignedInViewState extends ConsumerState<_SignedInView> {
         const AccountSwitcherTile(),
         TextFormField(
           controller: _firstName,
+          inputFormatters: [LengthLimitingTextInputFormatter(_nameMax)],
           decoration: const InputDecoration(
             labelText: 'First name',
             prefixIcon: Icon(Icons.badge_outlined),
@@ -306,6 +314,7 @@ class _SignedInViewState extends ConsumerState<_SignedInView> {
         const SizedBox(height: 12),
         TextFormField(
           controller: _lastName,
+          inputFormatters: [LengthLimitingTextInputFormatter(_nameMax)],
           decoration: const InputDecoration(
             labelText: 'Last name',
             prefixIcon: Icon(Icons.badge_outlined),
@@ -323,6 +332,7 @@ class _SignedInViewState extends ConsumerState<_SignedInView> {
         const SizedBox(height: 12),
         TextFormField(
           controller: _licenseNumber,
+          inputFormatters: [LengthLimitingTextInputFormatter(_licenseMax)],
           decoration: const InputDecoration(
             labelText: "Driver's license number",
             prefixIcon: Icon(Icons.credit_card),
@@ -331,6 +341,7 @@ class _SignedInViewState extends ConsumerState<_SignedInView> {
         const SizedBox(height: 12),
         TextFormField(
           controller: _licenseCategory,
+          inputFormatters: [LengthLimitingTextInputFormatter(_licenseMax)],
           decoration: const InputDecoration(
             labelText: 'License category',
             prefixIcon: Icon(Icons.category_outlined),

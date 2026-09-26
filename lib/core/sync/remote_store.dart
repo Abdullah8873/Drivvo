@@ -58,6 +58,13 @@ class RemoteCursor {
   String toString() => 'RemoteCursor($serverUpdatedAt, $id)';
 }
 
+/// Shown when the server refuses more data for an account
+/// (`motolog:quota_exceeded`: 25 MB of records, see
+/// `supabase/migrations/20260928000001_security_hardening.sql`).
+const cloudFullMessage =
+    'Your cloud space is full. Delete records you no longer need, then '
+    'sync again.';
+
 /// Thrown by [RemoteStore.push] when the server's row-level security
 /// refused the batch — only possible in a shared account, where a member
 /// uploaded something their profile doesn't allow (Postgres error 42501).

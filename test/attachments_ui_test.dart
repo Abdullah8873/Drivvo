@@ -70,10 +70,12 @@ void main() {
     child: const MotoLogApp(),
   );
 
+  /// A "PDF" of [size] bytes that starts like a real one (`%PDF-`), so it
+  /// passes the content check.
   PendingAttachment pdf(String name, int size) => PendingAttachment(
     fileName: name,
     mimeType: 'application/pdf',
-    bytes: Uint8List(size),
+    bytes: Uint8List(size)..setAll(0, '%PDF-1.7'.codeUnits),
   );
 
   Future<void> attach(WidgetTester tester, PendingAttachment file) async {
@@ -98,10 +100,28 @@ void main() {
     // Too big: rejected with a message.
     await attach(tester, pdf('huge.pdf', RemoteFileStore.maxBytes + 1));
     expect(
-      find.text("Files larger than 10 MB can't be attached."),
+      find.text("Files larger than 3 MB can't be attached."),
       findsOneWidget,
     );
     expect(find.text('huge.pdf'), findsNothing);
+
+    // Named .pdf but not a PDF (or a photo) inside: rejected.
+    await attach(
+      tester,
+      PendingAttachment(
+        fileName: 'invoice.pdf',
+        mimeType: 'application/pdf',
+        bytes: Uint8List.fromList('<html><script>'.codeUnits),
+      ),
+    );
+    expect(
+      find.text(
+        'Only photos (JPEG, PNG, GIF, WebP, HEIC) and PDF files can be '
+        'attached.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('invoice.pdf'), findsNothing);
 
     await attach(tester, pdf('bill.pdf', 2048));
     expect(find.text('bill.pdf'), findsOneWidget);

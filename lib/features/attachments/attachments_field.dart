@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/db/app_database.dart';
+import '../../core/files/file_type_sniffer.dart';
 import '../../core/providers.dart';
 import '../../core/sync/remote_file_store.dart';
 import 'attachment_picker.dart';
@@ -125,18 +126,41 @@ class AttachmentsField extends ConsumerWidget {
         _Source.gallery => picker.pickImage(),
         _Source.pdf => picker.pickPdf(),
       };
+    } on AttachmentTooLargeException {
+      if (context.mounted) _snack(context, _tooLarge);
+      return;
     } catch (_) {
       if (context.mounted) _snack(context, "Couldn't open the file.");
       return;
     }
     if (file == null || !context.mounted) return;
     if (file.bytes.length > RemoteFileStore.maxBytes) {
-      _snack(context, 'Files larger than 10 MB can\'t be attached.');
+      _snack(context, _tooLarge);
       return;
     }
-    controller.add(file);
+    // The content decides the type, not the file name: anything that isn't
+    // really a photo or a PDF is refused (the bucket only takes those).
+    final mimeType = sniffAttachmentMimeType(file.bytes);
+    if (mimeType == null) {
+      _snack(
+        context,
+        'Only photos (JPEG, PNG, GIF, WebP, HEIC) and PDF files can be '
+        'attached.',
+      );
+      return;
+    }
+    controller.add(
+      PendingAttachment(
+        fileName: file.fileName,
+        mimeType: mimeType,
+        bytes: file.bytes,
+      ),
+    );
     onChanged();
   }
+
+  static String get _tooLarge =>
+      "Files larger than ${RemoteFileStore.maxSizeLabel} can't be attached.";
 
   static void _snack(BuildContext context, String message) {
     ScaffoldMessenger.of(context)

@@ -57,6 +57,12 @@ class BackupFormat {
   /// migration (see the compatibility rule in the file doc comment).
   static const currentFormat = 1;
 
+  /// Largest backup file the restore reads (it holds the whole file, plus
+  /// the decoded JSON, in memory). Far above a real backup — attachments
+  /// are at most a few MB each — but it stops a wrong pick from exhausting
+  /// the phone's memory.
+  static const maxFileBytes = 200 * 1024 * 1024;
+
   static const tableVehicles = 'vehicles';
   static const tableCatalogItems = 'catalog_items';
   static const tableRefuelings = 'refuelings';
