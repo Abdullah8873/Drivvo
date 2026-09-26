@@ -1,5 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+
+import '../../../core/calc/date_axis.dart';
 
 import 'chart_style.dart';
 
@@ -44,9 +48,14 @@ class LineSeries {
 /// One line: pass [points]. Several independent lines (one per fuel, so
 /// the chart never zig-zags between fuels): pass [series] instead.
 ///
+/// Date x axes ([dateAxis]) get calendar-aligned ticks from
+/// [DateAxisTicks] (month starts "2025-06", or days for short ranges)
+/// instead of evenly spaced ones that match no record.
+///
 /// ```dart
 /// LineChartCard(
 ///   points: [for (final p in pts) LinePoint.date(p.date, p.odometer)],
+///   dateAxis: true,
 ///   color: RecordModule.refueling.color,
 ///   formatX: (x) => fmt.date(LinePoint.xToDate(x)),
 ///   formatY: (y) => fmt.distance(y, unit),
@@ -63,6 +72,7 @@ class LineChartCard extends StatelessWidget {
     required this.formatX,
     required this.formatY,
     this.formatAxisX,
+    this.dateAxis = false,
     this.average,
     this.averageLabel = 'Average',
     this.legend = const [],
@@ -86,6 +96,10 @@ class LineChartCard extends StatelessWidget {
   /// like `MM/yy` for dates).
   final String Function(double x)? formatAxisX;
 
+  /// The x values are dates ([LinePoint.date]): label the axis with
+  /// calendar-aligned ticks ([DateAxisTicks]); [formatAxisX] is unused.
+  final bool dateAxis;
+
   /// Y value of the dashed reference line, if any (labelled with
   /// [formatY]).
   final double? average;
@@ -99,6 +113,19 @@ class LineChartCard extends StatelessWidget {
   /// Minimum room (px) kept between the plot edges and an inner x label,
   /// so the edge labels never collide with their neighbours.
   static const _edgeLabelGap = 40.0;
+
+  /// Width of the y-axis label band left of the plot.
+  static const _leftAxis = 44.0;
+
+  /// Height of the x-axis label band under the plot.
+  static const _bottomAxis = 24.0;
+
+  /// Room one date label gets ("2025-06-11" at 10 px is ~56 px wide).
+  static const _dateLabelSlot = 72.0;
+
+  /// Tick spacing needed per label kind, so labels never touch.
+  static const _monthTickSpacing = 60.0;
+  static const _dayTickSpacing = 78.0;
 
   /// True when [min]..[max] is only floating-point noise (prices computed as
   /// cost / volume give 293.03 and 293.03000000000003). Treating such a range
@@ -143,7 +170,17 @@ class LineChartCard extends StatelessWidget {
     final xInterval = (maxX - minX) / 3;
     final axisX = formatAxisX ?? formatX;
 
-    Widget chart(double plotWidth) => LineChart(
+    double toPx(double x, double plotWidth) =>
+        (x - minX) / (maxX - minX) * plotWidth;
+
+    DateAxisTicks dateTicks(double plotWidth) => DateAxisTicks.compute(
+      LinePoint.xToDate(minX),
+      LinePoint.xToDate(maxX),
+      maxMonthTicks: (plotWidth / _monthTickSpacing).floor(),
+      maxDayTicks: (plotWidth / _dayTickSpacing).floor(),
+    );
+
+    Widget chart(double plotWidth, DateAxisTicks? ticks) => LineChart(
       LineChartData(
         minX: minX,
         maxX: maxX,
@@ -168,25 +205,32 @@ class LineChartCard extends StatelessWidget {
               ),
             ),
         ],
-        extraLinesData: average == null
-            ? null
-            : ExtraLinesData(
-                horizontalLines: [
-                  HorizontalLine(
-                    y: average!,
-                    color: style.neutral,
-                    strokeWidth: 1,
-                    dashArray: const [6, 4],
-                    label: HorizontalLineLabel(
-                      show: true,
-                      alignment: Alignment.topRight,
-                      style: style.axis,
-                      labelResolver: (line) =>
-                          '$averageLabel: ${formatY(line.y)}',
-                    ),
-                  ),
-                ],
+        extraLinesData: ExtraLinesData(
+          // Faint guides at the date ticks, so each label reads as a line.
+          verticalLines: [
+            for (final d in ticks?.ticks ?? const <DateTime>[])
+              VerticalLine(
+                x: LinePoint.dateToX(d),
+                color: style.grid,
+                strokeWidth: 1,
               ),
+          ],
+          horizontalLines: [
+            if (average != null)
+              HorizontalLine(
+                y: average!,
+                color: style.neutral,
+                strokeWidth: 1,
+                dashArray: const [6, 4],
+                label: HorizontalLineLabel(
+                  show: true,
+                  alignment: Alignment.topRight,
+                  style: style.axis,
+                  labelResolver: (line) => '$averageLabel: ${formatY(line.y)}',
+                ),
+              ),
+          ],
+        ),
         gridData: FlGridData(
           drawVerticalLine: false,
           horizontalInterval: yInterval,
@@ -202,7 +246,7 @@ class LineChartCard extends StatelessWidget {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 44,
+              reservedSize: _leftAxis,
               minIncluded: false,
               maxIncluded: false,
               interval: yInterval,
@@ -215,17 +259,18 @@ class LineChartCard extends StatelessWidget {
               ),
             ),
           ),
+          // Date axes draw their own labels under the chart (see below).
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 24,
+              showTitles: ticks == null,
+              reservedSize: _bottomAxis,
               // The forced min/max labels land right next to the first /
               // last interval label and overlap it; inner labels only.
               minIncluded: false,
               maxIncluded: false,
               interval: xInterval > 0 ? xInterval : null,
               getTitlesWidget: (value, meta) {
-                final px = (value - minX) / (maxX - minX) * plotWidth;
+                final px = toPx(value, plotWidth);
                 if (px < _edgeLabelGap || px > plotWidth - _edgeLabelGap) {
                   return const SizedBox();
                 }
@@ -282,8 +327,53 @@ class LineChartCard extends StatelessWidget {
             padding: const EdgeInsets.only(right: 12),
             child: LayoutBuilder(
               // Plot width = card width minus the reserved y-axis band.
-              builder: (context, constraints) =>
-                  chart(constraints.maxWidth - 44),
+              builder: (context, constraints) {
+                final plotWidth = constraints.maxWidth - _leftAxis;
+                if (!dateAxis) return chart(plotWidth, null);
+                final ticks = dateTicks(plotWidth);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: chart(plotWidth, ticks)),
+                    SizedBox(
+                      height: _bottomAxis,
+                      child: Stack(
+                        children: [
+                          for (final d in ticks.ticks)
+                            Positioned(
+                              // Centered on its tick, kept inside the card.
+                              left:
+                                  (_leftAxis +
+                                          toPx(
+                                            LinePoint.dateToX(d),
+                                            plotWidth,
+                                          ) -
+                                          _dateLabelSlot / 2)
+                                      .clamp(
+                                        0.0,
+                                        math.max(
+                                          0.0,
+                                          constraints.maxWidth - _dateLabelSlot,
+                                        ),
+                                      ),
+                              top: 6,
+                              width: _dateLabelSlot,
+                              child: Align(
+                                alignment: Alignment.topCenter,
+                                child: Text(
+                                  ticks.label(d),
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: style.axis,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),

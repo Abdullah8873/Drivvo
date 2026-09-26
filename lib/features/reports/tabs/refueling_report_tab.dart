@@ -282,7 +282,7 @@ class RefuelingReportTab extends StatelessWidget {
                     ),
               ],
               formatX: (x) => fmt.date(LinePoint.xToDate(x)),
-              formatAxisX: (x) => fmt.shortDate(LinePoint.xToDate(x)),
+              dateAxis: true,
               formatY: (y) => pricePerUnit(y, tank1Kind) ?? StatCard.dash,
               average: report.primaryPricePerUnit,
               averageLabel: 'Fuel price',
