@@ -65,6 +65,9 @@ jobs:
 
   web:
     name: Deploy web to GitHub Pages
+    # Opt-in until web hosting is set up: Settings → Pages → Source "GitHub
+    # Actions", then Settings → Variables → DEPLOY_PAGES = true.
+    if: vars.DEPLOY_PAGES == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
